@@ -1,0 +1,28 @@
+[package]
+name = "fp-core"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.3.1"
+async-trait = "0.1.68"
+dotenv = "0.15.0"
+http = "0.2.9"
+hyper = "0.14.26"
+hyper-rustls = "0.24.0"
+jsonwebtoken = "8.3.0"
+octocrab = "0.25.1"
+serde = { version =  "1.0.164", features = ["derive", "std",
+"serde_derive", "alloc", "rc"] } 
+tokio = { version = "1.29.1", features = ["full"] }
+env_logger = "0.10.0"
+markdown = "1.0.0-alpha.9"
+itertools = "0.10.5"
+serde_json = "1.0.96"
+chrono = "0.4.26"
+base64 = "0.13"
+structopt = { version = "0.3", default-features = false }
+actix-cors = "0.6.4"
+reqwest = "0.11.18"

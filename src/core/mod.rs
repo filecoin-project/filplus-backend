@@ -1,0 +1,1245 @@
+pub mod application;
+use std::{
+    fmt::Display,
+    pin::Pin,
+    task::{Context, Poll},
+};
+
+use actix_web::{
+    body::{BodySize, MessageBody},
+    web::Bytes,
+};
+use chrono::Utc;
+use octocrab::models::{pulls::PullRequest, repos::ContentItems};
+
+use self::application::{
+    allocations::{AllocationRequest, ApplicationAllocationTypes, ApplicationAllocationsSigner},
+    lifecycle::ApplicationFileState,
+    ApplicationFile,
+};
+
+use crate::{
+    b64,
+    core::application::{
+        allocations::ApplicationAllocations,
+        core_info::{ApplicationCoreInfo, ApplicationInfo},
+        lifecycle::ApplicationLifecycle,
+    },
+    external_services::github::{CreateMergeRequestData, GithubWrapper},
+    parsers::{parse_ldn_app_body, ParsedLDN},
+};
+
+const _VALID_ADDRESSES: [&str; 1] = ["t1v2"];
+
+#[derive(serde::Deserialize)]
+pub struct CreateApplicationInfo {
+    pub application_id: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct CompleteNewApplicationProposalInfo {
+    signer: ApplicationAllocationsSigner,
+    request_id: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct ProposeApplicationInfo {
+    uuid: String,
+    client_address: String,
+    notary_address: String,
+    time_of_signature: String,
+    message_cid: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
+pub struct ApproveApplicationInfo {
+    uuid: String,
+    client_address: String,
+    notary_address: String,
+    allocation_amount: String,
+    time_of_signature: String,
+    message_cid: String,
+}
+
+#[derive(Debug)]
+pub struct LDNApplication {
+    github: GithubWrapper,
+    pub application_id: String,
+    file_sha: String,
+}
+
+#[derive(Debug)]
+pub enum LDNApplicationError {
+    NewApplicationError(String),
+    LoadApplicationError(String),
+    ProposeApplicationError(String),
+}
+
+type LDNResult = Result<ApplicationFile, LDNApplicationError>;
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct CompleteGovernanceReviewInfo {
+    actor: String,
+}
+
+impl Display for LDNApplicationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LDNApplicationError::LoadApplicationError(e) => {
+                write!(f, "LoadApplicationError: {}", e)
+            }
+            LDNApplicationError::ProposeApplicationError(e) => {
+                write!(f, "ProposeApplicationError: {}", e)
+            }
+            LDNApplicationError::NewApplicationError(e) => {
+                write!(f, "NewApplicationError: {}", e)
+            }
+        }
+    }
+}
+
+impl MessageBody for LDNApplicationError {
+    type Error = std::convert::Infallible;
+
+    fn size(&self) -> BodySize {
+        match self {
+            LDNApplicationError::LoadApplicationError(e) => BodySize::Sized(e.len() as u64),
+            LDNApplicationError::ProposeApplicationError(e) => BodySize::Sized(e.len() as u64),
+            LDNApplicationError::NewApplicationError(e) => BodySize::Sized(e.len() as u64),
+        }
+    }
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Bytes, Self::Error>>> {
+        match Pin::<&mut LDNApplicationError>::into_inner(self) {
+            LDNApplicationError::LoadApplicationError(e) => {
+                Poll::Ready(Some(Ok(Bytes::from(e.clone()))))
+            }
+            LDNApplicationError::ProposeApplicationError(e) => {
+                Poll::Ready(Some(Ok(Bytes::from(e.clone()))))
+            }
+            LDNApplicationError::NewApplicationError(e) => {
+                Poll::Ready(Some(Ok(Bytes::from(e.clone()))))
+            }
+        }
+    }
+}
+
+impl LDNApplication {
+    pub async fn get_all_active_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError>
+    {
+        let gh: GithubWrapper = GithubWrapper::new();
+        let mut apps: Vec<ApplicationFile> = Vec::new();
+        let pull_requests = gh.list_pull_requests().await.unwrap();
+        let pull_requests = pull_requests
+            .into_iter()
+            .map(|pr: PullRequest| {
+                let title: String = pr.title.unwrap().clone();
+                let pos = title.split_once(":").unwrap();
+                let data = pos.1.clone();
+                let data = data.split_once(":").unwrap();
+                let id = data.0.to_string();
+                let owner_name = data.1.to_string();
+                return (id, owner_name);
+            })
+            .collect::<Vec<_>>();
+        dbg!(&pull_requests);
+        let app_futures: Vec<_> = pull_requests
+            .into_iter()
+            .map(|i| tokio::spawn(LDNApplication::app_file_without_load(i.0)))
+            .collect();
+        for app in app_futures {
+            match app.await {
+                Ok(app) => match app {
+                    Ok(app) => apps.push(app),
+                    Err(e) => {
+                        dbg!("here".to_string());
+                        dbg!(e.to_string());
+                        continue;
+                    }
+                },
+                Err(e) => {
+                    dbg!("here".to_string());
+                    dbg!(e.to_string());
+                    continue;
+                }
+            }
+        }
+        Ok(apps)
+    }
+
+    pub async fn load(application_id: String) -> Result<Self, LDNApplicationError> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        let app_path = LDNPullRequest::application_path(&application_id);
+        let app_branch_name = LDNPullRequest::application_branch_name(&application_id);
+
+        match gh.get_file(&app_path, &app_branch_name).await {
+            Ok(file) => {
+                println!("Loading issue: {}", &application_id);
+                let file_sha = match GithubWrapper::get_file_sha(&file) {
+                    Some(file_sha) => file_sha,
+                    None => {
+                        return Err(LDNApplicationError::LoadApplicationError(format!(
+                            "Application issue {} file does not exist",
+                            application_id
+                        )))
+                    }
+                };
+                Ok(LDNApplication {
+                    github: gh,
+                    application_id,
+                    file_sha,
+                })
+            }
+            Err(_) => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application issue {} file does not exist",
+                    application_id
+                )))
+            }
+        }
+    }
+
+    pub async fn new(info: CreateApplicationInfo) -> Result<Self, LDNApplicationError> {
+        let application_id = info.application_id;
+        let gh: GithubWrapper = GithubWrapper::new();
+        let (parsed_ldn, _) = LDNApplication::parse(application_id.clone()).await?;
+        let app_path = LDNPullRequest::application_path(&application_id);
+        let app_branch_name = LDNPullRequest::application_branch_name(&application_id);
+
+        match gh.get_file(&app_path, &app_branch_name).await {
+            Err(_) => {
+                let (pr_number, file_sha) = LDNPullRequest::create_empty_pr(
+                    application_id.clone(),
+                    parsed_ldn.name.clone(),
+                    LDNPullRequest::application_branch_name(&application_id),
+                    None,
+                )
+                .await?;
+
+                let app_lifecycle = ApplicationLifecycle::governance_review_state(pr_number);
+                let app_core_info: ApplicationCoreInfo = ApplicationCoreInfo::new(
+                    parsed_ldn.name.clone(),
+                    parsed_ldn.region,
+                    "TODO".to_string(), // industry
+                    parsed_ldn.website,
+                    "TODO".to_string(), // social media
+                );
+                let app_allocations = ApplicationAllocations::default();
+                let app_info = ApplicationInfo::new(app_core_info, app_lifecycle, app_allocations);
+                let application_file = ApplicationFile::new(app_info, application_id.clone()).await;
+                let file_content = match serde_json::to_string_pretty(&application_file) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        return Err(LDNApplicationError::NewApplicationError(format!(
+                            "Application issue file is corrupted /// {}",
+                            e
+                        )))
+                    }
+                };
+                let pr_handler = LDNPullRequest::load(&application_id, &parsed_ldn.name);
+                pr_handler
+                    .add_commit(
+                        LDNPullRequest::application_move_to_governance_review(),
+                        file_content,
+                        file_sha.clone(),
+                    )
+                    .await;
+                Ok(LDNApplication {
+                    github: gh,
+                    application_id,
+                    file_sha,
+                })
+            }
+            Ok(_) => {
+                return Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} already exists",
+                    application_id
+                )))
+            }
+        }
+    }
+
+    /// Move application from Governance Review to Proposal
+    pub async fn complete_governance_review(
+        &self,
+        info: CompleteGovernanceReviewInfo,
+    ) -> Result<ApplicationFile, LDNApplicationError> {
+        match self.app_state().await {
+            Ok(s) => match s {
+                ApplicationFileState::GovernanceReview => {
+                    let app_file: ApplicationFile = self.app_file().await?;
+                    let app_pull_request = LDNPullRequest::load(
+                        &self.application_id,
+                        &app_file.info.core_information.data_owner_name,
+                    );
+                    let app_file = app_file.complete_governance_review(info.actor.clone());
+                    let (parsed_ldn, issue_creator) =
+                        Self::parse(self.application_id.clone()).await?;
+                    let new_alloc = AllocationRequest::new(
+                        issue_creator,
+                        "TODO".to_string(), // ?
+                        "random request id".to_string(),
+                        ApplicationAllocationTypes::New,
+                        parsed_ldn.address,
+                        Utc::now().to_string(),
+                        parsed_ldn.datacap_requested,
+                    );
+                    let app_file = app_file.start_new_allocation(new_alloc);
+                    let file_content = serde_json::to_string_pretty(&app_file).unwrap();
+                    match app_pull_request
+                        .add_commit(
+                            LDNPullRequest::application_move_to_proposal_commit(&info.actor),
+                            file_content,
+                            self.file_sha.clone(),
+                        )
+                        .await
+                    {
+                        Some(()) => Ok(app_file),
+                        None => {
+                            return Err(LDNApplicationError::NewApplicationError(format!(
+                                "Application issue {} cannot be triggered(1)",
+                                self.application_id
+                            )))
+                        }
+                    }
+                }
+                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} cannot be triggered(2)",
+                    self.application_id
+                ))),
+            },
+            Err(e) => Err(LDNApplicationError::NewApplicationError(format!(
+                "Application issue {} cannot be triggered {}(3)",
+                self.application_id, e
+            ))),
+        }
+    }
+
+    /// Move application from Governance Review to Proposal
+    pub async fn complete_new_application_proposal(
+        &self,
+        info: CompleteNewApplicationProposalInfo,
+    ) -> Result<ApplicationFile, LDNApplicationError> {
+        let CompleteNewApplicationProposalInfo { signer, request_id } = info;
+        match self.app_state().await {
+            Ok(s) => match s {
+                ApplicationFileState::Proposal => {
+                    let app_file: ApplicationFile = self.app_file().await?;
+                    let app_pull_request = LDNPullRequest::load(
+                        &self.application_id,
+                        &app_file.info.core_information.data_owner_name.clone(),
+                    );
+                    let app_lifecycle = app_file.info.application_lifecycle.set_approval_state();
+
+                    let app_file = app_file.add_signer_to_allocation(
+                        signer.clone(),
+                        request_id,
+                        app_lifecycle,
+                    );
+                    let file_content = serde_json::to_string_pretty(&app_file).unwrap();
+                    match app_pull_request
+                        .add_commit(
+                            LDNPullRequest::application_move_to_approval_commit(
+                                &signer.signing_address,
+                            ),
+                            file_content,
+                            self.file_sha.clone(),
+                        )
+                        .await
+                    {
+                        Some(()) => Ok(app_file),
+                        None => {
+                            return Err(LDNApplicationError::NewApplicationError(format!(
+                                "Application issue {} cannot be proposed(1)",
+                                self.application_id
+                            )))
+                        }
+                    }
+                }
+                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} cannot be proposed(2)",
+                    self.application_id
+                ))),
+            },
+            Err(e) => Err(LDNApplicationError::NewApplicationError(format!(
+                "Application issue {} cannot be proposed {}(3)",
+                self.application_id, e
+            ))),
+        }
+    }
+
+    /// Move application from Governance Review to Proposal
+    pub async fn merge_new_application_pr(&self) -> Result<ApplicationFile, LDNApplicationError> {
+        match self.app_state().await {
+            Ok(s) => match s {
+                ApplicationFileState::Confirmed => {
+                    let app_file: ApplicationFile = self.app_file().await?;
+                    let app_pull_request = LDNPullRequest::load(
+                        &self.application_id,
+                        &app_file.info.core_information.data_owner_name,
+                    );
+                    match app_pull_request
+                        .merge_pr(
+                            app_file
+                                .info
+                                .application_lifecycle
+                                .initial_pr_number
+                                .clone(),
+                        )
+                        .await
+                    {
+                        Some(()) => Ok(app_file),
+                        None => {
+                            return Err(LDNApplicationError::NewApplicationError(format!(
+                                "Application issue {} cannot be proposed(1)",
+                                self.application_id
+                            )))
+                        }
+                    }
+                }
+                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} cannot be proposed(2)",
+                    self.application_id
+                ))),
+            },
+            Err(e) => Err(LDNApplicationError::NewApplicationError(format!(
+                "Application issue {} cannot be proposed {}(3)",
+                self.application_id, e
+            ))),
+        }
+    }
+
+    /// Move application from Governance Review to Proposal
+    pub async fn complete_new_application_approval(
+        &self,
+        info: CompleteNewApplicationProposalInfo,
+    ) -> Result<ApplicationFile, LDNApplicationError> {
+        let CompleteNewApplicationProposalInfo { signer, request_id } = info;
+        match self.app_state().await {
+            Ok(s) => match s {
+                ApplicationFileState::Approval => {
+                    let app_file: ApplicationFile = self.app_file().await?;
+                    let app_pull_request = LDNPullRequest::load(
+                        &self.application_id.clone(),
+                        &app_file.info.core_information.data_owner_name,
+                    );
+                    let app_lifecycle = app_file.info.application_lifecycle.set_confirmed_state();
+
+                    let app_file = app_file.add_signer_to_allocation(
+                        signer.clone(),
+                        request_id,
+                        app_lifecycle,
+                    );
+                    let file_content = serde_json::to_string_pretty(&app_file).unwrap();
+                    match app_pull_request
+                        .add_commit(
+                            LDNPullRequest::application_move_to_confirmed_commit(
+                                &signer.signing_address,
+                            ),
+                            file_content,
+                            self.file_sha.clone(),
+                        )
+                        .await
+                    {
+                        Some(()) => Ok(app_file),
+                        None => {
+                            return Err(LDNApplicationError::NewApplicationError(format!(
+                                "Application issue {} cannot be proposed(1)",
+                                self.application_id
+                            )))
+                        }
+                    }
+                }
+                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} cannot be proposed(2)",
+                    self.application_id
+                ))),
+            },
+            Err(e) => Err(LDNApplicationError::NewApplicationError(format!(
+                "Application issue {} cannot be proposed {}(3)",
+                self.application_id, e
+            ))),
+        }
+    }
+
+    pub async fn merge_application_after_governance_review_completed(&self) -> LDNResult {
+        let app_file: ApplicationFile = self.app_file().await?;
+        let app_pull_request = LDNPullRequest::load(
+            &self.application_id,
+            &app_file.info.core_information.data_owner_name,
+        );
+
+        match app_pull_request
+            .merge_pr(app_file.info.application_lifecycle.initial_pr_number)
+            .await
+        {
+            Some(()) => Ok(app_file),
+            None => {
+                return Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} cannot be triggered(0)",
+                    self.application_id
+                )))
+            }
+        }
+    }
+
+    /// Move application from Governance Review to Proposal
+    pub async fn complete_proposal_new_allocation(
+        &self,
+        signer: ApplicationAllocationsSigner,
+        request_id: String,
+    ) -> Result<ApplicationFile, LDNApplicationError> {
+        let app_state = self.app_state().await;
+        match app_state {
+            Ok(s) => match s {
+                ApplicationFileState::GovernanceReview => {
+                    let app_file: ApplicationFile = self.app_file().await?;
+                    let new_life_cycle = app_file
+                        .info
+                        .application_lifecycle
+                        .clone()
+                        .set_approval_state();
+                    let app_file =
+                        app_file.add_signer_to_allocation(signer, request_id, new_life_cycle);
+                    Ok(app_file)
+                }
+                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} cannot be triggered",
+                    self.application_id
+                ))),
+            },
+            Err(_) => Err(LDNApplicationError::NewApplicationError(format!(
+                "Application issue {} cannot be triggered",
+                self.application_id
+            ))),
+        }
+    }
+
+    /// Move application from Governance Review to Proposal
+    pub async fn complete_approval_new_allocation(
+        &self,
+        signer: ApplicationAllocationsSigner,
+        request_id: String,
+    ) -> Result<ApplicationFile, LDNApplicationError> {
+        let app_state = self.app_state().await;
+        match app_state {
+            Ok(s) => match s {
+                ApplicationFileState::GovernanceReview => {
+                    let app_file: ApplicationFile = self.app_file().await?;
+                    let new_life_cycle = app_file
+                        .info
+                        .application_lifecycle
+                        .clone()
+                        .set_confirmed_state();
+                    let app_file = app_file.add_signer_to_allocation(
+                        signer,
+                        request_id.clone(),
+                        new_life_cycle,
+                    );
+                    app_file.complete_allocation(request_id);
+                    Ok(app_file)
+                }
+                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} cannot be triggered",
+                    self.application_id
+                ))),
+            },
+            Err(_) => Err(LDNApplicationError::NewApplicationError(format!(
+                "Application issue {} cannot be triggered",
+                self.application_id
+            ))),
+        }
+    }
+
+    async fn parse(application_id: String) -> Result<(ParsedLDN, String), LDNApplicationError> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        let issue = match gh.list_issue(application_id.parse().unwrap()).await {
+            Ok(issue) => issue,
+            Err(e) => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application issue {} does not exist /// {}",
+                    application_id, e
+                )))
+            }
+        };
+        let issue_creator = issue.user.login;
+        let issue_body = match issue.body {
+            Some(body) => body,
+            None => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application issue {} is empty",
+                    application_id
+                )))
+            }
+        };
+        Ok((parse_ldn_app_body(&issue_body), issue_creator))
+    }
+
+    async fn app_state(&self) -> Result<ApplicationFileState, LDNApplicationError> {
+        let f = self.app_file().await?;
+        Ok(f.info.application_lifecycle.get_state())
+    }
+
+    fn content_items_to_app_file(
+        file: ContentItems,
+    ) -> Result<ApplicationFile, LDNApplicationError> {
+        let f = match &file.items[0].content {
+            Some(f) => f,
+            None => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application file is corrupted",
+                )))
+            }
+        };
+        match b64::decode(&f.replace("\n", "")) {
+            Some(f) => {
+                return Ok(ApplicationFile::from(f));
+            }
+            None => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application issue file is corrupted",
+                )))
+            }
+        }
+    }
+
+    async fn app_file(&self) -> Result<ApplicationFile, LDNApplicationError> {
+        let app_path = LDNPullRequest::application_path(&self.application_id);
+        let app_branch_name = LDNPullRequest::application_branch_name(&self.application_id);
+        match self.github.get_file(&app_path, &app_branch_name).await {
+            Ok(file) => Ok(LDNApplication::content_items_to_app_file(file)?),
+            Err(e) => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application issue {} file does not exist /// {}",
+                    self.application_id, e
+                )))
+            }
+        }
+    }
+
+    async fn app_file_from_main(&self) -> Result<ApplicationFile, LDNApplicationError> {
+        let app_path = LDNPullRequest::application_path(&self.application_id);
+        let app_branch_name = "main";
+        match self.github.get_file(&app_path, &app_branch_name).await {
+            Ok(file) => Ok(LDNApplication::content_items_to_app_file(file)?),
+            Err(e) => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application issue {} file does not exist /// {}",
+                    self.application_id, e
+                )))
+            }
+        }
+    }
+
+    pub async fn app_file_without_load(
+        application_id: String,
+    ) -> Result<ApplicationFile, LDNApplicationError> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        let app_path = LDNPullRequest::application_path(&application_id);
+        let app_branch_name = LDNPullRequest::application_branch_name(&application_id);
+
+        match gh.get_file(&app_path, &app_branch_name).await {
+            Ok(f) => Ok(LDNApplication::content_items_to_app_file(f))?,
+            Err(_) => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application issue {} file does not exist",
+                    application_id
+                )))
+            }
+        }
+    }
+}
+
+impl From<String> for ParsedApplicationDataFields {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "Data Owner Name" => ParsedApplicationDataFields::Name,
+            "Data Owner Country/Region" => ParsedApplicationDataFields::Region,
+            "Website" => ParsedApplicationDataFields::Website,
+            // "Custom multisig" => ParsedApplicationDataFields::CustomNotary,
+            "Identifier" => ParsedApplicationDataFields::Identifier,
+            "Data Type of Application" => ParsedApplicationDataFields::DataType,
+            "Total amount of DataCap being requested" => {
+                ParsedApplicationDataFields::DatacapRequested
+            }
+            "Weekly allocation of DataCap requested" => {
+                ParsedApplicationDataFields::DatacapWeeklyAllocation
+            }
+            "On-chain address for first allocation" => ParsedApplicationDataFields::Address,
+            _ => ParsedApplicationDataFields::InvalidField,
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub enum ParsedApplicationDataFields {
+    Name,
+    Region,
+    Website,
+    DatacapRequested,
+    DatacapWeeklyAllocation,
+    Address,
+    // CustomNotary,
+    Identifier,
+    DataType,
+    InvalidField,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct LDNPullRequest {
+    pub branch_name: String,
+    pub title: String,
+    pub body: String,
+    pub path: String,
+}
+
+impl LDNPullRequest {
+    async fn create_empty_pr_for_branch(
+        application_id: String,
+        owner_name: String,
+        app_branch_name: String,
+    ) -> Result<(u64, String), LDNApplicationError> {
+        let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
+        let create_ref_request =
+            match GithubWrapper::build_create_ref_request(app_branch_name.clone(), None) {
+                Ok(req) => req,
+                Err(e) => {
+                    return Err(LDNApplicationError::NewApplicationError(format!(
+                        "Application issue {} cannot create branch request object /// {}",
+                        application_id, e
+                    )))
+                }
+            };
+
+        let merge_request_data: CreateMergeRequestData = CreateMergeRequestData {
+            application_id: application_id.clone(),
+            owner_name,
+            ref_request: create_ref_request,
+            file_content: "{}".to_string(),
+            commit: initial_commit,
+        };
+
+        let gh: GithubWrapper = GithubWrapper::new();
+        let (pr, file_sha) = match gh.create_merge_request(merge_request_data).await {
+            Ok((pr, file_sha)) => (pr, file_sha),
+            Err(e) => {
+                return Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue cannot create branch /// {}",
+                    e
+                )));
+            }
+        };
+        Ok((pr.number, file_sha))
+    }
+    async fn create_empty_pr(
+        application_id: String,
+        owner_name: String,
+        app_branch_name: String,
+        base_hash: Option<String>,
+    ) -> Result<(u64, String), LDNApplicationError> {
+        let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
+        let create_ref_request =
+            match GithubWrapper::build_create_ref_request(app_branch_name.clone(), base_hash) {
+                Ok(req) => req,
+                Err(e) => {
+                    return Err(LDNApplicationError::NewApplicationError(format!(
+                        "Application issue cannot create branch request object /// {}",
+                        e
+                    )))
+                }
+            };
+
+        let merge_request_data: CreateMergeRequestData = CreateMergeRequestData {
+            application_id: application_id.clone(),
+            owner_name,
+            ref_request: create_ref_request,
+            file_content: "{}".to_string(),
+            commit: initial_commit,
+        };
+
+        let gh: GithubWrapper = GithubWrapper::new();
+        let (pr, file_sha) = match gh.create_merge_request(merge_request_data).await {
+            Ok((pr, file_sha)) => (pr, file_sha),
+            Err(e) => {
+                return Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue {} cannot create branch /// {}",
+                    application_id, e
+                )));
+            }
+        };
+        Ok((pr.number, file_sha))
+    }
+
+    pub(super) async fn get_branch_hash(branch_name: String) -> Option<String> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        match gh.list_branches().await {
+            Ok(branches) => {
+                for branch in branches {
+                    if branch.name == branch_name {
+                        return Some(branch.commit.sha);
+                    }
+                }
+                None
+            }
+            Err(_) => None,
+        }
+    }
+
+    pub(super) async fn add_commit(
+        &self,
+        commit_message: String,
+        new_content: String,
+        file_sha: String,
+    ) -> Option<()> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        match gh
+            .update_file_content(
+                &self.path,
+                &commit_message,
+                &new_content,
+                &self.branch_name,
+                &file_sha,
+            )
+            .await
+        {
+            Ok(_) => Some(()),
+            Err(_) => None,
+        }
+    }
+
+    pub(super) async fn merge_pr(&self, pr_number: u64) -> Option<()> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        match gh.merge_pull_request(pr_number).await {
+            Ok(_) => Some(()),
+            Err(_) => None,
+        }
+    }
+
+    pub(super) async fn add_commit_and_merge(
+        &self,
+        commit_message: String,
+        new_content: String,
+        file_sha: String,
+        pr_number: u64,
+    ) -> Option<()> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        if gh
+            .update_file_content(
+                &self.path,
+                &commit_message,
+                &new_content,
+                &self.branch_name,
+                &file_sha,
+            )
+            .await
+            .is_ok()
+        {
+            match gh.merge_pull_request(pr_number).await {
+                Ok(_) => Some(()),
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    pub(super) fn load(application_id: &str, owner_name: &str) -> Self {
+        LDNPullRequest {
+            branch_name: LDNPullRequest::application_branch_name(application_id),
+            title: LDNPullRequest::application_title(application_id, owner_name),
+            body: LDNPullRequest::application_body(application_id),
+            path: LDNPullRequest::application_path(application_id),
+        }
+    }
+
+    pub(super) fn application_branch_name_allocation(application_id: &str) -> String {
+        format!("Application/{}/Allocation", application_id)
+    }
+
+    pub(super) fn application_branch_name(application_id: &str) -> String {
+        format!("Application/{}", application_id)
+    }
+
+    pub(super) fn application_title(application_id: &str, owner_name: &str) -> String {
+        format!("Application:{}:{}", application_id, owner_name)
+    }
+
+    pub(super) fn application_body(application_id: &str) -> String {
+        format!("resolves #{}", application_id)
+    }
+
+    pub(super) fn application_path(application_id: &str) -> String {
+        format!("Application:{}.json", application_id)
+    }
+
+    pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
+        format!("Start Application: {}-{}", owner_name, application_id)
+    }
+
+    pub(super) fn application_move_to_governance_review() -> String {
+        format!("Application is under review of governance team")
+    }
+
+    pub(super) fn application_move_to_proposal_commit(actor: &str) -> String {
+        format!(
+            "Governance Team User {} Moved Application to Proposal State from Governance Review State",
+            actor
+        )
+    }
+
+    pub(super) fn application_move_to_approval_commit(actor: &str) -> String {
+        format!(
+            "Notary User {} Moved Application to Approval State from Proposal State",
+            actor
+        )
+    }
+
+    pub(super) fn application_move_to_confirmed_commit(actor: &str) -> String {
+        format!(
+            "Notary User {} Moved Application to Confirmed State from Proposal Approval",
+            actor
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //use octocrab::models::issues::Issue;
+
+    //use super::*;
+
+    //#[tokio::test]
+    //async fn end_to_end() {
+    //    // Test Creating an application
+    //    let gh = GithubWrapper::new();
+
+    //    // let branches = gh.list_branches().await.unwrap();
+    //    let issue = gh.list_issue(11).await.unwrap();
+    //    let test_issue: Issue = gh
+    //        .create_issue("from test", &issue.body.unwrap())
+    //        .await
+    //        .unwrap();
+    //    assert!(LDNApplication::new(CreateApplicationInfo {
+    //        application_id: test_issue.number.to_string(),
+    //    })
+    //    .await
+    //    .is_ok());
+    //    let ldn_app = LDNApplication::load(test_issue.number.to_string())
+    //        .await
+    //        .unwrap();
+
+    //    let complete_governance_input = CompleteGovernanceReviewInfo {
+    //        actor: "actor".to_string(),
+    //    };
+
+    //    assert!(ldn_app
+    //        .complete_governance_review(complete_governance_input)
+    //        .await
+    //        .is_ok());
+
+    //    assert!(ldn_app
+    //        .merge_application_after_governance_review_completed()
+    //        .await
+    //        .is_ok());
+    //    // dbg!("waiting for 2 second");
+    //    // sleep(Duration::from_millis(1000)).await;
+
+    //    // {
+    //    //validate file was created
+    //    // assert!(gh
+    //    //     .get_file(
+    //    //         &LDNPullRequest::application_path(test_issue.number),
+    //    //         &LDNPullRequest::application_branch_name(test_issue.number)
+    //    //     )
+    //    //     .await
+    //    //     .is_ok());
+
+    //    // validate pull request was created
+    //    // assert!(gh
+    //    //     .get_pull_request_by_head(&LDNPullRequest::application_branch_name(
+    //    //         test_issue.number
+    //    //     ))
+    //    //     .await
+    //    //     .is_ok());
+
+    //    // Test Triggering an application
+    //    // let ldn_application_before_trigger =
+    //    //     LDNApplication::load(test_issue.number).await.unwrap();
+    //    // ldn_application_before_trigger
+    //    //     .complete_governance_review(CompleteGovernanceReviewInfo {
+    //    //         actor: "actor_address".to_string(),
+    //    //         request_id: "random request id".to_string(),
+    //    //     })
+    //    //     .await
+    //    //     .unwrap();
+    //    // let ldn_application_after_trigger = LDNApplication::load(test_issue.number).await.unwrap();
+    //    // assert_eq!(
+    //    //     ldn_application_after_trigger.app_state().await.unwrap(),
+    //    //     ApplicationFileState::Proposal
+    //    // );
+
+    //    // // Test Proposing an application
+    //    // let ldn_application_after_trigger_success =
+    //    //     LDNApplication::load(test_issue.number).await.unwrap();
+    //    // ldn_application_after_trigger_success
+    //    //     .propose(ProposeApplicationInfo {
+    //    //         time_of_signature: "time_of_signature".to_string(),
+    //    //         message_cid: "message_cid".to_string(),
+    //    //         uuid: "uuid".to_string(),
+    //    //         client_address: "client_address".to_string(),
+    //    //         notary_address: "notary_address".to_string(),
+    //    //     })
+    //    //     .await
+    //    //     .unwrap();
+    //    // let ldn_application_after_proposal = LDNApplication::load(test_issue.number).await.unwrap();
+    //    // assert_eq!(
+    //    //     ldn_application_after_proposal.app_state().await.unwrap(),
+    //    //     ApplicationFileState::Approval
+    //    // );
+
+    //    // // Test Approving an application
+    //    // let ldn_application_after_proposal_success =
+    //    //     LDNApplication::load(test_issue.number).await.unwrap();
+    //    // ldn_application_after_proposal_success
+    //    //     .approve(ApproveApplicationInfo {
+    //    //         time_of_signature: "time_of_signature".to_string(),
+    //    //         message_cid: "message_cid".to_string(),
+    //    //         allocation_amount: "allocation_amount".to_string(),
+    //    //         uuid: "uuid".to_string(),
+    //    //         client_address: "client_address".to_string(),
+    //    //         notary_address: "notary_address".to_string(),
+    //    //     })
+    //    //     .await
+    //    //     .unwrap();
+    //    // let ldn_application_after_approval = LDNApplication::load(test_issue.number).await.unwrap();
+    //    // assert_eq!(
+    //    //     ldn_application_after_approval.app_state().await.unwrap(),
+    //    //     ApplicationFileState::Confirmed
+    //    // );
+
+    //    // // Cleanup
+    //    // assert!(gh.close_issue(test_issue.number).await.is_ok());
+    //    // assert!(gh
+    //    //     .close_pull_request(
+    //    //         gh.get_pull_request_by_head(&LDNPullRequest::application_branch_name(
+    //    //             test_issue.number
+    //    //         ))
+    //    //         .await
+    //    //         .unwrap()[0]
+    //    //             .number,
+    //    //     )
+    //    //     .await
+    //    //     .is_ok());
+    //    //}
+    //    // }
+    // }
+}
+
+//{
+// let file_content = match serde_json::to_string_pretty(&application_file) {
+//     Ok(f) => f,
+//     Err(e) => {
+//         return Err(LDNApplicationError::NewApplicationError(format!(
+//             "Application issue {} file is corrupted /// {}",
+//             application_id, e
+//         )))
+//     }
+// };
+
+// let app_path = LDNPullRequest::application_path(self.application_id);
+// let app_branch_name =
+//     LDNPullRequest::application_branch_name(self.application_id);
+// let app_move_to_proposal_commit =
+//     LDNPullRequest::application_move_to_proposal_commit(actor.clone());
+// let new_content =
+//     serde_json::to_string_pretty(&new_app_file.add_trigger()).unwrap();
+// let _ = self
+//     .github
+//     .update_file_content(
+//         &app_path,
+//         &app_move_to_proposal_commit,
+//         &new_content,
+//         &app_branch_name,
+//         &self.file_sha,
+//     )
+//     .await;
+// let new_app_file: ApplicationFile = self.app_file().await?;
+//
+// /// Move application from Proposal to Approval
+// pub async fn propose(
+//     &self,
+//     signer: ApplicationAllocationsSigner,
+//     request_id: String,
+// ) -> Result<bool, LDNApplicationError> {
+//     match &self.app_state().await {
+//         Ok(s) => match s {
+//             ApplicationFileState::Proposal => {
+//                 let new_app_file: ApplicationFile = self.app_file().await?;
+//                 let new_app_file = new_app_file.add_signer_to_allocation(signer, request_id);
+
+//                 let app_path = LDNPullRequest::application_path(self.application_id);
+//                 let app_branch_name =
+//                     LDNPullRequest::application_branch_name(self.application_id);
+//                 let new_content = serde_json::to_string_pretty(&new_app_file).unwrap();
+//                 let app_move_to_approval_commit =
+//                     LDNPullRequest::application_move_to_approval_commit(notary_address);
+//                 let _ = self
+//                     .github
+//                     .update_file_content(
+//                         &app_path,
+//                         &app_move_to_approval_commit,
+//                         &new_content,
+//                         &app_branch_name,
+//                         &self.file_sha,
+//                     )
+//                     .await;
+//                 Ok(true)
+//             }
+//             e => Err(LDNApplicationError::ProposeApplicationError(format!(
+//                 "Application issue {} is in state {:?}",
+//                 self.application_id, e
+//             ))),
+//         },
+//         Err(_) => Ok(false),
+//     }
+// }
+
+// /// Move application from Approval to Confirmed(completed)
+// pub async fn approve(&self, data: ApproveApplicationInfo) -> Result<bool, LDNApplicationError> {
+//     let ApproveApplicationInfo {
+//         uuid,
+//         client_address,
+//         notary_address,
+//         allocation_amount,
+//         time_of_signature,
+//         message_cid,
+//     } = data;
+//     match &self.app_state().await {
+//         Ok(s) => match s {
+//             ApplicationFileState::Approval => {
+//                 let new_app_file: ApplicationFile = self.app_file().await?;
+//                 let new_app_file = new_app_file.add_approval(
+//                     uuid,
+//                     client_address,
+//                     notary_address.clone(),
+//                     allocation_amount,
+//                     time_of_signature,
+//                     message_cid,
+//                 );
+//                 let app_path = LDNPullRequest::application_path(self.application_id);
+//                 let app_branch_name =
+//                     LDNPullRequest::application_branch_name(self.application_id);
+//                 let new_content = serde_json::to_string_pretty(&new_app_file).unwrap();
+//                 let app_move_to_confirmed_commit =
+//                     LDNPullRequest::application_move_to_confirmed_commit(notary_address);
+
+//                 let _ = self
+//                     .github
+//                     .update_file_content(
+//                         &app_path,
+//                         &app_move_to_confirmed_commit,
+//                         &new_content,
+//                         &app_branch_name,
+//                         &self.file_sha,
+//                     )
+//                     .await;
+//                 Ok(true)
+//             }
+//             _ => Ok(false),
+//         },
+//         Err(_) => Ok(false),
+//     }
+// }
+//}
+//
+//
+//
+// async fn start(
+//     application_id: String,
+//     owner_name: String,
+//     file_content: String,
+// ) -> Result<String, LDNApplicationError> {
+//     let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
+//     let app_branch_name = LDNPullRequest::application_branch_name(&application_id);
+//     let create_ref_request =
+//         match GithubWrapper::build_create_ref_request(app_branch_name.clone(), None) {
+//             Ok(req) => req,
+//             Err(e) => {
+//                 return Err(LDNApplicationError::NewApplicationError(format!(
+//                     "Application issue {} cannot create branch request object /// {}",
+//                     application_id, e
+//                 )))
+//             }
+//         };
+
+//     let merge_request_data: CreateMergeRequestData = CreateMergeRequestData {
+//         application_id: Box::new(application_id),
+//         owner_name,
+//         ref_request: create_ref_request,
+//         file_content,
+//         commit: initial_commit,
+//     };
+//     let gh: GithubWrapper = GithubWrapper::new();
+//     let (_, file_sha) = match gh.create_merge_request(merge_request_data).await {
+//         Ok((_, file_sha)) => ((), file_sha),
+//         Err(e) => {
+//             return Err(LDNApplicationError::NewApplicationError(format!(
+//                 "Application issue {} cannot create branch /// {}",
+//                 &application_id, e
+//             )))
+//         }
+//     };
+
+//     Ok(file_sha)
+// }
+//
+//
+//
+//
+
+//     pub async fn start_signing_new_allocation(
+//         &self,
+//         info: CompleteGovernanceReviewInfo,
+//     ) -> LDNResult {
+//         let (parsed_ldn, issue_creator) = LDNApplication::parse(self.application_id).await?;
+//         // in this stage we fetch this file from main branch as its
+//         // merged to main by invoking complete_governance_review
+//         let app_file = self.app_file_from_main().await?;
+//         let new_alloc = AllocationRequest::new(
+//             issue_creator,
+//             "TODO".to_string(), // ?
+//             "random request id".to_string(),
+//             ApplicationAllocationTypes::New,
+//             parsed_ldn.address,
+//             Utc::now().to_string(),
+//             parsed_ldn.datacap_requested,
+//         );
+//         let app_file = app_file.start_new_allocation(new_alloc);
+//         let new_content = serde_json::to_string_pretty(&app_file).unwrap();
+//         match self
+//             .github
+//             .create_merge_request_for_existing_branch(
+//                 self.application_id,
+//                 parsed_ldn.name,
+//                 new_content,
+//                 self.file_sha.clone(),
+//             )
+//             .await
+//         {
+//             Ok((pr_number, sha)) => {
+//                 dbg!(pr_number);
+//                 dbg!(sha);
+//             }
+//             Err(e) => {
+//                 dbg!(&e);
+//                 return Err(LDNApplicationError::NewApplicationError(format!(
+//                     "Application issue {} cannot be triggered(2) {}",
+//                     self.application_id, e
+//                 )));
+//             }
+//         };
+//         Ok(app_file)
+//     }
