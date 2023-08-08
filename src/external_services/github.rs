@@ -15,11 +15,12 @@ use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Pag
 use std::sync::Arc;
 
 const GITHUB_API_URL: &str = "https://api.github.com";
-const GITHUB_OWNER: &str = "jbesraa";
-const GITHUB_REPO: &str = "light-node";
-const APP_ID: u64 = 344928;
-const APP_INSTALLATION_ID: u64 = 38402249;
-const MAIN_BRANCH_HASH: &str = "a9f99d9fc56cae689a0bf0ee177c266287eb48cd";
+
+const GITHUB_OWNER: &str = "keyko-io";
+const GITHUB_REPO: &str = "filecoin-large-clients-onboarding";
+const APP_ID: u64 = 111859;
+const APP_INSTALLATION_ID: u64 = 16461975;
+const MAIN_BRANCH_HASH: &str = "e61e6407db6449c2cbe164f6d56b5a03a856071b";
 
 #[derive(Debug)]
 pub struct CreateMergeRequestData {
@@ -46,8 +47,9 @@ impl GithubWrapper {
         let client = hyper::Client::builder()
             .pool_idle_timeout(std::time::Duration::from_secs(15))
             .build(connector);
-        let key = jsonwebtoken::EncodingKey::from_rsa_pem(include_bytes!("../../gh-private-key.pem"))
-            .unwrap();
+        let key =
+            jsonwebtoken::EncodingKey::from_rsa_pem(include_bytes!("../../gh-private-key.pem"))
+                .unwrap();
         let octocrab = OctocrabBuilder::new_empty()
             .with_service(client)
             .with_layer(&BaseUriLayer::new(Uri::from_static(GITHUB_API_URL)))
@@ -141,6 +143,19 @@ impl GithubWrapper {
     /// creates new branch under head on github
     /// you should use build_create_ref_request function to construct request
     pub async fn create_branch(&self, request: Request<String>) -> Result<bool, OctocrabError> {
+        match self.inner.execute(request).await {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Error creating branch: {:?}", e);
+                return Ok(false);
+            }
+        };
+        Ok(true)
+    }
+
+    /// remove branch from github
+    /// you should use build_remove_ref_request function to construct request
+    pub async fn remove_branch(&self, request: Request<String>) -> Result<bool, OctocrabError> {
         match self.inner.execute(request).await {
             Ok(_) => {}
             Err(e) => {
@@ -268,6 +283,17 @@ impl GithubWrapper {
             ))?)
     }
 
+    pub fn build_remove_ref_request(&self, name: String) -> Result<Request<String>, http::Error> {
+        let request = Request::builder()
+            .method("DELETE")
+            .uri(format!(
+                "https://api.github.com/repos/{}/{}/git/refs/heads/{}",
+                GITHUB_OWNER, GITHUB_REPO, name
+            ))
+            .body("".to_string())?;
+        Ok(request)
+    }
+
     pub fn build_create_ref_request(
         name: String,
         head_hash: Option<String>,
@@ -390,31 +416,15 @@ impl GithubWrapper {
     }
 }
 
-// pub async fn create_merge_request_for_existing_branch(
-//     &self,
-//     issue_number: u64,
-//     owner_name: String,
-//     file_content: String,
-//     file_sha: String,
-// ) -> Result<(PullRequest, String), OctocrabError> {
-//     let pull_request_data = LDNPullRequest::load(issue_number, owner_name);
-//     let add_file_res = self
-//         .update_file_content(
-//             &pull_request_data.path,
-//             "Start Signing Process",
-//             &file_content,
-//             &pull_request_data.branch_name,
-//             &file_sha,
-//         )
-//         .await?;
-//     let file_sha = add_file_res.content.sha;
-//     let pr = self
-//         .create_pull_request(
-//             &pull_request_data.title,
-//             &pull_request_data.branch_name,
-//             &pull_request_data.body,
-//         )
-//         .await?;
+#[cfg(test)]
+mod tests {
+    use crate::external_services::github::GithubWrapper;
 
-//     Ok((pr, file_sha))
-// }
+    #[tokio::test]
+    async fn test_basic_integration() {
+        let gh = GithubWrapper::new();
+        assert!(gh.list_issues().await.is_ok());
+        assert!(gh.list_pull_requests().await.is_ok());
+        assert!(gh.list_branches().await.is_ok());
+    }
+}
