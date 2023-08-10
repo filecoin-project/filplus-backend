@@ -15,12 +15,11 @@ use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Pag
 use std::sync::Arc;
 
 const GITHUB_API_URL: &str = "https://api.github.com";
-
-const GITHUB_OWNER: &str = "keyko-io";
-const GITHUB_REPO: &str = "filecoin-large-clients-onboarding";
-const APP_ID: u64 = 111859;
-const APP_INSTALLATION_ID: u64 = 16461975;
-const MAIN_BRANCH_HASH: &str = "e61e6407db6449c2cbe164f6d56b5a03a856071b";
+const GITHUB_OWNER: &str = "filecoin-project";
+const GITHUB_REPO: &str = "filplus-tooling-backend-test";
+const APP_ID: u64 = 373258;
+const APP_INSTALLATION_ID: u64 = 40514592;
+const MAIN_BRANCH_HASH: &str = "650a0aec11dc1cc436a45b316db5bb747e518514";
 
 #[derive(Debug)]
 pub struct CreateMergeRequestData {
