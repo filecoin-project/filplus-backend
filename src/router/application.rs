@@ -5,6 +5,15 @@ use crate::core::{
 use actix_web::{get, post, web, HttpResponse, Responder};
 
 /// Create a new application
+/// Returns the application id
+/// Example:
+/// curl --header "Content-Type: application/json" \
+///  --request POST \
+///  --data
+///  '"application_id": "0x1234"}' \
+///  http://localhost:8080/application
+///  Returns:
+///  Created new application for issue: 0x1234
 #[post("/application")]
 pub async fn create_application(info: web::Json<CreateApplicationInfo>) -> impl Responder {
     // HttpResponse::Ok().body(format!( "Created new application for issue:"))
@@ -20,6 +29,18 @@ pub async fn create_application(info: web::Json<CreateApplicationInfo>) -> impl 
 }
 
 /// Trigger an application
+/// Returns the ApplicationFile
+/// Example:
+/// curl --header "Content-Type: application/json" \
+/// --request POST \
+/// --data '{"actor": "JohnDoe"}' \
+/// http://localhost:8080/application/0x1234/trigger
+/// Returns:
+/// {
+///  "id": "0x1234",
+///  "_type": "ldn-v3",
+///  ..
+/// }
 #[post("/application/{id}/trigger")]
 pub async fn trigger_application(
     id: web::Path<String>,
@@ -43,6 +64,26 @@ pub async fn trigger_application(
 }
 
 /// Propose an application
+/// Returns the ApplicationFile
+/// Example:
+/// curl --header "Content-Type: application/json" \
+/// --request POST \
+/// --data '
+// {
+//     "signer": {
+//       "signing_address": "0x1234567890abcdef1234567890abcdef12345678",
+//       "time_of_signature": "2023-08-07T14:30:00Z",
+//       "message_cid": "QmXYZ1234567890abcdef1234567890abcdef12345678"
+//     },
+//     "request_id": "exampleRequestId123"
+// }
+/// http://localhost:8080/application/0x1234/propose
+/// Returns:
+/// {
+/// "id": "0x1234",
+/// "_type": "ldn-v3",
+/// ..
+/// }
 #[post("/application/{id}/propose")]
 pub async fn propose_application(
     id: web::Path<String>,
@@ -66,6 +107,26 @@ pub async fn propose_application(
 }
 
 /// Approve an application
+/// Returns the ApplicationFile
+/// Example:
+/// curl --header "Content-Type: application/json" \
+/// --request POST \
+/// --data '
+// {
+//     "signer": {
+//       "signing_address": "0x1234567890abcdef1234567890abcdef12345678",
+//       "time_of_signature": "2023-08-07T14:30:00Z",
+//       "message_cid": "QmXYZ1234567890abcdef1234567890abcdef12345678"
+//     },
+//     "request_id": "exampleRequestId123"
+// }
+/// http://localhost:8080/application/0x1234/approve
+/// Returns:
+/// {
+/// "id": "0x1234",
+/// "_type": "ldn-v3",
+/// ..
+/// }
 #[post("/application/{id}/approve")]
 pub async fn approve_application(
     id: web::Path<String>,
@@ -86,7 +147,18 @@ pub async fn approve_application(
     }
 }
 
-/// Approve an application
+/// Merge a previously proposed application
+/// Returns the ApplicationFile
+/// Example:
+/// curl --header "Content-Type: application/json" \
+/// --request POST \
+/// http://localhost:8080/application/0x1234/merge
+/// Returns:
+/// {
+/// "id": "0x1234",
+/// "_type": "ldn-v3",
+/// ..
+/// }
 #[post("/application/{id}/merge")]
 pub async fn merge_application(id: web::Path<String>) -> impl Responder {
     let ldn_application = match LDNApplication::load(id.into_inner()).await {
@@ -101,7 +173,17 @@ pub async fn merge_application(id: web::Path<String>) -> impl Responder {
     }
 }
 
-/// Return an application
+/// Retrieve an application based on its ID.
+///
+/// Example:
+/// curl -X GET http://localhost:8080/application/0x1234
+///
+/// Returns:
+/// {
+/// "id": "0x1234",
+/// "_type": "ldn-v3",
+/// ..
+/// }
 #[get("/application/{id}")]
 pub async fn get_application(id: web::Path<String>) -> actix_web::Result<impl Responder> {
     let app = match LDNApplication::app_file_without_load(id.into_inner()).await {
@@ -113,7 +195,20 @@ pub async fn get_application(id: web::Path<String>) -> actix_web::Result<impl Re
     Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()))
 }
 
-/// Return all applications
+/// Retrieve all active applications.
+///
+/// Example:
+/// curl -X GET http://localhost:8080/application
+///
+/// Returns:
+/// [
+///   {
+///     "id": "0x1234",
+///     "_type": "ldn-v3",
+///     ..
+///   },
+///   ...
+/// ]
 #[get("/application")]
 pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
     let apps = match LDNApplication::get_all_active_applications().await {
@@ -125,7 +220,13 @@ pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
     Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap()))
 }
 
-/// Return server health status
+/// Check the health status
+///
+/// Example:
+/// curl -X GET http://localhost:8080/health
+///
+/// Returns:
+/// OK
 #[get("/health")]
 pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")

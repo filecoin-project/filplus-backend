@@ -1,16 +1,19 @@
 const BASE_URL: &str = "https://api.filplus.d.interplanetary.one/public/api";
 
+/// BlockchainData is a client for the Fil+ blockchain data API.
 pub struct BlockchainData {
     client: reqwest::Client,
     base_url: String,
 }
 
+/// BlockchainDataError is an error type for BlockchainData.
 #[derive(Debug)]
 pub enum BlockchainDataError {
     ReqwestError(reqwest::Error),
 }
 
 impl BlockchainData {
+    /// Setup new BlockchainData client.
     pub fn new() -> Self {
         use reqwest::header;
         let mut headers = header::HeaderMap::new();
@@ -31,6 +34,7 @@ impl BlockchainData {
         }
     }
 
+    /// Get Verified Clients
     pub async fn get_verified_clients(&self) -> Result<String, BlockchainDataError> {
         let query = "getVerifiedClients";
         let url = self.build_url(query);
@@ -51,6 +55,7 @@ impl BlockchainData {
         return Ok(body);
     }
 
+    /// Get Allowance For Address
     pub async fn get_allowance_for_address(
         &self,
         address: &str,
@@ -68,6 +73,7 @@ impl BlockchainData {
         return Ok(body);
     }
 
+    /// Build URL
     fn build_url(&self, path: &str) -> String {
         format!("{}/{}", self.base_url, path)
     }
