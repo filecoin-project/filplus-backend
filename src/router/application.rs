@@ -4,16 +4,21 @@ use crate::core::{
 };
 use actix_web::{get, post, web, HttpResponse, Responder};
 
-/// Create a new application
-/// Returns the application id
-/// Example:
-/// curl --header "Content-Type: application/json" \
-///  --request POST \
-///  --data
-///  '"application_id": "0x1234"}' \
-///  http://localhost:8080/application
-///  Returns:
-///  Created new application for issue: 0x1234
+/// Create a new application.
+///
+/// # Returns
+/// Returns the application id.
+///
+/// # Example
+/// ```plaintext
+/// curl --header "Content-Type: application/json" 
+///      --request POST 
+///      --data '{"application_id": "0x1234"}' 
+///      http://localhost:8080/application
+/// ```
+///
+/// # Response
+/// Created new application for issue: 0x1234
 #[post("/application")]
 pub async fn create_application(info: web::Json<CreateApplicationInfo>) -> impl Responder {
     // HttpResponse::Ok().body(format!( "Created new application for issue:"))
@@ -28,19 +33,27 @@ pub async fn create_application(info: web::Json<CreateApplicationInfo>) -> impl 
     }
 }
 
-/// Trigger an application
-/// Returns the ApplicationFile
-/// Example:
-/// curl --header "Content-Type: application/json" \
-/// --request POST \
-/// --data '{"actor": "JohnDoe"}' \
-/// http://localhost:8080/application/0x1234/trigger
-/// Returns:
+/// Trigger an application.
+///
+/// # Returns
+/// Returns the ApplicationFile.
+///
+/// # Example
+/// ```plaintext
+/// curl --header "Content-Type: application/json" 
+///      --request POST 
+///      --data '{"actor": "JohnDoe"}' 
+///      http://localhost:8080/application/0x1234/trigger
+/// ```
+///
+/// # Response
+/// ```json
 /// {
 ///  "id": "0x1234",
 ///  "_type": "ldn-v3",
 ///  ..
 /// }
+/// ```
 #[post("/application/{id}/trigger")]
 pub async fn trigger_application(
     id: web::Path<String>,
@@ -63,27 +76,34 @@ pub async fn trigger_application(
     }
 }
 
-/// Propose an application
-/// Returns the ApplicationFile
-/// Example:
-/// curl --header "Content-Type: application/json" \
-/// --request POST \
-/// --data '
-// {
-//     "signer": {
-//       "signing_address": "0x1234567890abcdef1234567890abcdef12345678",
-//       "time_of_signature": "2023-08-07T14:30:00Z",
-//       "message_cid": "QmXYZ1234567890abcdef1234567890abcdef12345678"
-//     },
-//     "request_id": "exampleRequestId123"
-// }
-/// http://localhost:8080/application/0x1234/propose
-/// Returns:
+/// Propose an application.
+///
+/// # Returns
+/// Returns the ApplicationFile.
+///
+/// # Example
+/// ```plaintext
+/// curl --header "Content-Type: application/json" 
+///      --request POST 
+///      --data '{
+///         "signer": {
+///           "signing_address": "0x1234567890abcdef1234567890abcdef12345678",
+///           "time_of_signature": "2023-08-07T14:30:00Z",
+///           "message_cid": "QmXYZ1234567890abcdef1234567890abcdef12345678"
+///         },
+///         "request_id": "exampleRequestId123"
+///      }' 
+///      http://localhost:8080/application/0x1234/propose
+/// ```
+///
+/// # Response
+/// ```json
 /// {
-/// "id": "0x1234",
-/// "_type": "ldn-v3",
-/// ..
+///  "id": "0x1234",
+///  "_type": "ldn-v3",
+///  ..
 /// }
+/// ```
 #[post("/application/{id}/propose")]
 pub async fn propose_application(
     id: web::Path<String>,
@@ -105,28 +125,34 @@ pub async fn propose_application(
         }
     }
 }
-
-/// Approve an application
-/// Returns the ApplicationFile
-/// Example:
-/// curl --header "Content-Type: application/json" \
-/// --request POST \
-/// --data '
-// {
-//     "signer": {
-//       "signing_address": "0x1234567890abcdef1234567890abcdef12345678",
-//       "time_of_signature": "2023-08-07T14:30:00Z",
-//       "message_cid": "QmXYZ1234567890abcdef1234567890abcdef12345678"
-//     },
-//     "request_id": "exampleRequestId123"
-// }
-/// http://localhost:8080/application/0x1234/approve
-/// Returns:
+/// Approve an application.
+///
+/// # Returns
+/// Returns the ApplicationFile.
+///
+/// # Example
+/// ```plaintext
+/// curl --header "Content-Type: application/json" 
+///      --request POST 
+///      --data '{
+///         "signer": {
+///           "signing_address": "0x1234567890abcdef1234567890abcdef12345678",
+///           "time_of_signature": "2023-08-07T14:30:00Z",
+///           "message_cid": "QmXYZ1234567890abcdef1234567890abcdef12345678"
+///         },
+///         "request_id": "exampleRequestId123"
+///      }' 
+///      http://localhost:8080/application/0x1234/approve
+/// ```
+///
+/// # Response
+/// ```json
 /// {
-/// "id": "0x1234",
-/// "_type": "ldn-v3",
-/// ..
+///  "id": "0x1234",
+///  "_type": "ldn-v3",
+///  ..
 /// }
+/// ```
 #[post("/application/{id}/approve")]
 pub async fn approve_application(
     id: web::Path<String>,
@@ -147,18 +173,26 @@ pub async fn approve_application(
     }
 }
 
-/// Merge a previously proposed application
-/// Returns the ApplicationFile
-/// Example:
-/// curl --header "Content-Type: application/json" \
-/// --request POST \
-/// http://localhost:8080/application/0x1234/merge
-/// Returns:
+/// Merge a previously proposed application.
+///
+/// # Returns
+/// Returns the ApplicationFile.
+///
+/// # Example
+/// ```plaintext
+/// curl --header "Content-Type: application/json" 
+///      --request POST 
+///      http://localhost:8080/application/0x1234/merge
+/// ```
+///
+/// # Response
+/// ```json
 /// {
-/// "id": "0x1234",
-/// "_type": "ldn-v3",
-/// ..
+///  "id": "0x1234",
+///  "_type": "ldn-v3",
+///  ..
 /// }
+/// ```
 #[post("/application/{id}/merge")]
 pub async fn merge_application(id: web::Path<String>) -> impl Responder {
     let ldn_application = match LDNApplication::load(id.into_inner()).await {
@@ -175,15 +209,19 @@ pub async fn merge_application(id: web::Path<String>) -> impl Responder {
 
 /// Retrieve an application based on its ID.
 ///
-/// Example:
+/// # Example
+/// ```plaintext
 /// curl -X GET http://localhost:8080/application/0x1234
+/// ```
 ///
-/// Returns:
+/// # Response
+/// ```json
 /// {
-/// "id": "0x1234",
-/// "_type": "ldn-v3",
-/// ..
+///  "id": "0x1234",
+///  "_type": "ldn-v3",
+///  ..
 /// }
+/// ```
 #[get("/application/{id}")]
 pub async fn get_application(id: web::Path<String>) -> actix_web::Result<impl Responder> {
     let app = match LDNApplication::app_file_without_load(id.into_inner()).await {
@@ -197,10 +235,13 @@ pub async fn get_application(id: web::Path<String>) -> actix_web::Result<impl Re
 
 /// Retrieve all active applications.
 ///
-/// Example:
+/// # Example
+/// ```plaintext
 /// curl -X GET http://localhost:8080/application
+/// ```
 ///
-/// Returns:
+/// # Response
+/// ```json
 /// [
 ///   {
 ///     "id": "0x1234",
@@ -209,6 +250,7 @@ pub async fn get_application(id: web::Path<String>) -> actix_web::Result<impl Re
 ///   },
 ///   ...
 /// ]
+/// ```
 #[get("/application")]
 pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
     let apps = match LDNApplication::get_all_active_applications().await {
@@ -219,14 +261,15 @@ pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
     };
     Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap()))
 }
-
-/// Check the health status
+/// Check the health status.
 ///
-/// Example:
+/// # Example
+/// ```plaintext
 /// curl -X GET http://localhost:8080/health
+/// ```
 ///
-/// Returns:
-/// OK
+/// # Response
+/// `OK`
 #[get("/health")]
 pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")
