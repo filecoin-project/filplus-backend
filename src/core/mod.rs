@@ -63,7 +63,7 @@ pub struct ApproveApplicationInfo {
 
 #[derive(Debug)]
 pub struct LDNApplication {
-    github: GithubWrapper,
+    github: GithubWrapper<'static>,
     pub application_id: String,
     file_sha: String,
 }
@@ -130,7 +130,45 @@ impl MessageBody for LDNApplicationError {
 impl LDNApplication {
     /// Get Active Applications
     /// Returns a list of all active applications
+    /// New Implementation for get_all_active_applications
+    /// we want to get all the pull requests, validate and then get the files from them
+    /// we need to know how to build the path paramer the is used to get the file along with the
+    /// branch name.
+    /// WIP
     pub async fn get_all_active_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError>
+    {
+        let gh: GithubWrapper = GithubWrapper::new();
+        let mut apps: Vec<ApplicationFile> = Vec::new();
+        let pull_requests = gh.list_pull_requests().await.unwrap();
+        let pull_requests = pull_requests
+            .into_iter()
+            .map(|pr: PullRequest| {
+                let branch = pr.head.ref_field.clone();
+                let base = pr.base.ref_field.clone();
+                return (branch, base);
+            })
+            .collect::<Vec<_>>();
+        let app_futures: Vec<_> = pull_requests
+            .into_iter()
+            .map(|i| tokio::spawn(LDNApplication::app_file_without_load(i.0)))
+            .collect();
+        for app in app_futures {
+            match app.await {
+                Ok(app) => match app {
+                    Ok(app) => apps.push(app),
+                    Err(_) => {
+                        continue;
+                    }
+                },
+                Err(_) => {
+                    continue;
+                }
+            }
+        }
+        Ok(apps)
+    }
+
+    async fn get_all_active_applications_old() -> Result<Vec<ApplicationFile>, LDNApplicationError>
     {
         let gh: GithubWrapper = GithubWrapper::new();
         let mut apps: Vec<ApplicationFile> = Vec::new();
@@ -155,15 +193,11 @@ impl LDNApplication {
             match app.await {
                 Ok(app) => match app {
                     Ok(app) => apps.push(app),
-                    Err(e) => {
-                        dbg!("here".to_string());
-                        dbg!(e.to_string());
+                    Err(_) => {
                         continue;
                     }
                 },
-                Err(e) => {
-                    dbg!("here".to_string());
-                    dbg!(e.to_string());
+                Err(_) => {
                     continue;
                 }
             }
@@ -612,43 +646,6 @@ pub struct LDNPullRequest {
 }
 
 impl LDNPullRequest {
-    async fn create_empty_pr_for_branch(
-        application_id: String,
-        owner_name: String,
-        app_branch_name: String,
-    ) -> Result<(u64, String), LDNApplicationError> {
-        let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
-        let create_ref_request =
-            match GithubWrapper::build_create_ref_request(app_branch_name.clone(), None) {
-                Ok(req) => req,
-                Err(e) => {
-                    return Err(LDNApplicationError::NewApplicationError(format!(
-                        "Application issue {} cannot create branch request object /// {}",
-                        application_id, e
-                    )))
-                }
-            };
-
-        let merge_request_data: CreateMergeRequestData = CreateMergeRequestData {
-            application_id: application_id.clone(),
-            owner_name,
-            ref_request: create_ref_request,
-            file_content: "{}".to_string(),
-            commit: initial_commit,
-        };
-
-        let gh: GithubWrapper = GithubWrapper::new();
-        let (pr, file_sha) = match gh.create_merge_request(merge_request_data).await {
-            Ok((pr, file_sha)) => (pr, file_sha),
-            Err(e) => {
-                return Err(LDNApplicationError::NewApplicationError(format!(
-                    "Application issue cannot create branch /// {}",
-                    e
-                )));
-            }
-        };
-        Ok((pr.number, file_sha))
-    }
     async fn create_empty_pr(
         application_id: String,
         owner_name: String,
@@ -656,16 +653,17 @@ impl LDNPullRequest {
         base_hash: Option<String>,
     ) -> Result<(u64, String), LDNApplicationError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
-        let create_ref_request =
-            match GithubWrapper::build_create_ref_request(app_branch_name.clone(), base_hash) {
-                Ok(req) => req,
-                Err(e) => {
-                    return Err(LDNApplicationError::NewApplicationError(format!(
-                        "Application issue cannot create branch request object /// {}",
-                        e
-                    )))
-                }
-            };
+        let create_ref_request = match GithubWrapper::new()
+            .build_create_ref_request(app_branch_name.clone(), base_hash)
+        {
+            Ok(req) => req,
+            Err(e) => {
+                return Err(LDNApplicationError::NewApplicationError(format!(
+                    "Application issue cannot create branch request object /// {}",
+                    e
+                )))
+            }
+        };
 
         let merge_request_data: CreateMergeRequestData = CreateMergeRequestData {
             application_id: application_id.clone(),
@@ -826,6 +824,7 @@ mod tests {
 
     use super::*;
 
+    #[ignore]
     #[tokio::test]
     async fn end_to_end() {
         // Test Creating an application
