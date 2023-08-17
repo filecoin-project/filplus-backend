@@ -832,7 +832,7 @@ mod tests {
         let gh: GithubWrapper = GithubWrapper::new();
 
         // let branches = gh.list_branches().await.unwrap();
-        let issue = gh.list_issue(64).await.unwrap();
+        let issue = gh.list_issue(63).await.unwrap();
         let test_issue: Issue = gh
             .create_issue("from test", &issue.body.unwrap())
             .await
@@ -870,7 +870,7 @@ mod tests {
                 actor: "actor_address".to_string(),
             })
             .await
-            .expect("Failed to load the application before trigger");
+            .unwrap();
         let ldn_application_after_trigger =
             LDNApplication::load(application_id.clone()).await.unwrap();
         assert_eq!(
