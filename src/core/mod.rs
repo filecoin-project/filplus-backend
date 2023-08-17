@@ -870,7 +870,7 @@ mod tests {
                 actor: "actor_address".to_string(),
             })
             .await
-            .unwrap();
+            .expect("Failed to load the application before trigger");
         let ldn_application_after_trigger =
             LDNApplication::load(application_id.clone()).await.unwrap();
         assert_eq!(
