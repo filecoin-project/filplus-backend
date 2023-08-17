@@ -832,7 +832,7 @@ mod tests {
         let gh: GithubWrapper = GithubWrapper::new();
 
         // let branches = gh.list_branches().await.unwrap();
-        let issue = gh.list_issue(39).await.unwrap();
+        let issue = gh.list_issue(64).await.unwrap();
         let test_issue: Issue = gh
             .create_issue("from test", &issue.body.unwrap())
             .await
