@@ -829,10 +829,10 @@ mod tests {
     #[tokio::test]
     async fn end_to_end() {
         // Test Creating an application
-        let gh = GithubWrapper::new();
+        let gh: GithubWrapper = GithubWrapper::new();
 
         // let branches = gh.list_branches().await.unwrap();
-        let issue = gh.list_issue(40).await.unwrap();
+        let issue = gh.list_issue(39).await.unwrap();
         let test_issue: Issue = gh
             .create_issue("from test", &issue.body.unwrap())
             .await
