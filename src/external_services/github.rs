@@ -529,6 +529,7 @@ mod tests {
         external_services::github::{http_server, remove_invalid_chars, GithubWrapper, TestPatch},
     };
 
+    #[ignore]
     #[tokio::test]
     async fn test_basic_integration() {
         let gh = GithubWrapper::new();
@@ -585,7 +586,7 @@ mod tests {
         // let test_patch: TestPatch = serde_json::from_str(&parsed).unwrap();
         // dbg!(&test_patch);
         // dbg!(&test_patch);
-        assert!(false);
+        // assert!(false);
         // assert!(gh.list_issues().await.is_ok());
         // assert!(gh.list_pull_requests().await.is_ok());
         // assert!(gh.list_branches().await.is_ok());

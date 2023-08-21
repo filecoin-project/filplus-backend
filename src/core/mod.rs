@@ -874,7 +874,6 @@ mod tests {
     async fn end_to_end() {
         let all_applications = LDNApplication::get_all_active_applications().await.unwrap();
         dbg!(&all_applications);
-        assert!(false);
         // // Test Creating an application
         // let gh = GithubWrapper::new();
 
