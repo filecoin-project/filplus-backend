@@ -116,7 +116,7 @@ pub async fn get_application(id: web::Path<String>) -> actix_web::Result<impl Re
 /// Return all applications
 #[get("/application")]
 pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
-    let apps = match LDNApplication::active_prs().await {
+    let apps = match LDNApplication::get_all_active_applications().await {
         Ok(app) => app,
         Err(e) => {
             return Ok(HttpResponse::BadRequest().body(e.to_string()));
