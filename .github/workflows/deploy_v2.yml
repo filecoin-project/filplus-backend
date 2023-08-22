@@ -19,7 +19,7 @@ jobs:
         docker build . --tag public.ecr.aws/b3c4u5n1/filecoin-core-api:latest
         echo "Docker image built successfully."
 
-    - name: Push to ECR using jwalton/gh-ecr-push
+    - name: Push to ECR
       id: ecr
       uses: jwalton/gh-ecr-push@v1
       with:
