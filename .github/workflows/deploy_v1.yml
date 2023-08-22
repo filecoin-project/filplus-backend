@@ -29,7 +29,7 @@ jobs:
         echo "Building Docker image..."
         docker build . -t public.ecr.aws/b3c4u5n1/filecoin-core-api:latest
         echo "Docker image built and tagged successfully."
-        run: echo "build-status=success" >>$GITHUB_OUTPUT
+        echo "build-status=success" >>$GITHUB_OUTPUT
 
     - name: Push Docker image to ECR
       run: |
