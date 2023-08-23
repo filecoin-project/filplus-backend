@@ -1,9 +1,9 @@
 name: Docker Image CI/CD Test Action
 
 on:
-  push:
+  pull_request:
     branches:
-      - workflow-cd-process
+      - main
 
 jobs:
   build_and_push:
@@ -31,12 +31,10 @@ jobs:
       run: |
         echo "Building Docker image..."
         docker build . -t public.ecr.aws/b3c4u5n1/filecoin-core-api:latest
-        echo "Docker image built and tagged successfully."
-        echo "build-status=success" >>$GITHUB_OUTPUT
 
     - name: Push Docker image to ECR
       run: |
         echo "Pushing Docker image to ECR..."
         docker push public.ecr.aws/b3c4u5n1/filecoin-core-api:latest
-        echo "Docker image pushed successfully."
-        echo "push-status=success" >>$GITHUB_OUTPUT
+
+    if: github.event.pull_request.merged == true
