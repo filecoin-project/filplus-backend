@@ -44,7 +44,7 @@ jobs:
           "fp-core": {
             "image": "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}",
             "ports": {
-              "80": "HTTP"
+              "8080": "HTTP"
             },
             "environment": {
               
@@ -55,5 +55,6 @@ jobs:
         # Deploy to Lightsail Container Service
         aws lightsail create-container-service-deployment \
           --service-name fp-core \
+          --region us-east-2 \
           --containers file://containers.json
   
