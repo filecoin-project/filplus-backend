@@ -36,3 +36,24 @@ jobs:
       run: |
         echo "Pushing Docker image to ECR..."
         docker push "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}"
+
+    - name: Deploy to Lightsail Container Service
+      run: |
+        # Define containers.json with desired settings
+        echo '{
+          "fp-core": {
+            "image": "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}",
+            "ports": {
+              "80": "HTTP"
+            },
+            "environment": {
+              
+            }
+          }
+        }' > containers.json
+        
+        # Deploy to Lightsail Container Service
+        aws lightsail create-container-service-deployment \
+          --service-name fp-core \
+          --containers file://containers.json
+  
