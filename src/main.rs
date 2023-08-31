@@ -1,9 +1,8 @@
 extern crate markdown;
 
 use actix_web::middleware::Logger;
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, HttpServer};
 use env_logger;
-use std::sync::Mutex;
 
 pub(crate) mod b64;
 pub(crate) mod core;
@@ -11,10 +10,21 @@ pub(crate) mod external_services;
 pub(crate) mod parsers;
 pub(crate) mod router;
 
+/// Http Server Setup
+/// Exposes Application and Blockchain endpoints
+/// Application endpoints:
+///    - Create Application
+///    - Trigger Application
+///    - Propose Application
+///    - Approve Application
+///    - Merge Application
+///    - Get Application
+///    - Get All Applications
+/// Blockchain endpoints:
+///   - Address Allowance
+///   - Verified Clients
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let gh = external_services::github::GithubWrapper::new();
-    let state = web::Data::new(Mutex::new(gh));
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
 
     HttpServer::new(move || {
@@ -25,7 +35,6 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .wrap(cors)
-            .app_data(state.clone())
             .service(router::health)
             .service(router::application::create_application)
             .service(router::application::trigger_application)

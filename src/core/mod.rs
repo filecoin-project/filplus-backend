@@ -1,15 +1,16 @@
 pub mod application;
+use std::{
+    fmt::Display,
+    pin::Pin,
+    task::{Context, Poll},
+};
+
 use actix_web::{
     body::{BodySize, MessageBody},
     web::Bytes,
 };
 use chrono::Utc;
 use octocrab::models::{pulls::PullRequest, repos::ContentItems};
-use std::{
-    fmt::Display,
-    pin::Pin,
-    task::{Context, Poll},
-};
 
 use self::application::{
     allocations::{AllocationRequest, ApplicationAllocationTypes, ApplicationAllocationsSigner},
@@ -127,6 +128,8 @@ impl MessageBody for LDNApplicationError {
 }
 
 impl LDNApplication {
+    /// Get Active Applications
+    /// Returns a list of all active applications
     pub async fn get_all_active_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError>
     {
         let gh: GithubWrapper = GithubWrapper::new();
@@ -144,7 +147,6 @@ impl LDNApplication {
                 return (id, owner_name);
             })
             .collect::<Vec<_>>();
-        dbg!(&pull_requests);
         let app_futures: Vec<_> = pull_requests
             .into_iter()
             .map(|i| tokio::spawn(LDNApplication::app_file_without_load(i.0)))
@@ -169,6 +171,7 @@ impl LDNApplication {
         Ok(apps)
     }
 
+    /// Load Application By ID
     pub async fn load(application_id: String) -> Result<Self, LDNApplicationError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let app_path = LDNPullRequest::application_path(&application_id);
@@ -201,6 +204,7 @@ impl LDNApplication {
         }
     }
 
+    /// Create New Application
     pub async fn new(info: CreateApplicationInfo) -> Result<Self, LDNApplicationError> {
         let application_id = info.application_id;
         let gh: GithubWrapper = GithubWrapper::new();
@@ -317,7 +321,7 @@ impl LDNApplication {
         }
     }
 
-    /// Move application from Governance Review to Proposal
+    /// Move application from Proposal to Approved
     pub async fn complete_new_application_proposal(
         &self,
         info: CompleteNewApplicationProposalInfo,
@@ -370,7 +374,7 @@ impl LDNApplication {
         }
     }
 
-    /// Move application from Governance Review to Proposal
+    /// Merge Application Pull Request
     pub async fn merge_new_application_pr(&self) -> Result<ApplicationFile, LDNApplicationError> {
         match self.app_state().await {
             Ok(s) => match s {
@@ -488,6 +492,7 @@ impl LDNApplication {
         Ok((parse_ldn_app_body(&issue_body), issue_creator))
     }
 
+    /// Return Application state
     async fn app_state(&self) -> Result<ApplicationFileState, LDNApplicationError> {
         let f = self.app_file().await?;
         Ok(f.info.application_lifecycle.get_state())
@@ -530,7 +535,7 @@ impl LDNApplication {
         }
     }
 
-    async fn _app_file_from_main(&self) -> Result<ApplicationFile, LDNApplicationError> {
+    async fn app_file_from_main(&self) -> Result<ApplicationFile, LDNApplicationError> {
         let app_path = LDNPullRequest::application_path(&self.application_id);
         let app_branch_name = "main";
         match self.github.get_file(&app_path, &app_branch_name).await {
@@ -815,7 +820,6 @@ impl LDNPullRequest {
     }
 }
 
-#[cfg(test)]
 mod tests {
     use octocrab::models::issues::Issue;
     use tokio::time::{sleep, Duration};
@@ -825,10 +829,10 @@ mod tests {
     #[tokio::test]
     async fn end_to_end() {
         // Test Creating an application
-        let gh = GithubWrapper::new();
+        let gh: GithubWrapper = GithubWrapper::new();
 
         // let branches = gh.list_branches().await.unwrap();
-        let issue = gh.list_issue(14).await.unwrap();
+        let issue = gh.list_issue(63).await.unwrap();
         let test_issue: Issue = gh
             .create_issue("from test", &issue.body.unwrap())
             .await
