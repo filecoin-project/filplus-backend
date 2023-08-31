@@ -582,6 +582,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6999dc1837253364c2ebb0704ba97994bd874e8f195d665c50b7548f6ea92764"
 
 [[package]]
+name = "filplus-core"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "async-trait",
+ "base64 0.13.1",
+ "chrono",
+ "dotenv",
+ "env_logger",
+ "http",
+ "hyper",
+ "hyper-rustls",
+ "itertools",
+ "jsonwebtoken",
+ "markdown",
+ "octocrab",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "structopt",
+ "tokio",
+]
+
+[[package]]
 name = "flate2"
 version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -619,31 +644,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a62bc1cf6f830c2ec14a513a9fb124d0a213a629668a4186f329db21fe045652"
 dependencies = [
  "percent-encoding",
-]
-
-[[package]]
-name = "fp-core"
-version = "0.1.0"
-dependencies = [
- "actix-cors",
- "actix-web",
- "async-trait",
- "base64 0.13.1",
- "chrono",
- "dotenv",
- "env_logger",
- "http",
- "hyper",
- "hyper-rustls",
- "itertools",
- "jsonwebtoken",
- "markdown",
- "octocrab",
- "reqwest",
- "serde",
- "serde_json",
- "structopt",
- "tokio",
 ]
 
 [[package]]
