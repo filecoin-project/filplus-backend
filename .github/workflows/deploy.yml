@@ -37,38 +37,39 @@ jobs:
         echo "Pushing Docker image to ECR..."
         docker push "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}"
 
-        - name: Deploy to Lightsail Container Service
-        run: |
-          # Define containers.json with desired settings
-          echo '{
-            "filplus-core": {
-              "image": "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}",
-              "ports": {
-                "8080": "HTTP"
-              },
-              "environment": {}
-            }
-          }' > containers.json
-          
-          # Define public-endpoint.json
-          echo '{
-            "containerName": "filplus-core",
-            "containerPort": 8080,
-            "healthCheck": {
-              "healthyThreshold": 3,
-              "unhealthyThreshold": 3,
-              "timeoutSeconds": 3,
-              "intervalSeconds": 5,
-              "path": "/health",
-              "successCodes": "200"
-            }
-          }' > public-endpoint.json
-          
-          # Deploy to Lightsail Container Service
-          aws lightsail create-container-service-deployment \
-            --service-name fp-core \
-            --region us-east-2 \
-            --containers file://containers.json \
-            --public-endpoint file://public-endpoint.json
+    - name: Deploy to Lightsail Container Service
+      run: |
+        # Define containers.json with desired settings
+        echo '{
+          "filplus-core": {
+            "image": "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}",
+            "ports": {
+              "8080": "HTTP"
+            },
+            "environment": {}
+          }
+        }' > containers.json
+        
+        # Define public-endpoint.json
+        echo '{
+          "containerName": "filplus-core",
+          "containerPort": 8080,
+          "healthCheck": {
+            "healthyThreshold": 3,
+            "unhealthyThreshold": 3,
+            "timeoutSeconds": 3,
+            "intervalSeconds": 5,
+            "path": "/health",
+            "successCodes": "200"
+          }
+        }' > public-endpoint.json
+        
+        # Deploy to Lightsail Container Service
+        aws lightsail create-container-service-deployment \
+          --service-name fp-core \
+          --region us-east-2 \
+          --containers file://containers.json \
+          --public-endpoint file://public-endpoint.json
+
       
   
