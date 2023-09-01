@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 pub mod application;
 use std::{
     fmt::Display,
@@ -10,7 +11,9 @@ use actix_web::{
     web::Bytes,
 };
 use chrono::Utc;
-use octocrab::models::{pulls::PullRequest, repos::ContentItems};
+use octocrab::models::{pulls::{PullRequest, FileDiff}, repos::ContentItems};
+use futures::future;
+use reqwest::Response;
 
 use self::application::{
     allocations::{AllocationRequest, ApplicationAllocationTypes, ApplicationAllocationsSigner},
@@ -140,29 +143,37 @@ impl LDNApplication {
         let gh: GithubWrapper = GithubWrapper::new();
         let mut apps: Vec<ApplicationFile> = Vec::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
-        let pull_requests = pull_requests
+        let pull_requests = future::try_join_all(pull_requests
             .into_iter()
             .map(|pr: PullRequest| {
-                let branch = pr.head.ref_field.clone();
-                let base = pr.base.ref_field.clone();
-                return (branch, base);
+                let number = pr.number;
+                gh.get_pull_request_files(number)
             })
-            .collect::<Vec<_>>();
-        let app_futures: Vec<_> = pull_requests
+            .collect::<Vec<_>>()).await.unwrap().into_iter().flatten();
+        let pull_requests: Vec<Response> = match future::try_join_all(pull_requests
             .into_iter()
-            .map(|i| tokio::spawn(LDNApplication::app_file_without_load(i.0)))
-            .collect();
-        for app in app_futures {
-            match app.await {
-                Ok(app) => match app {
-                    Ok(app) => apps.push(app),
-                    Err(_) => {
-                        continue;
-                    }
-                },
-                Err(_) => {
-                    continue;
-                }
+            .map(|fd: FileDiff| {
+                reqwest::Client::new()
+                    .get(&fd.raw_url.to_string())
+                    .send()
+            })
+            .collect::<Vec<_>>()).await {
+                Ok(res) => res,
+                Err(_) => return Err(LDNApplicationError::LoadApplicationError("Failed to get pull request files".to_string()))
+        };
+        let pull_requests = match future::try_join_all(pull_requests
+            .into_iter()
+            .map(|r: Response| {
+                r.text()
+            })
+            .collect::<Vec<_>>()).await {
+            Ok(res) => res,
+            Err(_) => return Err(LDNApplicationError::LoadApplicationError("Failed to get pull request files".to_string()))
+        };
+        for r in pull_requests {
+            match serde_json::from_str::<ApplicationFile>(&r) {
+                Ok(app) => apps.push(app),
+                Err(_) => continue
             }
         }
         Ok(apps)
