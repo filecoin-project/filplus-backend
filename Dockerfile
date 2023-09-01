@@ -7,5 +7,5 @@ FROM debian:bullseye
 
 # Needed for openssl(hyper uses it)
 RUN apt-get update && apt-get install -y libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder ./target/release/fp-core ./target/release/fp-core
-CMD ["/target/release/fp-core"]
+COPY --from=builder ./target/release/filplus-core ./target/release/filplus-core
+CMD ["/target/release/filplus-core"]
