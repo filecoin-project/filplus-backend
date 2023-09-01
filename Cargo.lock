@@ -592,6 +592,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "env_logger",
+ "futures",
  "http",
  "hyper",
  "hyper-rustls",
