@@ -6,7 +6,7 @@ use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer, web};
 use env_logger;
 
-pub(crate) mod b64;
+pub(crate) mod base64;
 pub(crate) mod core;
 pub(crate) mod db;
 pub(crate) mod external_services;

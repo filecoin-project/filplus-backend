@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 pub mod application;
 use std::{
     fmt::Display,
@@ -22,7 +21,7 @@ use self::application::{
 };
 
 use crate::{
-    b64,
+    base64,
     core::application::{
         allocations::ApplicationAllocations,
         core_info::{ApplicationCoreInfo, ApplicationInfo},
@@ -75,7 +74,6 @@ pub struct LDNApplication {
 pub enum LDNApplicationError {
     NewApplicationError(String),
     LoadApplicationError(String),
-    ProposeApplicationError(String),
 }
 
 type LDNResult = Result<ApplicationFile, LDNApplicationError>;
@@ -91,9 +89,6 @@ impl Display for LDNApplicationError {
             LDNApplicationError::LoadApplicationError(e) => {
                 write!(f, "LoadApplicationError: {}", e)
             }
-            LDNApplicationError::ProposeApplicationError(e) => {
-                write!(f, "ProposeApplicationError: {}", e)
-            }
             LDNApplicationError::NewApplicationError(e) => {
                 write!(f, "NewApplicationError: {}", e)
             }
@@ -107,7 +102,6 @@ impl MessageBody for LDNApplicationError {
     fn size(&self) -> BodySize {
         match self {
             LDNApplicationError::LoadApplicationError(e) => BodySize::Sized(e.len() as u64),
-            LDNApplicationError::ProposeApplicationError(e) => BodySize::Sized(e.len() as u64),
             LDNApplicationError::NewApplicationError(e) => BodySize::Sized(e.len() as u64),
         }
     }
@@ -118,9 +112,6 @@ impl MessageBody for LDNApplicationError {
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
         match Pin::<&mut LDNApplicationError>::into_inner(self) {
             LDNApplicationError::LoadApplicationError(e) => {
-                Poll::Ready(Some(Ok(Bytes::from(e.clone()))))
-            }
-            LDNApplicationError::ProposeApplicationError(e) => {
                 Poll::Ready(Some(Ok(Bytes::from(e.clone()))))
             }
             LDNApplicationError::NewApplicationError(e) => {
@@ -174,43 +165,6 @@ impl LDNApplication {
             match serde_json::from_str::<ApplicationFile>(&r) {
                 Ok(app) => apps.push(app),
                 Err(_) => continue
-            }
-        }
-        Ok(apps)
-    }
-
-    async fn get_all_active_applications_old() -> Result<Vec<ApplicationFile>, LDNApplicationError>
-    {
-        let gh: GithubWrapper = GithubWrapper::new();
-        let mut apps: Vec<ApplicationFile> = Vec::new();
-        let pull_requests = gh.list_pull_requests().await.unwrap();
-        let pull_requests = pull_requests
-            .into_iter()
-            .map(|pr: PullRequest| {
-                let title: String = pr.title.unwrap().clone();
-                let pos = title.split_once(":").unwrap();
-                let data = pos.1.clone();
-                let data = data.split_once(":").unwrap();
-                let id = data.0.to_string();
-                let owner_name = data.1.to_string();
-                return (id, owner_name);
-            })
-            .collect::<Vec<_>>();
-        let app_futures: Vec<_> = pull_requests
-            .into_iter()
-            .map(|i| tokio::spawn(LDNApplication::app_file_without_load(i.0)))
-            .collect();
-        for app in app_futures {
-            match app.await {
-                Ok(app) => match app {
-                    Ok(app) => apps.push(app),
-                    Err(_) => {
-                        continue;
-                    }
-                },
-                Err(_) => {
-                    continue;
-                }
             }
         }
         Ok(apps)
@@ -554,7 +508,7 @@ impl LDNApplication {
                 )))
             }
         };
-        match b64::decode(&f.replace("\n", "")) {
+        match base64::decode(&f.replace("\n", "")) {
             Some(f) => {
                 return Ok(ApplicationFile::from(f));
             }
@@ -569,20 +523,6 @@ impl LDNApplication {
     async fn app_file(&self) -> Result<ApplicationFile, LDNApplicationError> {
         let app_path = LDNPullRequest::application_path(&self.application_id);
         let app_branch_name = LDNPullRequest::application_branch_name(&self.application_id);
-        match self.github.get_file(&app_path, &app_branch_name).await {
-            Ok(file) => Ok(LDNApplication::content_items_to_app_file(file)?),
-            Err(e) => {
-                return Err(LDNApplicationError::LoadApplicationError(format!(
-                    "Application issue {} file does not exist /// {}",
-                    self.application_id, e
-                )))
-            }
-        }
-    }
-
-    async fn app_file_from_main(&self) -> Result<ApplicationFile, LDNApplicationError> {
-        let app_path = LDNPullRequest::application_path(&self.application_id);
-        let app_branch_name = "main";
         match self.github.get_file(&app_path, &app_branch_name).await {
             Ok(file) => Ok(LDNApplication::content_items_to_app_file(file)?),
             Err(e) => {
@@ -697,21 +637,6 @@ impl LDNPullRequest {
         Ok((pr.number, file_sha))
     }
 
-    pub(super) async fn get_branch_hash(branch_name: String) -> Option<String> {
-        let gh: GithubWrapper = GithubWrapper::new();
-        match gh.list_branches().await {
-            Ok(branches) => {
-                for branch in branches {
-                    if branch.name == branch_name {
-                        return Some(branch.commit.sha);
-                    }
-                }
-                None
-            }
-            Err(_) => None,
-        }
-    }
-
     pub(super) async fn add_commit(
         &self,
         commit_message: String,
@@ -742,34 +667,6 @@ impl LDNPullRequest {
         }
     }
 
-    pub(super) async fn add_commit_and_merge(
-        &self,
-        commit_message: String,
-        new_content: String,
-        file_sha: String,
-        pr_number: u64,
-    ) -> Option<()> {
-        let gh: GithubWrapper = GithubWrapper::new();
-        if gh
-            .update_file_content(
-                &self.path,
-                &commit_message,
-                &new_content,
-                &self.branch_name,
-                &file_sha,
-            )
-            .await
-            .is_ok()
-        {
-            match gh.merge_pull_request(pr_number).await {
-                Ok(_) => Some(()),
-                Err(_) => None,
-            }
-        } else {
-            None
-        }
-    }
-
     pub(super) fn load(application_id: &str, owner_name: &str) -> Self {
         LDNPullRequest {
             branch_name: LDNPullRequest::application_branch_name(application_id),
@@ -777,10 +674,6 @@ impl LDNPullRequest {
             body: LDNPullRequest::application_body(application_id),
             path: LDNPullRequest::application_path(application_id),
         }
-    }
-
-    pub(super) fn application_branch_name_allocation(application_id: &str) -> String {
-        format!("Application/{}/Allocation", application_id)
     }
 
     pub(super) fn application_branch_name(application_id: &str) -> String {
