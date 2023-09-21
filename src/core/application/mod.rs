@@ -20,6 +20,7 @@ pub struct ApplicationFile {
     pub id: String,
     pub _type: ApplicationType,
     pub info: ApplicationInfo,
+    pub version: u64,
 }
 
 impl ApplicationFile {
@@ -28,6 +29,7 @@ impl ApplicationFile {
             id: application_id,
             _type: ApplicationType::LDN,
             info: app_info,
+            version: 1,
         }
     }
 
@@ -46,6 +48,7 @@ impl ApplicationFile {
             id: self.id.clone(),
             _type: self._type.clone(),
             info,
+            version: 1,
         }
     }
 
@@ -67,6 +70,7 @@ impl ApplicationFile {
                     id: self.id.clone(),
                     _type: self._type.clone(),
                     info,
+                    version: 1,
                 };
             }
             ApplicationAllocationTypes::Removal => {
@@ -98,6 +102,7 @@ impl ApplicationFile {
             id: self.id.clone(),
             _type: self._type.clone(),
             info,
+            version: 1,
         }
     }
 }
