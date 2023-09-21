@@ -1,11 +1,14 @@
 extern crate markdown;
 
+use std::sync::Mutex;
+
 use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer};
+use actix_web::{App, HttpServer, web};
 use env_logger;
 
 pub(crate) mod b64;
 pub(crate) mod core;
+pub(crate) mod db;
 pub(crate) mod external_services;
 pub(crate) mod parsers;
 pub(crate) mod router;
@@ -26,13 +29,19 @@ pub(crate) mod router;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
+    let client =match  db::setup::setup().await {
+        Ok(client) => client,
+        Err(e) => panic!("Error setting up database: {}", e),
+    };
 
+    let state = web::Data::new(Mutex::new(client));
     HttpServer::new(move || {
         let cors = actix_cors::Cors::default()
             .allow_any_origin()
             .allow_any_method()
             .allow_any_header();
         App::new()
+            .app_data(state.clone())
             .wrap(Logger::default())
             .wrap(cors)
             .service(router::health)
