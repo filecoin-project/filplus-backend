@@ -154,7 +154,7 @@ impl GithubWrapper<'static> {
 
     pub async fn get_pull_request_files(
         &self,
-        pr_number: u64
+        pr_number: u64,
     ) -> Result<Vec<octocrab::models::pulls::FileDiff>, OctocrabError> {
         let iid: Page<octocrab::models::pulls::FileDiff> = self
             .inner

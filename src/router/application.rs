@@ -11,9 +11,9 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 ///
 /// # Example
 /// ```plaintext
-/// curl --header "Content-Type: application/json" 
-///      --request POST 
-///      --data '{"application_id": "0x1234"}' 
+/// curl --header "Content-Type: application/json"
+///      --request POST
+///      --data '{"application_id": "0x1234"}'
 ///      http://localhost:8080/application
 /// ```
 ///
@@ -39,9 +39,9 @@ pub async fn create_application(info: web::Json<CreateApplicationInfo>) -> impl 
 ///
 /// # Example
 /// ```plaintext
-/// curl --header "Content-Type: application/json" 
-///      --request POST 
-///      --data '{"actor": "JohnDoe"}' 
+/// curl --header "Content-Type: application/json"
+///      --request POST
+///      --data '{"actor": "JohnDoe"}'
 ///      http://localhost:8080/application/0x1234/trigger
 /// ```
 ///
@@ -82,8 +82,8 @@ pub async fn trigger_application(
 ///
 /// # Example
 /// ```plaintext
-/// curl --header "Content-Type: application/json" 
-///      --request POST 
+/// curl --header "Content-Type: application/json"
+///      --request POST
 ///      --data '{
 ///         "signer": {
 ///           "signing_address": "0x1234567890abcdef1234567890abcdef12345678",
@@ -91,7 +91,7 @@ pub async fn trigger_application(
 ///           "message_cid": "QmXYZ1234567890abcdef1234567890abcdef12345678"
 ///         },
 ///         "request_id": "exampleRequestId123"
-///      }' 
+///      }'
 ///      http://localhost:8080/application/0x1234/propose
 /// ```
 ///
@@ -131,8 +131,8 @@ pub async fn propose_application(
 ///
 /// # Example
 /// ```plaintext
-/// curl --header "Content-Type: application/json" 
-///      --request POST 
+/// curl --header "Content-Type: application/json"
+///      --request POST
 ///      --data '{
 ///         "signer": {
 ///           "signing_address": "0x1234567890abcdef1234567890abcdef12345678",
@@ -140,7 +140,7 @@ pub async fn propose_application(
 ///           "message_cid": "QmXYZ1234567890abcdef1234567890abcdef12345678"
 ///         },
 ///         "request_id": "exampleRequestId123"
-///      }' 
+///      }'
 ///      http://localhost:8080/application/0x1234/approve
 /// ```
 ///
@@ -179,8 +179,8 @@ pub async fn approve_application(
 ///
 /// # Example
 /// ```plaintext
-/// curl --header "Content-Type: application/json" 
-///      --request POST 
+/// curl --header "Content-Type: application/json"
+///      --request POST
 ///      http://localhost:8080/application/0x1234/merge
 /// ```
 ///
