@@ -21,7 +21,6 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 /// Created new application for issue: 0x1234
 #[post("/application")]
 pub async fn create_application(info: web::Json<CreateApplicationInfo>) -> impl Responder {
-    // HttpResponse::Ok().body(format!( "Created new application for issue:"))
     match LDNApplication::new(info.into_inner()).await {
         Ok(app) => HttpResponse::Ok().body(format!(
             "Created new application for issue: {}",
@@ -261,6 +260,7 @@ pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
     };
     Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap()))
 }
+
 /// Check the health status.
 ///
 /// # Example
