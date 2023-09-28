@@ -1,25 +1,25 @@
 Front End
   - Applications Page
 
-    - [ ] Filter Applications
-    - [ ] Sort Applications
-    - [ ] Applications show be visible for all users(logged and not logged in)
+    - [x] Filter Applications
+    - [x] Search Applications
+    - [x] Applications show be visible for all users(logged and not logged in)
 
   - Application Page
 
-    - [ ] Trigger an Application
-    - [ ] Propose an Application
-    - [ ] Approve an application
+    - [x] Trigger an Application
+    - [x] Propose an Application
+    - [x] Approve an application
     - [ ] Refill an application
     - [ ] Remove an application
 
   - Integrations
 
-    - [ ] Github login
+    - [x] Github login
     - [ ] Filecoin Wallet
 
 Github
-  - Run a github action if an application issue is created, and
+  - [x] Run a github action if an application issue is created, and
     convert it to a PR application
 
   - Run the following actions on each PR commit:
@@ -38,11 +38,11 @@ Github
 
 Backend
 
-  - [ ] HTTP endpoints for FE(s) to consume Fil+ data
+  - [x] HTTP endpoints for FE(s) to consume Fil+ data
 
   - [ ] HTTP endpoints to register logs
 
-  - [ ] Integration with blockchain data
+  - [x] Integration with blockchain data
 
   - CLI tools to:
 
@@ -52,9 +52,9 @@ Backend
 
 SSA Bot(current\not automated\ version)
 
-  - [ ] Run a cron job every one hour
+  - [x] Run a cron job every one hour
 
-  - [ ] Check which of of the approved applications need refill
+  - [x] Check which of of the approved applications need refill
 
   - [ ] Trigger new refill PR where needed
 
@@ -62,23 +62,23 @@ New Repos
   - Filplus Backend
 
     - [ ] Open Source
-    - [ ] CI
-    - [ ] CD
+    - [x] CI
+    - [x] CD
   - Filplus Registry
 
     - [ ] Open Source
-    - [ ] CI
-    - [ ] CD
+    - [x] CI
+    - [x] CD
   - Filplus tools(test env)
 
     - [ ] Open Source
-    - [ ] CI
-    - [ ] CD
+    - [x] CI
+    - [x] CD
   - Filplus utils
 
     - [ ] Open Source
-    - [ ] CI
-    - [ ] CD
+    - [x] CI
+    - [x] CD
   - Filplus SSA Bot
 
     - [ ] Open Source
@@ -89,7 +89,3 @@ Test Env
 
   - [ ] Local test env setup
   - [ ] Staging test env setup
-
-
-
-
