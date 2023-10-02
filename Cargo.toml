@@ -3,5 +3,5 @@
 members = [
   "lib",
   "http-server",
-  "cli"
+  "fplus"
 ]
