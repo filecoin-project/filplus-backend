@@ -1,5 +1,5 @@
-use crate::external_services::blockchain::BlockchainData;
 use actix_web::{get, web, HttpResponse, Responder};
+use lib::external_services::blockchain::BlockchainData;
 
 /// Address Allowance.
 ///

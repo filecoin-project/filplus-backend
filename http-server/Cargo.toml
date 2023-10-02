@@ -1,0 +1,22 @@
+[package]
+name = "http-server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.3.1"
+dotenv = "0.15.0"
+serde = { version =  "1.0.164", features = ["derive", "std",
+"serde_derive", "alloc", "rc"] } 
+tokio = { version = "1.29.1", features = ["full"] }
+env_logger = "0.10.0"
+serde_json = "1.0.96"
+chrono = "0.4.26"
+actix-cors = "0.6.4"
+reqwest = { version = "0.11.18", features = ["json"] }
+futures = "0.3.28"
+mongodb = "2.6.1"
+lib = { path = "../lib" }
+
