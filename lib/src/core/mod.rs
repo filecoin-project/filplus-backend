@@ -224,6 +224,8 @@ impl LDNApplication {
                     parsed_ldn.name.clone(),
                     parsed_ldn.region,
                     "TODO".to_string(), // industry
+                    parsed_ldn.address,
+                    parsed_ldn.datacap_requested,
                     parsed_ldn.website,
                     "TODO".to_string(), // social media
                 );
