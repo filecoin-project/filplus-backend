@@ -1,16 +1,9 @@
-extern crate markdown;
-
-use std::sync::Mutex;
-
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer, web};
+use std::sync::Mutex;
 use env_logger;
 
-pub(crate) mod base64;
-pub(crate) mod core;
 pub(crate) mod db;
-pub(crate) mod external_services;
-pub(crate) mod parsers;
 pub(crate) mod router;
 
 /// Http Server Setup
