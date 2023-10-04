@@ -668,30 +668,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6999dc1837253364c2ebb0704ba97994bd874e8f195d665c50b7548f6ea92764"
 
 [[package]]
-name = "filplus-core"
-version = "0.1.0"
-dependencies = [
- "actix-cors",
- "actix-web",
- "base64 0.13.1",
- "chrono",
- "dotenv",
- "env_logger",
- "futures",
- "http",
- "hyper",
- "hyper-rustls",
- "jsonwebtoken",
- "markdown",
- "mongodb",
- "octocrab",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "finl_unicode"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -957,6 +933,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "add0ab9360ddbd88cfeb3bd9574a1d85cfdfa14db10b3e21d3700dbc4328758f"
 
 [[package]]
+name = "http-server"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "chrono",
+ "dotenv",
+ "env_logger",
+ "futures",
+ "lib",
+ "mongodb",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "httparse"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1187,6 +1181,27 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+
+[[package]]
+name = "lib"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "base64 0.13.1",
+ "chrono",
+ "dotenv",
+ "env_logger",
+ "futures",
+ "http",
+ "hyper",
+ "hyper-rustls",
+ "jsonwebtoken",
+ "markdown",
+ "octocrab",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "libc"
@@ -2695,9 +2710,9 @@ dependencies = [
 
 [[package]]
 name = "webpki"
-version = "0.22.1"
+version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0e74f82d49d545ad128049b7e88f6576df2da6b02e9ce565c6f533be576957e"
+checksum = "07ecc0cd7cac091bf682ec5efa18b1cff79d617b84181f38b3951dbe135f607f"
 dependencies = [
  "ring",
  "untrusted",
