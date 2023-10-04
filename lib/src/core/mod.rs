@@ -497,6 +497,7 @@ impl LDNApplication {
         Ok(f.info.application_lifecycle.get_state())
     }
 
+    
     fn content_items_to_app_file(
         file: ContentItems,
     ) -> Result<ApplicationFile, LDNApplicationError> {
@@ -519,6 +520,9 @@ impl LDNApplication {
             }
         }
     }
+    
+    
+
 
     async fn app_file(&self) -> Result<ApplicationFile, LDNApplicationError> {
         let app_path = LDNPullRequest::application_path(&self.application_id);
@@ -551,6 +555,32 @@ impl LDNApplication {
             }
         }
     }
+
+    pub async fn get_merged_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError> {
+        let gh: GithubWrapper<'_> = GithubWrapper::new();
+        match gh.get_all_files().await {
+            Ok(mut all_files) => {
+                // Filter the items directly in the ContentItems struct
+                all_files.items.retain(|item| item.name.starts_with("Application"));
+    
+                // Try mapping each filtered Content in ContentItems to ApplicationFile
+                let applications_result: Result<Vec<ApplicationFile>, LDNApplicationError> = all_files.items.into_iter()
+                    .map(|item| {
+                        // Since content_items_to_app_file already returns a Result, just pass it through
+                        LDNApplication::content_items_to_app_file(ContentItems { items: vec![item.clone()] })
+                    })
+                    .collect();  // If any map iteration fails, collect will directly return that error
+    
+                // If mapping was successful, return the applications, otherwise return the error
+                applications_result
+            }
+            Err(_) => Err(LDNApplicationError::LoadApplicationError("Failed to get merged applications".to_string()))
+        }
+    }
+    
+    
+    
+    
 }
 
 impl From<String> for ParsedApplicationDataFields {

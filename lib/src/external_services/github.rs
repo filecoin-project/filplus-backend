@@ -429,6 +429,17 @@ impl GithubWrapper<'static> {
             .await?;
         Ok(())
     }
+
+    pub async fn get_all_files(&self) -> Result<ContentItems, OctocrabError> {
+        // Fetch the list of contents in the repository.
+        let contents_items = self.inner.repos(self.owner, self.repo)
+            .get_content()
+            .send()
+            .await?;
+        
+        Ok(contents_items)
+    }
+    
 }
 
 #[cfg(test)]

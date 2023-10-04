@@ -258,6 +258,36 @@ pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
     Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap()))
 }
 
+/// Fetch application files.
+///
+/// # Returns
+/// Returns an array of contents of the files.
+///
+/// # Example
+/// ```plaintext
+/// curl http://localhost:8080/application/files
+/// ```
+///
+/// # Response
+/// ```json
+/// [
+///   "file content 1",
+///   "file content 2",
+///   ...
+/// ]
+/// ```
+#[get("/applications/merged")]
+pub async fn get_merged_applications() -> actix_web::Result<impl Responder> {
+    let merged_apps = match LDNApplication::get_merged_applications().await {
+        Ok(apps) => apps,
+        Err(e) => {
+            return Ok(HttpResponse::BadRequest().body(e.to_string()));
+        }
+    };
+    Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&merged_apps).unwrap()))
+}
+
+
 /// Check the health status.
 ///
 /// # Example
