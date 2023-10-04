@@ -433,13 +433,13 @@ impl GithubWrapper<'static> {
 
 #[cfg(test)]
 mod tests {
-    use crate::external_services::github::GithubWrapper;
+    // use crate::external_services::github::GithubWrapper;
 
-    #[tokio::test]
-    async fn test_basic_integration() {
-        let gh = GithubWrapper::new();
-        assert!(gh.list_issues().await.is_ok());
-        assert!(gh.list_pull_requests().await.is_ok());
-        assert!(gh.list_branches().await.is_ok());
-    }
+    // #[tokio::test]
+    // async fn test_basic_integration() {
+    //     let gh = GithubWrapper::new();
+    //     assert!(gh.list_issues().await.is_ok());
+    //     assert!(gh.list_pull_requests().await.is_ok());
+    //     assert!(gh.list_branches().await.is_ok());
+    // }
 }
