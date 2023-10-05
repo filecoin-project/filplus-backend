@@ -31,3 +31,9 @@ pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<Log>> {
     }
     Ok(ret)
 }
+
+pub async fn insert(state: web::Data<Mutex<Client>>, log: Log) -> Result<()> {
+    let log_collection: Collection<Log> = get_collection(state, COLLECTION_NAME).await?;
+    log_collection.insert_one(log, None).await?;
+    Ok(())
+}

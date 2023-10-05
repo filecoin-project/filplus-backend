@@ -1,17 +1,25 @@
 use crate::db;
-use actix_web::{get, http::header::ContentType, web, HttpResponse};
+use actix_web::{get, http::header::ContentType, web, HttpResponse, post};
 use mongodb::Client;
 use std::sync::Mutex;
 
 #[get("/notary")]
 pub async fn get(db_connection: web::Data<Mutex<Client>>) -> HttpResponse {
-    let items = match db::collections::notary::find(db_connection).await {
-        Ok(items) => items,
-        Err(_) => {
-            return HttpResponse::InternalServerError().finish();
-        }
-    };
-    return HttpResponse::Ok()
-        .content_type(ContentType::json())
-        .body(serde_json::to_string(&items).unwrap());
+    match db::collections::notary::find(db_connection).await {
+        Ok(i) => HttpResponse::Ok()
+            .content_type(ContentType::json())
+            .body(serde_json::to_string(&i).unwrap()),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
+#[post("/notary")]
+pub async fn post(
+    db_connection: web::Data<Mutex<Client>>,
+    rkh: web::Json<db::collections::notary::Notary>,
+) -> HttpResponse {
+    match db::collections::notary::insert(db_connection, rkh.into_inner()).await {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
 }

@@ -30,3 +30,9 @@ pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<RootKeyHolder>>
     }
     Ok(ret)
 }
+
+pub async fn insert(state: web::Data<Mutex<Client>>, rkh: RootKeyHolder) -> Result<()> {
+    let rkh_collection: Collection<RootKeyHolder> = get_collection(state, COLLECTION_NAME).await?;
+    rkh_collection.insert_one(rkh, None).await?;
+    Ok(())
+}

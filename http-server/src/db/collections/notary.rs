@@ -32,3 +32,9 @@ pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<Notary>> {
     }
     Ok(ret)
 }
+
+pub async fn insert(state: web::Data<Mutex<Client>>, notary: Notary) -> Result<()> {
+    let notary_collection: Collection<Notary> = get_collection(state, COLLECTION_NAME).await?;
+    notary_collection.insert_one(notary, None).await?;
+    Ok(())
+}
