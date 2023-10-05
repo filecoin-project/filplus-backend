@@ -14,6 +14,7 @@ pub(crate) mod router;
 ///    - Propose Application
 ///    - Approve Application
 ///    - Merge Application
+///    - Get All Merged Applications
 ///    - Get Application
 ///    - Get All Applications
 /// Blockchain endpoints:
