@@ -14,6 +14,7 @@ pub(crate) mod router;
 ///    - Propose Application
 ///    - Approve Application
 ///    - Merge Application
+///    - Get All Merged Applications
 ///    - Get Application
 ///    - Get All Applications
 /// Blockchain endpoints:
@@ -43,6 +44,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::propose_application)
             .service(router::application::approve_application)
             .service(router::application::merge_application)
+            .service(router::application::get_merged_applications)
             .service(router::application::get_application)
             .service(router::application::get_all_applications)
             .service(router::blockchain::address_allowance)

@@ -154,7 +154,7 @@ impl GithubWrapper<'static> {
 
     pub async fn get_pull_request_files(
         &self,
-        pr_number: u64
+        pr_number: u64,
     ) -> Result<Vec<octocrab::models::pulls::FileDiff>, OctocrabError> {
         let iid: Page<octocrab::models::pulls::FileDiff> = self
             .inner
@@ -429,17 +429,41 @@ impl GithubWrapper<'static> {
             .await?;
         Ok(())
     }
+
+    // This takes all files into the root, but it doesn't return their content
+    pub async fn get_all_files(&self) -> Result<ContentItems, OctocrabError> {
+        // Fetch the list of contents in the repository.
+        let contents_items = self
+            .inner
+            .repos(self.owner, self.repo)
+            .get_content()
+            .r#ref("main")
+            .send()
+            .await?;
+
+        Ok(contents_items)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    // use crate::external_services::github::GithubWrapper;
+    use octocrab::models::repos::Content;
 
-    // #[tokio::test]
-    // async fn test_basic_integration() {
-    //     let gh = GithubWrapper::new();
-    //     assert!(gh.list_issues().await.is_ok());
-    //     assert!(gh.list_pull_requests().await.is_ok());
-    //     assert!(gh.list_branches().await.is_ok());
-    // }
+    use crate::external_services::github::GithubWrapper;
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_basic_integration() {
+        let gh = GithubWrapper::new();
+        let files = gh.get_all_files().await.unwrap();
+        // get a single valid file
+        let valid_filename = "Application:218.json";
+        let file: Vec<Content> = files
+            .items
+            .into_iter()
+            .filter(|f| f.name == valid_filename)
+            .collect();
+        dbg!(file);
+        assert!(false);
+    }
 }

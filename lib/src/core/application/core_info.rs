@@ -10,6 +10,7 @@ pub struct ApplicationInfo {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ApplicationCoreInfo {
     pub data_owner_name: String,
+    pub data_owner_github_handle: String,
     pub data_owner_region: String,
     pub data_owner_industry: String,
     pub data_owner_address: String,
@@ -22,6 +23,7 @@ impl ApplicationCoreInfo {
     pub fn new(
         data_owner_name: String,
         data_owner_region: String,
+        data_owner_github_handle: String,
         data_owner_industry: String,
         data_owner_address: String,
         requested_amount: String,
@@ -31,6 +33,7 @@ impl ApplicationCoreInfo {
         ApplicationCoreInfo {
             data_owner_name,
             data_owner_region,
+            data_owner_github_handle,
             data_owner_address,
             requested_amount,
             data_owner_industry,
