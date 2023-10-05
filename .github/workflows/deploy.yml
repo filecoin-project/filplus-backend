@@ -19,7 +19,7 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
-     
+
     - name: Login to Amazon ECR Public
       id: login-ecr-public
       uses: aws-actions/amazon-ecr-login@v1
@@ -30,8 +30,8 @@ jobs:
     - name: Build and tag Docker image
       run: |
         echo "Building Docker image..."
-        docker build . -t "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}"
-        
+        docker build -f http-server/Dockerfile -t "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}" http-server
+
     - name: Push Docker image to ECR
       run: |
         echo "Pushing Docker image to ECR..."
@@ -70,6 +70,3 @@ jobs:
           --region us-east-2 \
           --containers file://containers.json \
           --public-endpoint file://public-endpoint.json
-
-      
-  
