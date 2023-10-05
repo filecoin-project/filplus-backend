@@ -73,7 +73,7 @@ impl GithubWrapper<'static> {
             .pool_idle_timeout(std::time::Duration::from_secs(15))
             .build(connector);
         let key =
-            jsonwebtoken::EncodingKey::from_rsa_pem(include_bytes!("../../gh-private-key.pem"))
+            jsonwebtoken::EncodingKey::from_rsa_pem(include_bytes!("../../../gh-private-key.pem"))
                 .unwrap();
         let octocrab = OctocrabBuilder::new_empty()
             .with_service(client)
