@@ -19,4 +19,6 @@ reqwest = { version = "0.11.18", features = ["json"] }
 futures = "0.3.28"
 mongodb = "2.6.1"
 lib = { path = "../lib" }
+anyhow = "1.0.75"
+async-trait = "0.1.73"
 

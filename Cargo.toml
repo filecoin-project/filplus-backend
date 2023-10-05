@@ -5,3 +5,5 @@ members = [
   "http-server",
   "fplus"
 ]
+
+resolver = "2"
