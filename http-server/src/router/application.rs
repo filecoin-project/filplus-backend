@@ -1,5 +1,8 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
-use lib::core::{CreateApplicationInfo, LDNApplication, CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo};
+use lib::core::{
+    CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
+    LDNApplication,
+};
 
 /// Create a new application.
 ///
@@ -259,7 +262,7 @@ pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
 }
 
 // Fetch merged applications
- ///
+///
 /// # Returns
 /// Returns an array of contents of the files.
 ///
@@ -278,15 +281,13 @@ pub async fn get_all_applications() -> actix_web::Result<impl Responder> {
 /// ```
 #[get("/applications/merged")]
 pub async fn get_merged_applications() -> actix_web::Result<impl Responder> {
-    let merged_apps = match LDNApplication::get_merged_applications().await {
-        Ok(apps) => apps,
+    match LDNApplication::get_merged_applications().await {
+        Ok(apps) => Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap())),
         Err(e) => {
-            return Ok(HttpResponse::BadRequest().body(e.to_string()));
+            return Ok(HttpResponse::InternalServerError().body(e.to_string()));
         }
-    };
-    Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&merged_apps).unwrap()))
+    }
 }
-
 
 /// Check the health status.
 ///

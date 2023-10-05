@@ -243,7 +243,10 @@ impl LDNApplication {
                 let app_core_info: ApplicationCoreInfo = ApplicationCoreInfo::new(
                     parsed_ldn.name.clone(),
                     parsed_ldn.region,
+                    "GithubHandleTodo".to_string(),
                     "TODO".to_string(), // industry
+                    parsed_ldn.address,
+                    parsed_ldn.datacap_requested,
                     parsed_ldn.website,
                     "TODO".to_string(), // social media
                 );
@@ -518,7 +521,6 @@ impl LDNApplication {
     fn content_items_to_app_file(
         file: ContentItems,
     ) -> Result<ApplicationFile, LDNApplicationError> {
-
         let f = match &file.items[0].content {
             Some(f) => f,
             None => {
@@ -581,11 +583,12 @@ impl LDNApplication {
                 e
             ))
         })?;
-        
-        all_files.items.retain(|item| item.download_url.is_some() && item.name.starts_with("Application"));
-        
+        all_files
+            .items
+            .retain(|item| item.download_url.is_some() && item.name.starts_with("Application"));
         let all_files = future::try_join_all(
-            all_files.items
+            all_files
+                .items
                 .into_iter()
                 .map(|fd| reqwest::Client::new().get(&fd.download_url.unwrap()).send())
                 .collect::<Vec<_>>(),
@@ -597,32 +600,26 @@ impl LDNApplication {
                 e
             ))
         })?;
-        
+
         let mut apps: Vec<ApplicationFile> = vec![];
         for f in all_files {
-            let f = f.text().await.map_err(|e| {
-                LDNApplicationError::LoadApplicationError(format!(
-                    "Failed to convert file response to text. Reason: {}",
-                    e
-                ))
-            })?;
-        
+            let f = match f.text().await {
+                Ok(f) => f,
+                Err(_) => {
+                    continue;
+                }
+            };
             match serde_json::from_str::<ApplicationFile>(&f) {
                 Ok(app) => {
                     apps.push(app);
                 }
-                Err(e) => {
-                    return Err(LDNApplicationError::LoadApplicationError(format!(
-                        "Failed to deserialize application file. Reason: {}",
-                        e
-                    )));
+                Err(_) => {
+                    continue;
                 }
             };
         }
         Ok(apps)
     }
-    
-    
 }
 
 impl From<String> for ParsedApplicationDataFields {
@@ -795,138 +792,137 @@ impl LDNPullRequest {
 }
 
 mod tests {
-    // use super::*;
+    use super::*;
+    use octocrab::models::issues::Issue;
+    use tokio::time::{sleep, Duration};
 
-    // #[tokio::test]
-    // async fn ldnapplication() {
-    //     let res: Result<Vec<ApplicationFile>, LDNApplicationError> = LDNApplication::get_merged_applications().await;
-    //     dbg!(&res);
-    //     assert!(false);
-    // }
-    // use octocrab::models::issues::Issue;
-    // use tokio::time::{sleep, Duration};
+    #[ignore]
+    #[tokio::test]
+    async fn ldnapplication() {
+        let res: Result<Vec<ApplicationFile>, LDNApplicationError> =
+            LDNApplication::get_merged_applications().await;
+        dbg!(&res);
+        assert!(false);
+    }
+    #[ignore]
+    #[tokio::test]
+    async fn end_to_end() {
+        // Test Creating an application
+        let gh: GithubWrapper = GithubWrapper::new();
 
-    // use super::*;
+        // let branches = gh.list_branches().await.unwrap();
+        let issue = gh.list_issue(63).await.unwrap();
+        let test_issue: Issue = gh
+            .create_issue("from test", &issue.body.unwrap())
+            .await
+            .unwrap();
+        assert!(LDNApplication::new(CreateApplicationInfo {
+            application_id: test_issue.number.to_string(),
+        })
+        .await
+        .is_ok());
 
-    // #[ignore]
-    // #[tokio::test]
-    // async fn end_to_end() {
-    //     // Test Creating an application
-    //     let gh: GithubWrapper = GithubWrapper::new();
+        let application_id = test_issue.number.to_string();
 
-    //     // let branches = gh.list_branches().await.unwrap();
-    //     let issue = gh.list_issue(63).await.unwrap();
-    //     let test_issue: Issue = gh
-    //         .create_issue("from test", &issue.body.unwrap())
-    //         .await
-    //         .unwrap();
-    //     assert!(LDNApplication::new(CreateApplicationInfo {
-    //         application_id: test_issue.number.to_string(),
-    //     })
-    //     .await
-    //     .is_ok());
+        // validate file was created
+        assert!(gh
+            .get_file(
+                &LDNPullRequest::application_path(application_id.as_str()),
+                &LDNPullRequest::application_branch_name(application_id.as_str())
+            )
+            .await
+            .is_ok());
 
-    //     let application_id = test_issue.number.to_string();
+        // validate pull request was created
+        assert!(gh
+            .get_pull_request_by_head(&LDNPullRequest::application_branch_name(
+                application_id.as_str()
+            ))
+            .await
+            .is_ok());
 
-    //     // validate file was created
-    //     assert!(gh
-    //         .get_file(
-    //             &LDNPullRequest::application_path(application_id.as_str()),
-    //             &LDNPullRequest::application_branch_name(application_id.as_str())
-    //         )
-    //         .await
-    //         .is_ok());
+        // Test Triggering an application
+        let ldn_application_before_trigger =
+            LDNApplication::load(application_id.clone()).await.unwrap();
+        ldn_application_before_trigger
+            .complete_governance_review(CompleteGovernanceReviewInfo {
+                actor: "actor_address".to_string(),
+            })
+            .await
+            .unwrap();
+        let ldn_application_after_trigger =
+            LDNApplication::load(application_id.clone()).await.unwrap();
+        assert_eq!(
+            ldn_application_after_trigger.app_state().await.unwrap(),
+            ApplicationFileState::Proposal
+        );
+        dbg!("waiting for 2 second");
+        sleep(Duration::from_millis(1000)).await;
 
-    //     // validate pull request was created
-    //     assert!(gh
-    //         .get_pull_request_by_head(&LDNPullRequest::application_branch_name(
-    //             application_id.as_str()
-    //         ))
-    //         .await
-    //         .is_ok());
+        // // Test Proposing an application
+        let ldn_application_after_trigger_success =
+            LDNApplication::load(application_id.clone()).await.unwrap();
+        ldn_application_after_trigger_success
+            .complete_new_application_proposal(CompleteNewApplicationProposalInfo {
+                request_id: "request_id".to_string(),
+                signer: ApplicationAllocationsSigner {
+                    signing_address: "signing_address".to_string(),
+                    time_of_signature: "time_of_signature".to_string(),
+                    message_cid: "message_cid".to_string(),
+                },
+            })
+            .await
+            .unwrap();
+        let ldn_application_after_proposal =
+            LDNApplication::load(application_id.clone()).await.unwrap();
+        assert_eq!(
+            ldn_application_after_proposal.app_state().await.unwrap(),
+            ApplicationFileState::Approval
+        );
+        dbg!("waiting for 2 second");
+        sleep(Duration::from_millis(1000)).await;
 
-    //     // Test Triggering an application
-    //     let ldn_application_before_trigger =
-    //         LDNApplication::load(application_id.clone()).await.unwrap();
-    //     ldn_application_before_trigger
-    //         .complete_governance_review(CompleteGovernanceReviewInfo {
-    //             actor: "actor_address".to_string(),
-    //         })
-    //         .await
-    //         .unwrap();
-    //     let ldn_application_after_trigger =
-    //         LDNApplication::load(application_id.clone()).await.unwrap();
-    //     assert_eq!(
-    //         ldn_application_after_trigger.app_state().await.unwrap(),
-    //         ApplicationFileState::Proposal
-    //     );
-    //     dbg!("waiting for 2 second");
-    //     sleep(Duration::from_millis(1000)).await;
+        // Test Approving an application
+        let ldn_application_after_proposal_success =
+            LDNApplication::load(application_id.clone()).await.unwrap();
+        ldn_application_after_proposal_success
+            .complete_new_application_approval(CompleteNewApplicationProposalInfo {
+                request_id: "request_id".to_string(),
+                signer: ApplicationAllocationsSigner {
+                    signing_address: "signing_address".to_string(),
+                    time_of_signature: "time_of_signature".to_string(),
+                    message_cid: "message_cid".to_string(),
+                },
+            })
+            .await
+            .unwrap();
+        let ldn_application_after_approval =
+            LDNApplication::load(application_id.clone()).await.unwrap();
+        assert_eq!(
+            ldn_application_after_approval.app_state().await.unwrap(),
+            ApplicationFileState::Confirmed
+        );
+        dbg!("waiting for 2 second");
+        sleep(Duration::from_millis(1000)).await;
 
-    //     // // Test Proposing an application
-    //     let ldn_application_after_trigger_success =
-    //         LDNApplication::load(application_id.clone()).await.unwrap();
-    //     ldn_application_after_trigger_success
-    //         .complete_new_application_proposal(CompleteNewApplicationProposalInfo {
-    //             request_id: "request_id".to_string(),
-    //             signer: ApplicationAllocationsSigner {
-    //                 signing_address: "signing_address".to_string(),
-    //                 time_of_signature: "time_of_signature".to_string(),
-    //                 message_cid: "message_cid".to_string(),
-    //             },
-    //         })
-    //         .await
-    //         .unwrap();
-    //     let ldn_application_after_proposal =
-    //         LDNApplication::load(application_id.clone()).await.unwrap();
-    //     assert_eq!(
-    //         ldn_application_after_proposal.app_state().await.unwrap(),
-    //         ApplicationFileState::Approval
-    //     );
-    //     dbg!("waiting for 2 second");
-    //     sleep(Duration::from_millis(1000)).await;
-
-    //     // Test Approving an application
-    //     let ldn_application_after_proposal_success =
-    //         LDNApplication::load(application_id.clone()).await.unwrap();
-    //     ldn_application_after_proposal_success
-    //         .complete_new_application_approval(CompleteNewApplicationProposalInfo {
-    //             request_id: "request_id".to_string(),
-    //             signer: ApplicationAllocationsSigner {
-    //                 signing_address: "signing_address".to_string(),
-    //                 time_of_signature: "time_of_signature".to_string(),
-    //                 message_cid: "message_cid".to_string(),
-    //             },
-    //         })
-    //         .await
-    //         .unwrap();
-    //     let ldn_application_after_approval =
-    //         LDNApplication::load(application_id.clone()).await.unwrap();
-    //     assert_eq!(
-    //         ldn_application_after_approval.app_state().await.unwrap(),
-    //         ApplicationFileState::Confirmed
-    //     );
-    //     dbg!("waiting for 2 second");
-    //     sleep(Duration::from_millis(1000)).await;
-
-    //     // // Cleanup
-    //     assert!(gh.close_issue(test_issue.number).await.is_ok());
-    //     assert!(gh
-    //         .close_pull_request(
-    //             gh.get_pull_request_by_head(&LDNPullRequest::application_branch_name(
-    //                 &application_id.clone()
-    //             ))
-    //             .await
-    //             .unwrap()[0]
-    //                 .number,
-    //         )
-    //         .await
-    //         .is_ok());
-    //     let remove_branch_request = gh
-    //         .build_remove_ref_request(LDNPullRequest::application_branch_name(
-    //             &application_id.clone(),
-    //         ))
-    //         .unwrap();
-    //     assert!(gh.remove_branch(remove_branch_request).await.is_ok());
-    // }
+        // // Cleanup
+        assert!(gh.close_issue(test_issue.number).await.is_ok());
+        assert!(gh
+            .close_pull_request(
+                gh.get_pull_request_by_head(&LDNPullRequest::application_branch_name(
+                    &application_id.clone()
+                ))
+                .await
+                .unwrap()[0]
+                    .number,
+            )
+            .await
+            .is_ok());
+        let remove_branch_request = gh
+            .build_remove_ref_request(LDNPullRequest::application_branch_name(
+                &application_id.clone(),
+            ))
+            .unwrap();
+        assert!(gh.remove_branch(remove_branch_request).await.is_ok());
+    }
 }

@@ -443,26 +443,6 @@ impl GithubWrapper<'static> {
 
         Ok(contents_items)
     }
-
-    // This takes a list of the file names (paths) and returns a list of the files with the content
-    pub async fn get_specific_files(&self, file_names: Vec<&str>) -> Result<Vec<ContentItems>, OctocrabError> {
-        let mut results = Vec::new();
-
-        for file_name in file_names {
-            let content = self
-                .inner
-                .repos(self.owner, self.repo)
-                .get_content()
-                .r#ref("main")
-                .path(file_name)
-                .send()
-                .await?;
-
-            results.push(content);
-        }
-
-        Ok(results)
-    }
 }
 
 #[cfg(test)]
