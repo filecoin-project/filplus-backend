@@ -828,7 +828,10 @@ dependencies = [
 name = "fplus"
 version = "0.1.0"
 dependencies = [
+ "actix-web",
  "clap",
+ "database",
+ "mongodb",
 ]
 
 [[package]]
