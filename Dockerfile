@@ -1,6 +1,10 @@
 FROM rust:1.71 AS builder
 COPY Cargo.toml Cargo.lock gh-private-key.pem ./
-COPY ./src ./src
+COPY ./http-server ./http-server
+COPY ./database ./database
+COPY ./lib ./lib
+COPY ./fplus ./fplus
+
 RUN cargo build --release
 
 FROM debian:bullseye
