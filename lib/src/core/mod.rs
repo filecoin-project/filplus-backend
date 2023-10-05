@@ -501,7 +501,10 @@ impl LDNApplication {
     fn content_items_to_app_file(
         file: ContentItems,
     ) -> Result<ApplicationFile, LDNApplicationError> {
-        let f = match &file.items[0].content {
+        #[cfg(debug_assertions)]
+        println!("{:?}", &file.items[0].content);
+        
+            let f = match &file.items[0].content {
             Some(f) => f,
             None => {
                 return Err(LDNApplicationError::LoadApplicationError(format!(
@@ -556,27 +559,45 @@ impl LDNApplication {
         }
     }
 
+
     pub async fn get_merged_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError> {
         let gh: GithubWrapper<'_> = GithubWrapper::new();
-        match gh.get_all_files().await {
-            Ok(mut all_files) => {
-                // Filter the items directly in the ContentItems struct
-                all_files.items.retain(|item| item.name.starts_with("Application"));
     
-                // Try mapping each filtered Content in ContentItems to ApplicationFile
-                let applications_result: Result<Vec<ApplicationFile>, LDNApplicationError> = all_files.items.into_iter()
-                    .map(|item| {
-                        // Since content_items_to_app_file already returns a Result, just pass it through
-                        LDNApplication::content_items_to_app_file(ContentItems { items: vec![item.clone()] })
-                    })
-                    .collect();  // If any map iteration fails, collect will directly return that error
+        // Fetch all files and handle errors
+        let mut all_files = gh.get_all_files().await.map_err(|e| 
+            LDNApplicationError::LoadApplicationError(format!("Failed to get all files: {}", e.to_string()))
+        )?;
     
-                // If mapping was successful, return the applications, otherwise return the error
-                applications_result
-            }
-            Err(_) => Err(LDNApplicationError::LoadApplicationError("Failed to get merged applications".to_string()))
+        // Filter out irrelevant files
+        all_files.items.retain(|item| item.name.starts_with("Application"));
+    
+        // Extract the file names as &str
+        let file_names_str: Vec<&str> = all_files.items.iter().map(|item| &item.name[..]).collect();
+    
+        // Fetch the specific files with their content and handle errors
+        let specific_files = gh.get_specific_files(file_names_str).await.map_err(|e| 
+            LDNApplicationError::LoadApplicationError(format!("Failed to get specific files: {}", e.to_string()))
+        )?;
+    
+        // Convert specific files to application files
+        let applications_results: Vec<Result<ApplicationFile, LDNApplicationError>> = specific_files.into_iter()
+        .map(|file| LDNApplication::content_items_to_app_file(file))
+        .collect();
+    
+        // Convert the Vec<Result<...>> into Result<Vec<...>>
+        let applications: Result<Vec<ApplicationFile>, _> = applications_results.into_iter().collect();
+    
+        match applications {
+            Ok(app_files) => Ok(app_files),
+            Err(e) => Err(LDNApplicationError::LoadApplicationError(e.to_string())),
         }
     }
+    
+    
+    
+    
+    
+    
     
     
     
