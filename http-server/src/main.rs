@@ -27,14 +27,14 @@ async fn main() -> std::io::Result<()> {
         Err(e) => panic!("Error setting up database: {}", e),
     };
 
-    let state = web::Data::new(Mutex::new(client));
+    let db_connection = web::Data::new(Mutex::new(client));
     HttpServer::new(move || {
         let cors = actix_cors::Cors::default()
             .allow_any_origin()
             .allow_any_method()
             .allow_any_header();
         App::new()
-            .app_data(state.clone())
+            .app_data(db_connection.clone())
             .wrap(Logger::default())
             .wrap(cors)
             .service(router::health)
@@ -47,6 +47,9 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::get_all_applications)
             .service(router::blockchain::address_allowance)
             .service(router::blockchain::verified_clients)
+            .service(router::logs::get)
+            .service(router::notary::get)
+            .service(router::rkh::get)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

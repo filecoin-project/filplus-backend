@@ -3,9 +3,9 @@ use actix_web::{get, http::header::ContentType, web, HttpResponse};
 use mongodb::Client;
 use std::sync::Mutex;
 
-#[get("/logs")]
+#[get("/rkh")]
 pub async fn get(db_connection: web::Data<Mutex<Client>>) -> HttpResponse {
-    let items = match db::collections::logs::find(db_connection).await {
+    let items = match db::collections::rkh::find(db_connection).await {
         Ok(items) => items,
         Err(_) => {
             return HttpResponse::InternalServerError().finish();

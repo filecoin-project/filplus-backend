@@ -6,17 +6,18 @@ use anyhow::Result;
 
 use crate::db::common::get_collection;
 
-const COLLECTION_NAME: &str = "logs";
+const COLLECTION_NAME: &str = "notary";
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Log {
-    pub timestamp: String,
-    pub message: String,
+pub struct Notary {
+    pub github_handle: String,
+    pub on_chain_address: String,
 }
 
-pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<Log>> {
-    let logs_collection: Collection<Log> = get_collection(state, COLLECTION_NAME).await?;
-    let mut cursor = logs_collection.find(None, None).await?;
+
+pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<Notary>> {
+    let notary_collection: Collection<Notary> = get_collection(state, COLLECTION_NAME).await?;
+    let mut cursor = notary_collection.find(None, None).await?;
     let mut ret = vec![];
     while let Ok(result) = cursor.advance().await {
         if result {
