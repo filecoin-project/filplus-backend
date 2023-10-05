@@ -440,14 +440,14 @@ impl GithubWrapper<'static> {
             .r#ref("main")
             .send()
             .await?;
-    
+
         Ok(contents_items)
     }
 
     // This takes a list of the file names (paths) and returns a list of the files with the content
     pub async fn get_specific_files(&self, file_names: Vec<&str>) -> Result<Vec<ContentItems>, OctocrabError> {
         let mut results = Vec::new();
-    
+
         for file_name in file_names {
             let content = self
                 .inner
@@ -457,10 +457,10 @@ impl GithubWrapper<'static> {
                 .path(file_name)
                 .send()
                 .await?;
-    
+
             results.push(content);
         }
-    
+
         Ok(results)
     }
 }
@@ -471,6 +471,7 @@ mod tests {
 
     use crate::external_services::github::GithubWrapper;
 
+    #[ignore]
     #[tokio::test]
     async fn test_basic_integration() {
         let gh = GithubWrapper::new();

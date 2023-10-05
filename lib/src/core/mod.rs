@@ -1,17 +1,20 @@
 pub mod application;
+use actix_web::{
+    body::{BodySize, MessageBody},
+    web::Bytes,
+};
 use std::{
     fmt::Display,
     pin::Pin,
     task::{Context, Poll},
 };
-use actix_web::{
-    body::{BodySize, MessageBody},
-    web::Bytes,
-};
 
 use chrono::Utc;
-use octocrab::models::{pulls::{PullRequest, FileDiff}, repos::ContentItems};
 use futures::future;
+use octocrab::models::{
+    pulls::{FileDiff, PullRequest},
+    repos::ContentItems,
+};
 use reqwest::Response;
 
 use self::application::{
@@ -132,37 +135,54 @@ impl LDNApplication {
         let gh: GithubWrapper = GithubWrapper::new();
         let mut apps: Vec<ApplicationFile> = Vec::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
-        let pull_requests = future::try_join_all(pull_requests
-            .into_iter()
-            .map(|pr: PullRequest| {
-                let number = pr.number;
-                gh.get_pull_request_files(number)
-            })
-            .collect::<Vec<_>>()).await.unwrap().into_iter().flatten();
-        let pull_requests: Vec<Response> = match future::try_join_all(pull_requests
-            .into_iter()
-            .map(|fd: FileDiff| {
-                reqwest::Client::new()
-                    .get(&fd.raw_url.to_string())
-                    .send()
-            })
-            .collect::<Vec<_>>()).await {
-                Ok(res) => res,
-                Err(_) => return Err(LDNApplicationError::LoadApplicationError("Failed to get pull request files".to_string()))
-        };
-        let pull_requests = match future::try_join_all(pull_requests
-            .into_iter()
-            .map(|r: Response| {
-                r.text()
-            })
-            .collect::<Vec<_>>()).await {
+        let pull_requests = future::try_join_all(
+            pull_requests
+                .into_iter()
+                .map(|pr: PullRequest| {
+                    let number = pr.number;
+                    gh.get_pull_request_files(number)
+                })
+                .collect::<Vec<_>>(),
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .flatten();
+        let pull_requests: Vec<Response> = match future::try_join_all(
+            pull_requests
+                .into_iter()
+                .map(|fd: FileDiff| reqwest::Client::new().get(&fd.raw_url.to_string()).send())
+                .collect::<Vec<_>>(),
+        )
+        .await
+        {
             Ok(res) => res,
-            Err(_) => return Err(LDNApplicationError::LoadApplicationError("Failed to get pull request files".to_string()))
+            Err(_) => {
+                return Err(LDNApplicationError::LoadApplicationError(
+                    "Failed to get pull request files".to_string(),
+                ))
+            }
+        };
+        let pull_requests = match future::try_join_all(
+            pull_requests
+                .into_iter()
+                .map(|r: Response| r.text())
+                .collect::<Vec<_>>(),
+        )
+        .await
+        {
+            Ok(res) => res,
+            Err(_) => {
+                return Err(LDNApplicationError::LoadApplicationError(
+                    "Failed to get pull request files".to_string(),
+                ))
+            }
         };
         for r in pull_requests {
+            dbg!(&r);
             match serde_json::from_str::<ApplicationFile>(&r) {
                 Ok(app) => apps.push(app),
-                Err(_) => continue
+                Err(_) => continue,
             }
         }
         Ok(apps)
@@ -224,8 +244,6 @@ impl LDNApplication {
                     parsed_ldn.name.clone(),
                     parsed_ldn.region,
                     "TODO".to_string(), // industry
-                    parsed_ldn.address,
-                    parsed_ldn.datacap_requested,
                     parsed_ldn.website,
                     "TODO".to_string(), // social media
                 );
@@ -497,14 +515,13 @@ impl LDNApplication {
         Ok(f.info.application_lifecycle.get_state())
     }
 
-    
     fn content_items_to_app_file(
         file: ContentItems,
     ) -> Result<ApplicationFile, LDNApplicationError> {
         #[cfg(debug_assertions)]
         println!("{:?}", &file.items[0].content);
-        
-            let f = match &file.items[0].content {
+
+        let f = match &file.items[0].content {
             Some(f) => f,
             None => {
                 return Err(LDNApplicationError::LoadApplicationError(format!(
@@ -523,13 +540,12 @@ impl LDNApplication {
             }
         }
     }
-    
-    
-
 
     async fn app_file(&self) -> Result<ApplicationFile, LDNApplicationError> {
         let app_path = LDNPullRequest::application_path(&self.application_id);
         let app_branch_name = LDNPullRequest::application_branch_name(&self.application_id);
+        dbg!(&app_path);
+        dbg!(&app_branch_name);
         match self.github.get_file(&app_path, &app_branch_name).await {
             Ok(file) => Ok(LDNApplication::content_items_to_app_file(file)?),
             Err(e) => {
@@ -559,49 +575,40 @@ impl LDNApplication {
         }
     }
 
-
     pub async fn get_merged_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError> {
         let gh: GithubWrapper<'_> = GithubWrapper::new();
-    
-        // Fetch all files and handle errors
-        let mut all_files = gh.get_all_files().await.map_err(|e| 
-            LDNApplicationError::LoadApplicationError(format!("Failed to get all files: {}", e.to_string()))
-        )?;
-    
-        // Filter out irrelevant files
-        all_files.items.retain(|item| item.name.starts_with("Application"));
-    
-        // Extract the file names as &str
-        let file_names_str: Vec<&str> = all_files.items.iter().map(|item| &item.name[..]).collect();
-    
-        // Fetch the specific files with their content and handle errors
-        let specific_files = gh.get_specific_files(file_names_str).await.map_err(|e| 
-            LDNApplicationError::LoadApplicationError(format!("Failed to get specific files: {}", e.to_string()))
-        )?;
-    
-        // Convert specific files to application files
-        let applications_results: Vec<Result<ApplicationFile, LDNApplicationError>> = specific_files.into_iter()
-        .map(|file| LDNApplication::content_items_to_app_file(file))
-        .collect();
-    
-        // Convert the Vec<Result<...>> into Result<Vec<...>>
-        let applications: Result<Vec<ApplicationFile>, _> = applications_results.into_iter().collect();
-    
-        match applications {
-            Ok(app_files) => Ok(app_files),
-            Err(e) => Err(LDNApplicationError::LoadApplicationError(e.to_string())),
+        let mut all_files = gh.get_all_files().await.unwrap();
+        all_files
+            .items
+            .retain(|item| item.download_url.is_some() && item.name.starts_with("Application"));
+        let all_files = future::try_join_all(
+            all_files
+                .items
+                .into_iter()
+                .map(|fd| reqwest::Client::new().get(&fd.download_url.unwrap()).send())
+                .collect::<Vec<_>>(),
+        )
+        .await
+        .map_err(|_| {
+            LDNApplicationError::LoadApplicationError(
+                "Failed to get pull request files".to_string(),
+            )
+        })?;
+        let mut apps: Vec<ApplicationFile> = vec![];
+        for f in all_files {
+            let f = f.text().await.unwrap();
+            match serde_json::from_str::<ApplicationFile>(&f) {
+                Ok(app) => {
+                    apps.push(app);
+                }
+                Err(_) => {
+                    dbg!("SOMETHING IS WRONG");
+                }
+            };
         }
+
+        Ok(apps)
     }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 }
 
 impl From<String> for ParsedApplicationDataFields {
@@ -774,6 +781,14 @@ impl LDNPullRequest {
 }
 
 mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn ldnapplication() {
+        let res = LDNApplication::get_merged_applications().await;
+        dbg!(&res);
+        assert!(false);
+    }
     // use octocrab::models::issues::Issue;
     // use tokio::time::{sleep, Duration};
 

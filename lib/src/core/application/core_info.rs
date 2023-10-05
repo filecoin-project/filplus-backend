@@ -12,8 +12,6 @@ pub struct ApplicationCoreInfo {
     pub data_owner_name: String,
     pub data_owner_region: String,
     pub data_owner_industry: String,
-    pub data_owner_address: String,
-    pub requested_amount: String,
     pub website: String,
     pub social_media: String,
 }
@@ -23,16 +21,12 @@ impl ApplicationCoreInfo {
         data_owner_name: String,
         data_owner_region: String,
         data_owner_industry: String,
-        data_owner_address: String,
-        requested_amount: String,
         website: String,
         social_media: String,
     ) -> Self {
         ApplicationCoreInfo {
             data_owner_name,
             data_owner_region,
-            data_owner_address,
-            requested_amount,
             data_owner_industry,
             website,
             social_media,

@@ -43,7 +43,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::propose_application)
             .service(router::application::approve_application)
             .service(router::application::merge_application)
-            .service(router::application::get_merged_applications)
+            // .service(router::application::get_merged_applications)
             .service(router::application::get_application)
             .service(router::application::get_all_applications)
             .service(router::blockchain::address_allowance)
