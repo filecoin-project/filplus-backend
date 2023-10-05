@@ -1,9 +1,8 @@
 use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer, web};
-use std::sync::Mutex;
+use actix_web::{web, App, HttpServer};
 use env_logger;
+use std::sync::Mutex;
 
-pub(crate) mod db;
 pub(crate) mod router;
 
 /// Http Server Setup
@@ -23,7 +22,7 @@ pub(crate) mod router;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
-    let client =match  db::setup::setup().await {
+    let client = match database::core::setup::setup().await {
         Ok(client) => client,
         Err(e) => panic!("Error setting up database: {}", e),
     };
