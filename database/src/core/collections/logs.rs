@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 use std::sync::Mutex;
 use anyhow::Result;
 
-use crate::db::common::get_collection;
+use crate::core::common::get_collection;
 
 const COLLECTION_NAME: &str = "logs";
 
