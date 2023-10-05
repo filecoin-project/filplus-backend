@@ -518,8 +518,6 @@ impl LDNApplication {
     fn content_items_to_app_file(
         file: ContentItems,
     ) -> Result<ApplicationFile, LDNApplicationError> {
-        #[cfg(debug_assertions)]
-        println!("{:?}", &file.items[0].content);
 
         let f = match &file.items[0].content {
             Some(f) => f,
@@ -577,38 +575,54 @@ impl LDNApplication {
 
     pub async fn get_merged_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError> {
         let gh: GithubWrapper<'_> = GithubWrapper::new();
-        let mut all_files = gh.get_all_files().await.unwrap();
-        all_files
-            .items
-            .retain(|item| item.download_url.is_some() && item.name.starts_with("Application"));
+        let mut all_files = gh.get_all_files().await.map_err(|e| {
+            LDNApplicationError::LoadApplicationError(format!(
+                "Failed to retrieve all files from GitHub. Reason: {}",
+                e
+            ))
+        })?;
+        
+        all_files.items.retain(|item| item.download_url.is_some() && item.name.starts_with("Application"));
+        
         let all_files = future::try_join_all(
-            all_files
-                .items
+            all_files.items
                 .into_iter()
                 .map(|fd| reqwest::Client::new().get(&fd.download_url.unwrap()).send())
                 .collect::<Vec<_>>(),
         )
         .await
-        .map_err(|_| {
-            LDNApplicationError::LoadApplicationError(
-                "Failed to get pull request files".to_string(),
-            )
+        .map_err(|e| {
+            LDNApplicationError::LoadApplicationError(format!(
+                "Failed to fetch application files from their URLs. Reason: {}",
+                e
+            ))
         })?;
+        
         let mut apps: Vec<ApplicationFile> = vec![];
         for f in all_files {
-            let f = f.text().await.unwrap();
+            let f = f.text().await.map_err(|e| {
+                LDNApplicationError::LoadApplicationError(format!(
+                    "Failed to convert file response to text. Reason: {}",
+                    e
+                ))
+            })?;
+        
             match serde_json::from_str::<ApplicationFile>(&f) {
                 Ok(app) => {
                     apps.push(app);
                 }
-                Err(_) => {
-                    dbg!("SOMETHING IS WRONG");
+                Err(e) => {
+                    return Err(LDNApplicationError::LoadApplicationError(format!(
+                        "Failed to deserialize application file. Reason: {}",
+                        e
+                    )));
                 }
             };
         }
-
         Ok(apps)
     }
+    
+    
 }
 
 impl From<String> for ParsedApplicationDataFields {
@@ -781,14 +795,14 @@ impl LDNPullRequest {
 }
 
 mod tests {
-    use super::*;
+    // use super::*;
 
-    #[tokio::test]
-    async fn ldnapplication() {
-        let res = LDNApplication::get_merged_applications().await;
-        dbg!(&res);
-        assert!(false);
-    }
+    // #[tokio::test]
+    // async fn ldnapplication() {
+    //     let res: Result<Vec<ApplicationFile>, LDNApplicationError> = LDNApplication::get_merged_applications().await;
+    //     dbg!(&res);
+    //     assert!(false);
+    // }
     // use octocrab::models::issues::Issue;
     // use tokio::time::{sleep, Duration};
 

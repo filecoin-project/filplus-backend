@@ -7,7 +7,7 @@ use crate::core::LDNPullRequest;
 use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
-use octocrab::models::repos::{Branch, ContentItems, FileUpdate, Content};
+use octocrab::models::repos::{Branch, ContentItems, FileUpdate};
 use octocrab::models::{InstallationId, IssueState};
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
