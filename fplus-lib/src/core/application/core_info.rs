@@ -27,6 +27,7 @@ impl ApplicationCoreInfo {
         data_owner_industry: String,
         data_owner_address: String,
         requested_amount: String,
+        // datacap_weekly_allocation: String  //TODO:STOJAN
         website: String,
         social_media: String,
     ) -> Self {
