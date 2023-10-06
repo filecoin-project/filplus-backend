@@ -1,10 +1,16 @@
 name: Docker Image CI/CD Action
 
+# on:
+#   push:
+#     tags:
+#      - '*'
+
 on:
   push:
-    tags:
-     - '*'
+    branches:
+      - fix-deploy-workflow
 
+      
       
 jobs:
   deploy_image:
