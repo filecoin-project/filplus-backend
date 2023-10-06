@@ -10,8 +10,6 @@ on:
     branches:
       - fix-deploy-workflow
 
-      
-      
 jobs:
   deploy_image:
     runs-on: ubuntu-latest
@@ -53,7 +51,10 @@ jobs:
             "ports": {
               "8080": "HTTP"
             },
-            "environment": ${{ secrets.ENV_VARS }}
+            "environment": { 
+              "MONGODB_URL": ${{secrets.MONGODB_URL}},
+              "GH_PRIVATE_KEY": ${{secrets.GH_PRIVATE_KEY}}
+            }
           }
         }' > containers.json
         
