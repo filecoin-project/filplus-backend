@@ -64,10 +64,10 @@ impl GithubWrapper<'static> {
             main_branch_hash,
         } = GithubParams::test_env();
         dotenv::dotenv().ok();
-        let gh_private_key = match std::env::var("GITHUB_PRIVATE_KEY") {
+        let gh_private_key = match std::env::var("GH_PRIVATE_KEY") {
             Ok(g) => g,
             Err(_) => {
-                println!("GITHUB_PRIVATE_KEY not found in .env file");
+                println!("GH_PRIVATE_KEY not found in .env file");
                 std::process::exit(1);
             }
         };
