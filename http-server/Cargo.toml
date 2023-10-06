@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.3.1"
-dotenv = "0.15.0"
 serde = { version =  "1.0.164", features = ["derive", "std",
 "serde_derive", "alloc", "rc"] } 
 tokio = { version = "1.29.1", features = ["full"] }

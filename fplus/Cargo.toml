@@ -9,4 +9,5 @@ edition = "2021"
 actix-web = "4.4.0"
 clap = {  version = "4.4.6", features = ["derive"] }
 database = { path = "../database" }
+lib = { path = "../lib" }
 mongodb = "2.7.0"

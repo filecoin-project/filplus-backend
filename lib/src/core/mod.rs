@@ -129,7 +129,6 @@ impl LDNApplication {
     /// we want to get all the pull requests, validate and then get the files from them
     /// we need to know how to build the path paramer the is used to get the file along with the
     /// branch name.
-    /// WIP
     pub async fn get_all_active_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError>
     {
         let gh: GithubWrapper = GithubWrapper::new();
@@ -188,7 +187,26 @@ impl LDNApplication {
         Ok(apps)
     }
 
+    /// Get Application by Pull Request Number
+    pub async fn get_by_pr_number(pr_number: u64)   -> Result<ApplicationFile, LDNApplicationError> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        let pr = gh.get_pull_request_files(pr_number).await.unwrap();
+        // we should only have single file in the PR
+        let file: FileDiff = pr[0].clone();
+        let file = reqwest::Client::new()
+            .get(&file.raw_url.to_string())
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        let file = serde_json::from_str::<ApplicationFile>(&file).unwrap();
+        Ok(file)
+    }
+
     /// Load Application By ID
+    /// TODO: FIXME!
     pub async fn load(application_id: String) -> Result<Self, LDNApplicationError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let app_path = LDNPullRequest::application_path(&application_id);

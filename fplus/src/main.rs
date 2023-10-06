@@ -1,29 +1,9 @@
-use std::sync::Mutex;
-
-use actix_web::web;
 use clap::{arg, Command};
+use validators::{validate_trigger, validate_proposal};
 
-async fn validate_rkh_holder(github_handle: String, app_id: String) {
-    let db_connection: web::Data<Mutex<mongodb::Client>> =
-        web::Data::new(Mutex::new(database::core::setup::setup().await.unwrap()));
-    let rkh_holders = database::core::collections::rkh::find(db_connection)
-        .await
-        .unwrap();
-    let rkh_holders: Option<database::core::collections::rkh::RootKeyHolder> = rkh_holders
-        .into_iter()
-        .find(|rkh| &rkh.github_handle == &github_handle);
-    if rkh_holders.is_none() {
-        println!(
-            "No Root Key Holder found with github handle {}",
-            github_handle
-        );
-    } else {
-        println!(
-            "Validated Root Key Holder {} for application {}",
-            github_handle, app_id
-        );
-    }
-}
+use crate::validators::validate_approval;
+
+pub mod validators;
 
 fn cli() -> Command {
     Command::new("filplus")
@@ -33,20 +13,21 @@ fn cli() -> Command {
         .subcommand(
             Command::new("validate-trigger")
                 .about("Validates triggering an application")
-                .arg(arg!(<APP_ID> "Application ID"))
+                .arg(arg!(<PR_NUMBER> "Pull Request Number"))
                 .arg(arg!(<RKH_GITHUB_HANDLE> "Github handle of Root Key Holder"))
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("validate-proposal")
                 .about("Validates proposing an application")
-                .arg(arg!(<APP_ID> "Application ID"))
+                .arg(arg!(<PR_NUMBER> "Pull Request Number"))
+                .arg(arg!(<Notary_GITHUB_HANDLE> "Github handle of Notary"))
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("validate-approval")
                 .about("Validates approving an application")
-                .arg(arg!(<APP_ID> "Application ID"))
+                .arg(arg!(<PR_NUMBER> "Pull Request Number"))
                 .arg_required_else_help(true),
         )
 }
@@ -57,19 +38,26 @@ async fn main() -> std::io::Result<()> {
 
     Ok(match matches.subcommand() {
         Some(("validate-trigger", sub_matches)) => {
-            let app_id = sub_matches.get_one::<String>("APP_ID").expect("required");
+            let pull_request_number = sub_matches.get_one::<String>("PR_NUMBER").expect("required");
             let rkh_gh_handle = sub_matches
                 .get_one::<String>("RKH_GITHUB_HANDLE")
                 .expect("required");
-            validate_rkh_holder(rkh_gh_handle.to_string(), app_id.to_string()).await;
+            validate_trigger(rkh_gh_handle.to_string(), pull_request_number.to_string()).await;
         }
         Some(("validate-proposal", sub_matches)) => {
-            let app_id = sub_matches.get_one::<String>("APP_ID").expect("required");
-            println!("Validated proposal {}", app_id);
+            let pull_request_number = sub_matches.get_one::<String>("PR_NUMBER").expect("required");
+            let notary_gh_handle = sub_matches
+                .get_one::<String>("NOTARY_GITHUB_HANDLE")
+                .expect("required");
+            validate_proposal(notary_gh_handle.to_string(), pull_request_number.to_string()).await;
         }
         Some(("validate-approval", sub_matches)) => {
-            let app_id = sub_matches.get_one::<String>("APP_ID").expect("required");
-            println!("Validated approval {}", app_id);
+            let pull_request_number = sub_matches.get_one::<String>("PR_NUMBER").expect("required");
+            let notary_gh_handle = sub_matches
+                .get_one::<String>("NOTARY_GITHUB_HANDLE")
+                .expect("required");
+            validate_approval(notary_gh_handle.to_string(), pull_request_number.to_string()).await;
+            println!("Validated approval {}", pull_request_number);
         }
         _ => {
             println!("No subcommand was used");
