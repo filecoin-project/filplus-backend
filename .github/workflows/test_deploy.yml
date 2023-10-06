@@ -27,7 +27,7 @@ jobs:
           mask-password: 'true'
           registry-type: public
 
-
+#deploy
     - name: Deploy to Lightsail Container Service
       run: |
         # Define containers.json with desired settings
