@@ -27,13 +27,22 @@ jobs:
           mask-password: 'true'
           registry-type: public
 
-#deploy
+    - name: Build and tag Docker image
+      run: |
+        echo "Building Docker image..."
+        docker build -t "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}" .
+
+    - name: Push Docker image to ECR
+      run: |
+        echo "Pushing Docker image to ECR..."
+        docker push "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}"
+
     - name: Deploy to Lightsail Container Service
       run: |
         # Define containers.json with desired settings
         echo '{
           "filplus-core": {
-            "image": "public.ecr.aws/b3c4u5n1/filecoin-core-api:v0.4.04",
+            "image": "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}",
             "ports": {
               "8080": "HTTP"
             },
