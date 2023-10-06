@@ -2,9 +2,9 @@ use actix_web::{get, http::header::ContentType, web, HttpResponse, post};
 use mongodb::Client;
 use std::sync::Mutex;
 
-#[get("/logs")]
+#[get("/notary")]
 pub async fn get(db_connection: web::Data<Mutex<Client>>) -> HttpResponse {
-    match database::core::collections::logs::find(db_connection).await {
+    match fplus_database::core::collections::notary::find(db_connection).await {
         Ok(i) => HttpResponse::Ok()
             .content_type(ContentType::json())
             .body(serde_json::to_string(&i).unwrap()),
@@ -12,12 +12,12 @@ pub async fn get(db_connection: web::Data<Mutex<Client>>) -> HttpResponse {
     }
 }
 
-#[post("/logs")]
+#[post("/notary")]
 pub async fn post(
     db_connection: web::Data<Mutex<Client>>,
-    rkh: web::Json<database::core::collections::logs::Log>,
+    rkh: web::Json<fplus_database::core::collections::notary::Notary>,
 ) -> HttpResponse {
-    match database::core::collections::logs::insert(db_connection, rkh.into_inner()).await {
+    match fplus_database::core::collections::notary::insert(db_connection, rkh.into_inner()).await {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(_) => HttpResponse::InternalServerError().finish(),
     }

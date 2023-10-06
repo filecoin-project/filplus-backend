@@ -63,6 +63,14 @@ impl GithubWrapper<'static> {
             installation_id,
             main_branch_hash,
         } = GithubParams::test_env();
+        dotenv::dotenv().ok();
+        let gh_private_key = match std::env::var("GH_PRIVATE_KEY") {
+            Ok(g) => g,
+            Err(_) => {
+                println!("GH_PRIVATE_KEY not found in .env file");
+                std::process::exit(1);
+            }
+        };
         let connector = HttpsConnectorBuilder::new()
             .with_native_roots() // enabled the `rustls-native-certs` feature in hyper-rustls
             .https_only()
@@ -72,9 +80,7 @@ impl GithubWrapper<'static> {
         let client = hyper::Client::builder()
             .pool_idle_timeout(std::time::Duration::from_secs(15))
             .build(connector);
-        let key =
-            jsonwebtoken::EncodingKey::from_rsa_pem(include_bytes!("../../../gh-private-key.pem"))
-                .unwrap();
+        let key = jsonwebtoken::EncodingKey::from_rsa_pem(gh_private_key.as_bytes()).unwrap();
         let octocrab = OctocrabBuilder::new_empty()
             .with_service(client)
             .with_layer(&BaseUriLayer::new(Uri::from_static(GITHUB_API_URL)))

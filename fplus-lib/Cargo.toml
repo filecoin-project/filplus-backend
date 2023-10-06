@@ -1,25 +1,25 @@
 [package]
-name = "http-server"
+name = "fplus-lib"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = "4.3.1"
 dotenv = "0.15.0"
+http = "0.2.9"
+hyper = "0.14.26"
+hyper-rustls = "0.24.0"
+jsonwebtoken = "8.3.0"
+octocrab = "0.25.1"
 serde = { version =  "1.0.164", features = ["derive", "std",
 "serde_derive", "alloc", "rc"] } 
-tokio = { version = "1.29.1", features = ["full"] }
 env_logger = "0.10.0"
+actix-web = "4.3.1"
+markdown = "1.0.0-alpha.9"
 serde_json = "1.0.96"
 chrono = "0.4.26"
-actix-cors = "0.6.4"
+base64 = "0.13"
 reqwest = { version = "0.11.18", features = ["json"] }
 futures = "0.3.28"
-mongodb = "2.6.1"
-lib = { path = "../lib" }
-database = { path = "../database" }
-anyhow = "1.0.75"
-async-trait = "0.1.73"
-
+tokio = { version = "1.32.0", features = ["rt", "macros"] }
