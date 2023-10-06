@@ -47,7 +47,7 @@ jobs:
             "ports": {
               "8080": "HTTP"
             },
-            "environment": {}
+            "environment": ${{secrets.ENV_VARS}}
           }
         }' > containers.json
         
