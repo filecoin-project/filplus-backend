@@ -1,5 +1,5 @@
 [package]
-name = "fplus"
+name = "fplus-database"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.4.0"
-clap = {  version = "4.4.6", features = ["derive"] }
-database = { path = "../database" }
-lib = { path = "../lib" }
+anyhow = "1.0.75"
 mongodb = "2.7.0"
+serde = "1.0.188"

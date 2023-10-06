@@ -1,6 +1,5 @@
 use actix_web::web;
-use lib::core::application::ApplicationFile;
-use lib;
+use fplus_lib::core::application::ApplicationFile;
 use std::sync::Mutex;
 
 pub async fn validate_trigger(github_handle: String, pull_request_number: String) {
@@ -38,16 +37,16 @@ pub async fn validate_approval(github_handle: String, pull_request_number: Strin
         println!("No Notary found with github handle {}", github_handle);
     }
     let application_file: ApplicationFile =
-        lib::core::LDNApplication::get_by_pr_number(pull_request_number.parse().unwrap()).await.unwrap();
+        fplus_lib::core::LDNApplication::get_by_pr_number(pull_request_number.parse().unwrap()).await.unwrap();
 }
 
 async fn validate_rkh_holder(github_handle: &str) -> bool {
     let db_connection: web::Data<Mutex<mongodb::Client>> =
-        web::Data::new(Mutex::new(database::core::setup::setup().await.unwrap()));
-    let rkh_holders = database::core::collections::rkh::find(db_connection)
+        web::Data::new(Mutex::new(fplus_database::core::setup::setup().await.unwrap()));
+    let rkh_holders = fplus_database::core::collections::rkh::find(db_connection)
         .await
         .unwrap();
-    let rkh_holders: Option<database::core::collections::rkh::RootKeyHolder> = rkh_holders
+    let rkh_holders: Option<fplus_database::core::collections::rkh::RootKeyHolder> = rkh_holders
         .into_iter()
         .find(|rkh| &rkh.github_handle == github_handle);
     if rkh_holders.is_none() {
@@ -59,11 +58,11 @@ async fn validate_rkh_holder(github_handle: &str) -> bool {
 
 async fn validate_notary(github_handle: &str) -> bool {
     let db_connection: web::Data<Mutex<mongodb::Client>> =
-        web::Data::new(Mutex::new(database::core::setup::setup().await.unwrap()));
-    let notary = database::core::collections::notary::find(db_connection)
+        web::Data::new(Mutex::new(fplus_database::core::setup::setup().await.unwrap()));
+    let notary = fplus_database::core::collections::notary::find(db_connection)
         .await
         .unwrap();
-    let notary: Option<database::core::collections::notary::Notary> = notary
+    let notary: Option<fplus_database::core::collections::notary::Notary> = notary
         .into_iter()
         .find(|n| &n.github_handle == github_handle);
     if notary.is_none() {

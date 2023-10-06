@@ -642,16 +642,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2e66c9d817f1720209181c316d28635c050fa304f9c79e47a520882661b7308"
 
 [[package]]
-name = "database"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "anyhow",
- "mongodb",
- "serde",
-]
-
-[[package]]
 name = "deranged"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -824,14 +814,66 @@ dependencies = [
 ]
 
 [[package]]
-name = "fplus"
+name = "fplus-cli"
 version = "0.1.0"
 dependencies = [
  "actix-web",
  "clap",
- "database",
- "lib",
+ "fplus-database",
+ "fplus-lib",
  "mongodb",
+]
+
+[[package]]
+name = "fplus-database"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "mongodb",
+ "serde",
+]
+
+[[package]]
+name = "fplus-http-server"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "env_logger",
+ "fplus-database",
+ "fplus-lib",
+ "futures",
+ "mongodb",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "fplus-lib"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "base64 0.13.1",
+ "chrono",
+ "dotenv",
+ "env_logger",
+ "futures",
+ "http",
+ "hyper",
+ "hyper-rustls",
+ "jsonwebtoken",
+ "markdown",
+ "octocrab",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -1052,26 +1094,6 @@ name = "http-range-header"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "add0ab9360ddbd88cfeb3bd9574a1d85cfdfa14db10b3e21d3700dbc4328758f"
-
-[[package]]
-name = "http-server"
-version = "0.1.0"
-dependencies = [
- "actix-cors",
- "actix-web",
- "anyhow",
- "async-trait",
- "chrono",
- "database",
- "env_logger",
- "futures",
- "lib",
- "mongodb",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
 
 [[package]]
 name = "httparse"
@@ -1304,28 +1326,6 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
-
-[[package]]
-name = "lib"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "base64 0.13.1",
- "chrono",
- "dotenv",
- "env_logger",
- "futures",
- "http",
- "hyper",
- "hyper-rustls",
- "jsonwebtoken",
- "markdown",
- "octocrab",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
 
 [[package]]
 name = "libc"
