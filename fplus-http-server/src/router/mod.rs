@@ -12,7 +12,7 @@ pub mod rkh;
 #[get("/health")]
 pub async fn health(client: actix_web::web::Data<Mutex<mongodb::Client>>) -> impl Responder {
     let client = client.lock().unwrap();
-    match database::core::setup::db_health_check(client.clone()).await {
+    match fplus_database::core::setup::db_health_check(client.clone()).await {
         Ok(_) => HttpResponse::Ok().body("OK"),
         Err(e) => HttpResponse::InternalServerError().body(format!("Error: {}", e)),
     }

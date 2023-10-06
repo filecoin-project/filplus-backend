@@ -22,7 +22,7 @@ pub(crate) mod router;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
-    let client = match database::core::setup::setup().await {
+    let client = match fplus_database::core::setup::setup().await {
         Ok(client) => client,
         Err(e) => panic!("Error setting up database: {}", e),
     };

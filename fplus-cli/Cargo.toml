@@ -1,0 +1,16 @@
+[package]
+name = "fplus-cli"
+authors = ["jbesraa"]
+version = "0.1.0"
+edition = "2021"
+description = "FPlus cli tool to validate different states of an application"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.4.0"
+clap = {  version = "4.4.6", features = ["derive"] }
+fplus-database = { path = "../fplus-database", version = "0.1.0" }
+fplus-lib = { path = "../fplus-lib" , version = "0.1.0" }
+mongodb = "2.7.0"
