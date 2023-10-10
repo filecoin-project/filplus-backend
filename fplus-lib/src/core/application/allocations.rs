@@ -3,7 +3,7 @@ pub struct ApplicationAllocationsSigner {
     pub signing_address: String,
     pub time_of_signature: String,
     pub message_cid: String,
-    // username //TODO:STOJAN
+    pub username: String
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
