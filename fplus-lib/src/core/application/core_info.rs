@@ -14,6 +14,7 @@ pub struct ApplicationCoreInfo {
     pub data_owner_region: String,
     pub data_owner_industry: String,
     pub data_owner_address: String,
+    pub datacap_weekly_allocation: String,
     pub requested_amount: String,
     pub website: String,
     pub social_media: String,
@@ -27,7 +28,7 @@ impl ApplicationCoreInfo {
         data_owner_industry: String,
         data_owner_address: String,
         requested_amount: String,
-        // datacap_weekly_allocation: String  //TODO:STOJAN
+        datacap_weekly_allocation: String,
         website: String,
         social_media: String,
     ) -> Self {
@@ -37,6 +38,7 @@ impl ApplicationCoreInfo {
             data_owner_github_handle,
             data_owner_address,
             requested_amount,
+            datacap_weekly_allocation,
             data_owner_industry,
             website,
             social_media,
