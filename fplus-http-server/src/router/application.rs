@@ -1,7 +1,7 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
     CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
-    LDNApplication,
+    LDNApplication, RefillInfo
 };
 
 /// Create a new application.
@@ -289,6 +289,16 @@ pub async fn get_merged_applications() -> actix_web::Result<impl Responder> {
     }
 }
 
+
+#[post("/applications/refill")]
+pub async fn refill(data: web::Json<Vec<RefillInfo>>) -> actix_web::Result<impl Responder> {
+    println!("{}", data[0].id);
+    match LDNApplication::refill_existing_application(data.0).await {
+        Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
+        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+    }
+}
+ 
 /// Check the health status.
 ///
 /// # Example

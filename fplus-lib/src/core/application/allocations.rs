@@ -132,4 +132,15 @@ impl ApplicationAllocations {
         }
         Self(res)
     }
+
+    pub fn add_new_request(&mut self, request: AllocationRequest) {
+        let allocation = ApplicationAllocation::new(request);
+        self.0.push(allocation);
+    }
+
+    pub fn disable_all_requests(&mut self) {
+        for allocation in &mut self.0 {
+            allocation.request_information.is_active = false;
+        }
+    }
 }

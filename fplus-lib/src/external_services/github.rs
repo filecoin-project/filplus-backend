@@ -67,8 +67,14 @@ impl GithubWrapper<'static> {
         let gh_private_key = match std::env::var("GH_PRIVATE_KEY") {
             Ok(g) => g,
             Err(_) => {
-                println!("GH_PRIVATE_KEY not found in .env file");
-                std::process::exit(1);
+                println!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
+                match std::fs::read_to_string("gh-private-key.pem") {
+                    Ok(file_content) => file_content,
+                    Err(e) => {
+                        println!("Failed to read gh-private-key.pem. Error: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
         };
         let connector = HttpsConnectorBuilder::new()

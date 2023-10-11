@@ -84,6 +84,13 @@ pub struct CompleteGovernanceReviewInfo {
     actor: String,
 }
 
+#[derive(serde::Deserialize, Debug)]
+pub struct RefillInfo {
+    pub id: String,
+    pub amount: String,
+    pub amount_type: String,
+}
+
 impl Display for LDNApplicationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -638,6 +645,50 @@ impl LDNApplication {
         }
         Ok(apps)
     }
+
+    pub async fn refill_existing_application(
+        refill_info: Vec<RefillInfo>,
+    ) -> Result<Vec<ApplicationFile>, LDNApplicationError> {
+        let apps = LDNApplication::get_merged_applications().await?;
+        let mut finished_apps = vec![];
+    
+        for info in &refill_info {
+            match apps.iter().find(|app| app.id == info.id) {
+                Some(app) => {
+                    let mut modified_app = app.clone();
+    
+                    // Set the Proposal state for the Application Lifecycle
+                    modified_app.info.application_lifecycle.set_proposal_state("Bot".to_string());
+
+                     // Disable all the previous requests
+                    modified_app.info.datacap_allocations.disable_all_requests();
+
+                    // Create a new AllocationRequest for the app
+                    let new_request: AllocationRequest = AllocationRequest {
+                        actor: "filplus-github-bot-read-write[bot]".to_string(),
+                        uuid: "TODO".to_string(), // Set this if you can generate a UUID
+                        request_id: "random request id".to_string(), // Adjust as needed
+                        request_type: ApplicationAllocationTypes::Refill,
+                        client_address: "f1473tjqo3p5atezygb2koobcszvy5vftalcomcrq".to_string(),
+                        created_at: "2023-10-09 09:16:43.472003 UTC".to_string(), // Update to current time if needed
+                        is_active: true,
+                        allocation_amount: info.amount.clone(),
+                    };
+    
+                    // Add the new request to the datacap allocations
+                    modified_app.info.datacap_allocations.add_new_request(new_request);
+    
+                    finished_apps.push(modified_app);
+                },
+                None => continue,
+            }
+        }
+    
+        Ok(finished_apps)
+    }
+    
+    
+
 }
 
 impl From<String> for ParsedApplicationDataFields {
@@ -829,7 +880,7 @@ mod tests {
         let gh: GithubWrapper = GithubWrapper::new();
 
         // let branches = gh.list_branches().await.unwrap();
-        let issue = gh.list_issue(63).await.unwrap();
+        let issue: Issue = gh.list_issue(63).await.unwrap();
         let test_issue: Issue = gh
             .create_issue("from test", &issue.body.unwrap())
             .await
