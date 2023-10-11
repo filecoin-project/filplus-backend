@@ -683,7 +683,21 @@ impl LDNApplication {
                 None => continue,
             }
         }
-    
+
+        let app_test = finished_apps.get(0).unwrap();
+        let pr_handler = LDNPullRequest::load_refill(&app_test.id);
+
+        let (pr_number, file_sha) = LDNPullRequest::create_empty_pr(
+            app_test.id.clone(),
+            app_test.info.core_information.data_owner_name.clone(),
+            pr_handler.branch_name.clone(),
+            None,
+        )
+        .await?;
+
+        let loaded = LDNApplication::load(app_test.id.clone()).await.unwrap();
+
+        pr_handler.add_commit("Test refill 1".to_string(), serde_json::to_string_pretty(&app_test).unwrap(), loaded.file_sha).await.unwrap();
         Ok(finished_apps)
     }
     
@@ -811,6 +825,15 @@ impl LDNPullRequest {
             title: LDNPullRequest::application_title(application_id, owner_name),
             body: LDNPullRequest::application_body(application_id),
             path: LDNPullRequest::application_path(application_id),
+        }
+    }
+
+    pub(super) fn load_refill(application_id: &str) -> Self {
+        LDNPullRequest {
+            branch_name: format!("Refill/{}", application_id),
+            title: format!("Refill:{}", application_id),
+            body: format!("Refill Application #{}", application_id),
+            path: format!("Refill:{}.json", application_id),
         }
     }
 
