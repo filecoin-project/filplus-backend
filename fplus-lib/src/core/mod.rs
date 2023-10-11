@@ -266,8 +266,8 @@ impl LDNApplication {
                     parsed_ldn.address,
                     parsed_ldn.datacap_requested,
                     parsed_ldn.datacap_weekly_allocation,
-                    "TODO".to_string(),
-                    "TODO".to_string(),
+                    parsed_ldn.website,
+                    "TODO".to_string(), // social media
                 );
                 let app_allocations = ApplicationAllocations::default();
                 let app_info = ApplicationInfo::new(app_core_info, app_lifecycle, app_allocations);
@@ -888,6 +888,7 @@ mod tests {
                     signing_address: "signing_address".to_string(),
                     time_of_signature: "time_of_signature".to_string(),
                     message_cid: "message_cid".to_string(),
+                    username: "gh_username".to_string(),
                 },
             })
             .await
@@ -911,6 +912,7 @@ mod tests {
                     signing_address: "signing_address".to_string(),
                     time_of_signature: "time_of_signature".to_string(),
                     message_cid: "message_cid".to_string(),
+                    username: "gh_username".to_string(),
                 },
             })
             .await
