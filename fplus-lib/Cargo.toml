@@ -5,6 +5,7 @@ edition = "2021"
 description = "FPlus library/helper files"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/filecoin-project/filplus-backend/tree/main/fplus-lib"
+readme = "README.MD"
 
 [dependencies]
 dotenv = "0.15.0"
