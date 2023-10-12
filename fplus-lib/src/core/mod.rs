@@ -809,6 +809,7 @@ impl LDNPullRequest {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
     use octocrab::models::issues::Issue;
