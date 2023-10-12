@@ -3,7 +3,7 @@ pub struct ApplicationAllocationsSigner {
     pub signing_address: String,
     pub time_of_signature: String,
     pub message_cid: String,
-    pub username: String
+    pub username: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -33,7 +33,6 @@ pub enum ApplicationAllocationTypes {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct AllocationRequest {
     pub actor: String,
-    pub uuid: String,
     pub request_id: String,
     pub request_type: ApplicationAllocationTypes,
     pub client_address: String,
@@ -45,7 +44,6 @@ pub struct AllocationRequest {
 impl AllocationRequest {
     pub fn new(
         actor: String,
-        uuid: String,
         request_id: String,
         request_type: ApplicationAllocationTypes,
         client_address: String,
@@ -54,7 +52,6 @@ impl AllocationRequest {
     ) -> Self {
         Self {
             actor,
-            uuid,
             request_id,
             request_type,
             client_address,
@@ -133,9 +130,10 @@ impl ApplicationAllocations {
         Self(res)
     }
 
-    pub fn add_new_request(&mut self, request: AllocationRequest) {
+    pub fn add_new_request(&mut self, request: AllocationRequest) -> Self {
         let allocation = ApplicationAllocation::new(request);
         self.0.push(allocation);
+        self.clone()
     }
 
     pub fn disable_all_requests(&mut self) {

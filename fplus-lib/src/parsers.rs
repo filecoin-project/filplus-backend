@@ -1,5 +1,39 @@
-use crate::core::ParsedApplicationDataFields;
 use markdown::{mdast::Node, to_mdast, ParseOptions};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ParsedApplicationDataFields {
+    Name,
+    Region,
+    Website,
+    DatacapRequested,
+    DatacapWeeklyAllocation,
+    Address,
+    Identifier,
+    DataType,
+    InvalidField,
+}
+
+impl From<String> for ParsedApplicationDataFields {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "Data Owner Name" => ParsedApplicationDataFields::Name,
+            "Data Owner Country/Region" => ParsedApplicationDataFields::Region,
+            "Website" => ParsedApplicationDataFields::Website,
+            // "Custom multisig" => ParsedApplicationDataFields::CustomNotary,
+            "Identifier" => ParsedApplicationDataFields::Identifier,
+            "Data Type of Application" => ParsedApplicationDataFields::DataType,
+            "Total amount of DataCap being requested" => {
+                ParsedApplicationDataFields::DatacapRequested
+            }
+            "Weekly allocation of DataCap requested" => {
+                ParsedApplicationDataFields::DatacapWeeklyAllocation
+            }
+            "On-chain address for first allocation" => ParsedApplicationDataFields::Address,
+            _ => ParsedApplicationDataFields::InvalidField,
+        }
+    }
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ParsedLDN {

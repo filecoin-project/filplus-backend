@@ -1,3 +1,5 @@
+use serde::{Serialize, Deserialize};
+
 use self::{
     allocations::{AllocationRequest, ApplicationAllocationTypes, ApplicationAllocationsSigner},
     core_info::ApplicationInfo,
@@ -8,14 +10,14 @@ pub(crate) mod allocations;
 pub(crate) mod core_info;
 pub(crate) mod lifecycle;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ApplicationType {
     DA,
     LDN,
     EFIL,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationFile {
     pub id: String,
     pub _type: ApplicationType,
@@ -69,10 +71,25 @@ impl ApplicationFile {
                     info,
                 };
             }
-            ApplicationAllocationTypes::Removal => {
-                unimplemented!()
-            }
             ApplicationAllocationTypes::Refill => {
+                let new_allocation = self.info.datacap_allocations.clone().add_new_request(request.clone());
+                let new_life_cycle = self
+                    .info
+                    .application_lifecycle
+                    .clone()
+                    .set_proposal_state(request.actor.clone());
+                let info = ApplicationInfo {
+                    core_information: self.info.core_information.clone(),
+                    application_lifecycle: new_life_cycle,
+                    datacap_allocations: new_allocation,
+                };
+                return ApplicationFile {
+                    id: self.id.clone(),
+                    _type: self._type.clone(),
+                    info,
+                };
+            }
+            ApplicationAllocationTypes::Removal => {
                 unimplemented!()
             }
         }
