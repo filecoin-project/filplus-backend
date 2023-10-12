@@ -1,5 +1,4 @@
 use actix_web::web;
-use fplus_lib::core::application::ApplicationFile;
 use std::sync::Mutex;
 
 pub async fn validate_trigger(github_handle: String, pull_request_number: String) {
@@ -36,8 +35,8 @@ pub async fn validate_approval(github_handle: String, pull_request_number: Strin
     } else {
         println!("No Notary found with github handle {}", github_handle);
     }
-    let application_file: ApplicationFile =
-        fplus_lib::core::LDNApplication::get_by_pr_number(pull_request_number.parse().unwrap()).await.unwrap();
+    // let application_file: ApplicationFile =
+    //     fplus_lib::core::LDNApplication::get_by_pr_number(pull_request_number.parse().unwrap()).await.unwrap();
 }
 
 async fn validate_rkh_holder(github_handle: &str) -> bool {

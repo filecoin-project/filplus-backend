@@ -5,6 +5,8 @@ version = "0.1.0"
 edition = "2021"
 description = "FPlus cli tool to validate different states of an application"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/filecoin-project/filplus-backend/tree/main/fplus-cli"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
