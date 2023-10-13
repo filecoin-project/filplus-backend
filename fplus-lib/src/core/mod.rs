@@ -589,7 +589,7 @@ impl LDNApplication {
                 client_address: app.info.core_information.data_owner_address.clone(),
                 created_at: Utc::now().to_string(),
                 is_active: true,
-                allocation_amount: refill_info.amount.clone(),
+                allocation_amount: format!("{}{}", refill_info.amount, refill_info.amount_type),
             };
             let app_allocations = app
                 .clone()
