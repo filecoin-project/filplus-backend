@@ -33,12 +33,12 @@ impl ApplicationFile {
         }
     }
 
-    pub fn complete_governance_review(&self, actor: String) -> Self {
+    pub fn complete_governance_review(&self, actor: String, request_id: String) -> Self {
         let new_life_cycle = self
             .info
             .application_lifecycle
             .clone()
-            .set_proposal_state(actor);
+            .set_proposal_state(actor, Some(request_id));
         let info = ApplicationInfo {
             core_information: self.info.core_information.clone(),
             application_lifecycle: new_life_cycle,
@@ -59,7 +59,7 @@ impl ApplicationFile {
                     .info
                     .application_lifecycle
                     .clone()
-                    .set_proposal_state(request.actor.clone());
+                    .set_proposal_state(request.actor.clone(), Some(request.id));
                 let info = ApplicationInfo {
                     core_information: self.info.core_information.clone(),
                     application_lifecycle: new_life_cycle,
@@ -77,7 +77,7 @@ impl ApplicationFile {
                     .info
                     .application_lifecycle
                     .clone()
-                    .set_proposal_state(request.actor.clone());
+                    .set_proposal_state(request.actor.clone(), Some(request.id));
                 let info = ApplicationInfo {
                     core_information: self.info.core_information.clone(),
                     application_lifecycle: new_life_cycle,
@@ -106,6 +106,29 @@ impl ApplicationFile {
             .datacap_allocations
             .clone()
             .add_signer(request_id, signer);
+        let info = ApplicationInfo {
+            core_information: self.info.core_information.clone(),
+            application_lifecycle: app_lifecycle,
+            datacap_allocations: new_allocation,
+        };
+        ApplicationFile {
+            id: self.id.clone(),
+            _type: self._type.clone(),
+            info,
+        }
+    }
+
+    pub fn add_signer_to_allocation_and_complete(
+        &self,
+        signer: ApplicationAllocationsSigner,
+        request_id: String,
+        app_lifecycle: ApplicationLifecycle,
+    ) -> Self {
+        let new_allocation = self
+            .info
+            .datacap_allocations
+            .clone()
+            .add_signer_and_complete(request_id, signer);
         let info = ApplicationInfo {
             core_information: self.info.core_information.clone(),
             application_lifecycle: app_lifecycle,

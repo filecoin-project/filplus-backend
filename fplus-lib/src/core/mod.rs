@@ -171,14 +171,15 @@ impl LDNApplication {
 
         match gh.get_file(&app_path, &app_branch_name).await {
             Err(_) => {
-                let (pr_number, file_sha) = LDNPullRequest::create_empty_pr(
+                let file_sha = LDNPullRequest::create_empty_pr(
                     application_id.clone(),
                     parsed_ldn.name.clone(),
                     LDNPullRequest::application_branch_name(&application_id),
                     None,
                 )
                 .await?;
-                let app_lifecycle = ApplicationLifecycle::governance_review_state(pr_number);
+                let app_allocations = ApplicationAllocations::default();
+                let app_lifecycle = ApplicationLifecycle::governance_review_state(None);
                 let app_core_info: ApplicationCoreInfo = ApplicationCoreInfo::new(
                     parsed_ldn.name.clone(),
                     parsed_ldn.region,
@@ -190,7 +191,6 @@ impl LDNApplication {
                     parsed_ldn.website,
                     "social_media".to_string(),
                 );
-                let app_allocations = ApplicationAllocations::default();
                 let app_info = ApplicationInfo::new(app_core_info, app_lifecycle, app_allocations);
                 let application_file = ApplicationFile::new(app_info, application_id.clone()).await;
                 let file_content = match serde_json::to_string_pretty(&application_file) {
@@ -238,12 +238,14 @@ impl LDNApplication {
                         &self.application_id,
                         &app_file.info.core_information.data_owner_name,
                     );
-                    let app_file = app_file.complete_governance_review(info.actor.clone());
+                    let uuid = uuidv4::uuid::v4();
+                    let app_file =
+                        app_file.complete_governance_review(info.actor.clone(), uuid.clone());
                     let (parsed_ldn, issue_creator) =
                         Self::parse_application_issue(self.application_id.clone()).await?;
                     let new_alloc = AllocationRequest::new(
                         issue_creator,
-                        "random request id".to_string(),
+                        uuid,
                         ApplicationAllocationTypes::New,
                         parsed_ldn.address,
                         Utc::now().to_string(),
@@ -290,11 +292,24 @@ impl LDNApplication {
             Ok(s) => match s {
                 ApplicationFileState::Proposal => {
                     let app_file: ApplicationFile = self.file().await?;
+                    if !app_file
+                        .info
+                        .datacap_allocations
+                        .is_active(request_id.clone())
+                    {
+                        return Err(LDNApplicationError::LoadApplicationError(format!(
+                            "Request {} is not active",
+                            request_id
+                        )));
+                    }
                     let app_pull_request = LDNPullRequest::load(
                         &self.application_id,
                         &app_file.info.core_information.data_owner_name.clone(),
                     );
-                    let app_lifecycle = app_file.info.application_lifecycle.set_approval_state();
+                    let app_lifecycle = app_file
+                        .info
+                        .application_lifecycle
+                        .set_approval_state(Some(request_id.clone()));
 
                     let app_file = app_file.add_signer_to_allocation(
                         signer.clone(),
@@ -347,9 +362,12 @@ impl LDNApplication {
                         &self.application_id.clone(),
                         &app_file.info.core_information.data_owner_name,
                     );
-                    let app_lifecycle = app_file.info.application_lifecycle.set_confirmed_state();
+                    let app_lifecycle = app_file
+                        .info
+                        .application_lifecycle
+                        .set_confirmed_state(Some(request_id.clone()));
 
-                    let app_file = app_file.add_signer_to_allocation(
+                    let app_file = app_file.add_signer_to_allocation_and_complete(
                         signer.clone(),
                         request_id,
                         app_lifecycle,
@@ -508,29 +526,33 @@ impl LDNApplication {
         let apps = LDNApplication::merged().await?;
 
         if let Some(app) = apps.iter().find(|app| app.id == refill_info.id) {
-            let mut modified_app = app.clone();
-            modified_app
+            let uuid = uuidv4::uuid::v4();
+            let app_lifecycle = app
                 .info
                 .application_lifecycle
-                .set_proposal_state("Bot".to_string());
-            modified_app.info.datacap_allocations.disable_all_requests();
+                .set_refill_proposal_state(Some(uuid.clone()));
             let new_request: AllocationRequest = AllocationRequest {
-                actor: "filplus-github-bot-read-write[bot]".to_string(),
-                request_id: "random request id".to_string(),
+                actor: "SSA Bot".to_string(),
+                id: uuid.clone(),
                 request_type: ApplicationAllocationTypes::Refill,
-                client_address: "f1473tjqo3p5atezygb2koobcszvy5vftalcomcrq".to_string(),
-                created_at: "2023-10-09 09:16:43.472003 UTC".to_string(),
+                client_address: app.info.core_information.data_owner_address.clone(),
+                created_at: Utc::now().to_string(),
                 is_active: true,
                 allocation_amount: refill_info.amount.clone(),
             };
-            modified_app
+            let app_allocations = app
+                .clone()
                 .info
                 .datacap_allocations
                 .add_new_request(new_request);
-            let pr_handler = LDNPullRequest::load(
-                &modified_app.id,
-                &modified_app.info.core_information.data_owner_name,
+            let app_info = ApplicationInfo::new(
+                app.info.core_information.clone(),
+                app_lifecycle,
+                app_allocations,
             );
+            let application_file = ApplicationFile::new(app_info, app.id.clone()).await;
+            let pr_handler =
+                LDNPullRequest::load(&app.id, &app.info.core_information.data_owner_name);
 
             let ContentItems { items } = gh
                 .get_file(&pr_handler.path, &pr_handler.branch_name)
@@ -538,10 +560,10 @@ impl LDNApplication {
                 .unwrap();
 
             LDNPullRequest::create_refill_pr(
-                modified_app.id.clone(),
-                modified_app.info.core_information.data_owner_name.clone(),
+                app.id.clone(),
+                app.info.core_information.data_owner_name.clone(),
                 items[0].sha.clone(),
-                serde_json::to_string_pretty(&modified_app).unwrap(),
+                serde_json::to_string_pretty(&application_file).unwrap(),
             )
             .await?;
             return Ok(true);
@@ -566,7 +588,7 @@ impl LDNPullRequest {
         owner_name: String,
         app_branch_name: String,
         base_hash: Option<String>,
-    ) -> Result<(u64, String), LDNApplicationError> {
+    ) -> Result<String, LDNApplicationError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh: GithubWrapper = GithubWrapper::new();
         let create_ref_request =
@@ -580,7 +602,7 @@ impl LDNPullRequest {
                 }
             };
 
-        let (pr, file_sha) = match gh
+        let (_pr, file_sha) = match gh
             .create_merge_request(CreateMergeRequestData {
                 application_id: application_id.clone(),
                 owner_name,
@@ -598,7 +620,7 @@ impl LDNPullRequest {
                 )));
             }
         };
-        Ok((pr.number, file_sha))
+        Ok(file_sha)
     }
 
     async fn create_refill_pr(

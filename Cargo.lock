@@ -841,6 +841,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "uuidv4",
 ]
 
 [[package]]
@@ -863,6 +864,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "uuidv4",
 ]
 
 [[package]]
@@ -2737,6 +2739,15 @@ checksum = "79daa5ed5740825c40b389c5e50312b9c86df53fccd33f281df655642b43869d"
 dependencies = [
  "getrandom",
  "serde",
+]
+
+[[package]]
+name = "uuidv4"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c5b0a5420a3b7b78fe9ca81ceed097cfaf4fcb03c0f0b54bd9f05364ed3ad43"
+dependencies = [
+ "rand",
 ]
 
 [[package]]
