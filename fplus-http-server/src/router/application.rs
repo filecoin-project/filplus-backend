@@ -103,9 +103,9 @@ pub async fn merged() -> actix_web::Result<impl Responder> {
 }
 
 
-#[post("/application/refill")]
-pub async fn refill(data: web::Json<Vec<RefillInfo>>) -> actix_web::Result<impl Responder> {
-    match LDNApplication::refill(data.0).await {
+#[post("/application/{id}/refill")]
+pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Responder> {
+    match LDNApplication::refill(data.into_inner()).await {
         Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
         Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
     }

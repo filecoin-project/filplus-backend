@@ -501,60 +501,53 @@ impl LDNApplication {
     }
 
     pub async fn refill(
-        refill_info: Vec<RefillInfo>,
-    ) -> Result<Vec<ApplicationFile>, LDNApplicationError> {
+        refill_info: RefillInfo,
+    ) -> Result<bool, LDNApplicationError> {
         let gh = GithubWrapper::new();
         let apps = LDNApplication::merged().await?;
-        let mut finished_apps = vec![];
 
-        for info in &refill_info {
-            match apps.iter().find(|app| app.id == info.id) {
-                Some(app) => {
-                    let mut modified_app = app.clone();
-                    modified_app
-                        .info
-                        .application_lifecycle
-                        .set_proposal_state("Bot".to_string());
-                    modified_app.info.datacap_allocations.disable_all_requests();
-                    let new_request: AllocationRequest = AllocationRequest {
-                        actor: "filplus-github-bot-read-write[bot]".to_string(),
-                        request_id: "random request id".to_string(),
-                        request_type: ApplicationAllocationTypes::Refill,
-                        client_address: "f1473tjqo3p5atezygb2koobcszvy5vftalcomcrq".to_string(),
-                        created_at: "2023-10-09 09:16:43.472003 UTC".to_string(),
-                        is_active: true,
-                        allocation_amount: info.amount.clone(),
-                    };
-                    modified_app
-                        .info
-                        .datacap_allocations
-                        .add_new_request(new_request);
+        if let Some(app) = apps.iter().find(|app| app.id == refill_info.id) {
+            let mut modified_app = app.clone();
+            modified_app
+                .info
+                .application_lifecycle
+                .set_proposal_state("Bot".to_string());
+            modified_app.info.datacap_allocations.disable_all_requests();
+            let new_request: AllocationRequest = AllocationRequest {
+                actor: "filplus-github-bot-read-write[bot]".to_string(),
+                request_id: "random request id".to_string(),
+                request_type: ApplicationAllocationTypes::Refill,
+                client_address: "f1473tjqo3p5atezygb2koobcszvy5vftalcomcrq".to_string(),
+                created_at: "2023-10-09 09:16:43.472003 UTC".to_string(),
+                is_active: true,
+                allocation_amount: refill_info.amount.clone(),
+            };
+            modified_app
+                .info
+                .datacap_allocations
+                .add_new_request(new_request);
+            let pr_handler = LDNPullRequest::load(
+                &modified_app.id,
+                &modified_app.info.core_information.data_owner_name,
+            );
 
-                    finished_apps.push(modified_app);
-                }
-                None => continue,
-            }
+            let ContentItems { items } = gh
+                .get_file(&pr_handler.path, &pr_handler.branch_name)
+                .await
+                .unwrap();
+
+            LDNPullRequest::create_refill_pr(
+                modified_app.id.clone(),
+                modified_app.info.core_information.data_owner_name.clone(),
+                items[0].sha.clone(),
+                serde_json::to_string_pretty(&modified_app).unwrap(),
+            )
+            .await?;
+            return Ok(true);
         }
-
-        let app_test = finished_apps.get(0).unwrap();
-        let pr_handler = LDNPullRequest::load(
-            &app_test.id,
-            &app_test.info.core_information.data_owner_name,
-        );
-
-        let ContentItems { items } = gh
-            .get_file(&pr_handler.path, &pr_handler.branch_name)
-            .await
-            .unwrap();
-
-        LDNPullRequest::create_refill_pr(
-            app_test.id.clone(),
-            app_test.info.core_information.data_owner_name.clone(),
-            items[0].sha.clone(),
-            serde_json::to_string_pretty(app_test).unwrap(),
-        )
-        .await?;
-        Ok(finished_apps)
+        Err(LDNApplicationError::LoadApplicationError(
+            "Failed to get pull request files".to_string(),
+        ))
     }
 }
 
@@ -575,17 +568,16 @@ impl LDNPullRequest {
     ) -> Result<(u64, String), LDNApplicationError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh: GithubWrapper = GithubWrapper::new();
-        let create_ref_request = match gh
-            .build_create_ref_request(app_branch_name.clone(), base_hash)
-        {
-            Ok(req) => req,
-            Err(e) => {
-                return Err(LDNApplicationError::NewApplicationError(format!(
-                    "Application issue cannot create branch request object /// {}",
-                    e
-                )))
-            }
-        };
+        let create_ref_request =
+            match gh.build_create_ref_request(app_branch_name.clone(), base_hash) {
+                Ok(req) => req,
+                Err(e) => {
+                    return Err(LDNApplicationError::NewApplicationError(format!(
+                        "Application issue cannot create branch request object /// {}",
+                        e
+                    )))
+                }
+            };
 
         let (pr, file_sha) = match gh
             .create_merge_request(CreateMergeRequestData {
