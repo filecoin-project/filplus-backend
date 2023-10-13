@@ -548,7 +548,9 @@ impl LDNApplication {
             };
             match serde_json::from_str::<ApplicationFile>(&f) {
                 Ok(app) => {
-                    if active.iter().find(|a| a.id == app.id).is_none() {
+                    if active.iter().find(|a| a.id == app.id).is_none()
+                        && app.info.application_lifecycle.is_active
+                    {
                         apps.push(app);
                     }
                 }
