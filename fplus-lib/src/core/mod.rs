@@ -546,7 +546,7 @@ impl LDNApplication {
             return Ok(true);
         }
         Err(LDNApplicationError::LoadApplicationError(
-            "Failed to get pull request files".to_string(),
+            "Failed to get application file".to_string(),
         ))
     }
 }
