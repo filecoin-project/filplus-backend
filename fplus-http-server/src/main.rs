@@ -32,6 +32,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::active)
             .service(router::application::refill)
             .service(router::application::total_dc_reached)
+            .service(router::application::single)
             .service(router::blockchain::address_allowance)
             .service(router::blockchain::verified_clients)
             .service(router::logs::get)

@@ -1,7 +1,7 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
     CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
-    LDNApplication, RefillInfo
+    LDNApplication, RefillInfo,
 };
 
 #[post("/application")]
@@ -15,6 +15,15 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
             return HttpResponse::BadRequest().body(e.to_string());
         }
     }
+}
+
+#[get("/application/{id}")]
+pub async fn single(id: web::Path<String>) -> impl Responder {
+    let apps = match LDNApplication::active(Some(id.into_inner())).await {
+        Ok(app) => app,
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    };
+    HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap())
 }
 
 #[post("/application/{id}/trigger")]
@@ -83,11 +92,9 @@ pub async fn approve(
 
 #[get("/application/active")]
 pub async fn active() -> impl Responder {
-    let apps = match LDNApplication::active().await {
+    let apps = match LDNApplication::active(None).await {
         Ok(app) => app,
-        Err(e) => {
-           return  HttpResponse::BadRequest().body(e.to_string())
-        }
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
     HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap())
 }
@@ -102,7 +109,6 @@ pub async fn merged() -> actix_web::Result<impl Responder> {
     }
 }
 
-
 #[post("/application/{id}/refill")]
 pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Responder> {
     match LDNApplication::refill(data.into_inner()).await {
@@ -112,9 +118,7 @@ pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Respo
 }
 
 #[post("/application/{id}/totaldcreached")]
-pub async fn total_dc_reached(
-    id: web::Path<String>,
-) -> actix_web::Result<impl Responder> {
+pub async fn total_dc_reached(id: web::Path<String>) -> actix_web::Result<impl Responder> {
     match LDNApplication::total_dc_reached(id.into_inner()).await {
         Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
         Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),

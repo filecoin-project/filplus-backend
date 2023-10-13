@@ -79,7 +79,9 @@ pub struct RefillInfo {
 }
 
 impl LDNApplication {
-    pub async fn active() -> Result<Vec<ApplicationFile>, LDNApplicationError> {
+    pub async fn active(
+        filter: Option<String>,
+    ) -> Result<Vec<ApplicationFile>, LDNApplicationError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let mut apps: Vec<ApplicationFile> = Vec::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
@@ -132,7 +134,15 @@ impl LDNApplication {
 
         for r in pull_requests {
             match serde_json::from_str::<ApplicationFile>(&r) {
-                Ok(app) => apps.push(app),
+                Ok(app) => {
+                    if filter.is_none() {
+                        apps.push(app)
+                    } else {
+                        if app.id == filter.clone().unwrap() {
+                            apps.push(app)
+                        }
+                    }
+                }
                 Err(_) => continue,
             }
         }
@@ -538,7 +548,7 @@ impl LDNApplication {
         })?;
 
         let mut apps: Vec<ApplicationFile> = vec![];
-        let active: Vec<ApplicationFile> = Self::active().await?;
+        let active: Vec<ApplicationFile> = Self::active(None).await?;
         for f in all_files {
             let f = match f.text().await {
                 Ok(f) => f,
