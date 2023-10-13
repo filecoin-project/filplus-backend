@@ -111,6 +111,16 @@ pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Respo
     }
 }
 
+#[post("/application/{id}/totaldcreached")]
+pub async fn total_dc_reached(
+    id: web::Path<String>,
+) -> actix_web::Result<impl Responder> {
+    match LDNApplication::total_dc_reached(id.into_inner()).await {
+        Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
+        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+    }
+}
+
 #[get("/health")]
 pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")

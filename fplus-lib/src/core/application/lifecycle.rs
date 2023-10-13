@@ -50,53 +50,55 @@ impl ApplicationLifecycle {
     pub fn set_proposal_state(&self, actor: String, current_allocation_id: Option<String>) -> Self {
         ApplicationLifecycle {
             state: ApplicationFileState::Proposal,
-            validated_time: self.validated_time.clone(),
             first_allocation_time: "".to_string(),
             validated_by: actor,
             is_active: true,
             time_of_new_state: Utc::now().to_string(),
             current_allocation_id,
+            ..self.clone()
         }
     }
 
     pub fn set_refill_proposal_state(&self, current_allocation_id: Option<String>) -> Self {
         ApplicationLifecycle {
             state: ApplicationFileState::Proposal,
-            validated_time: self.validated_time.clone(),
-            first_allocation_time: self.first_allocation_time.clone(),
-            validated_by: self.validated_by.clone(),
             is_active: true,
             time_of_new_state: Utc::now().to_string(),
             current_allocation_id,
+            ..self.clone()
         }
     }
 
     pub fn set_approval_state(&self, current_allocation_id: Option<String>) -> Self {
         ApplicationLifecycle {
             state: ApplicationFileState::Approval,
-            validated_time: self.validated_time.clone(),
-            validated_by: self.validated_by.clone(),
-            first_allocation_time: self.first_allocation_time.clone(),
             is_active: true,
             time_of_new_state: Utc::now().to_string(),
             current_allocation_id,
+            ..self.clone()
         }
     }
 
     pub fn set_confirmed_state(&self, current_allocation_id: Option<String>) -> Self {
         ApplicationLifecycle {
             state: ApplicationFileState::Confirmed,
-            validated_time: self.validated_time.clone(),
-            validated_by: self.validated_by.clone(),
             first_allocation_time: Utc::now().to_string(),
             is_active: true,
             time_of_new_state: Utc::now().to_string(),
             current_allocation_id,
+            ..self.clone()
         }
     }
 
     pub fn get_state(&self) -> ApplicationFileState {
         let res = self.state.clone();
         res
+    }
+
+    pub fn reached_total_datacap(&self) -> Self {
+        ApplicationLifecycle {
+            is_active: false,
+            ..self.clone()
+        }
     }
 }

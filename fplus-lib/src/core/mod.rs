@@ -435,6 +435,45 @@ impl LDNApplication {
         Ok(f.info.application_lifecycle.get_state())
     }
 
+    /// Return Application state
+    pub async fn total_dc_reached(id: String) -> Result<bool, LDNApplicationError> {
+        let merged = Self::merged().await?;
+        let app = match merged.iter().find(|app| app.id == id) {
+            Some(app) => app,
+            None => {
+                return Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Application issue {} does not exist",
+                    id
+                )))
+            }
+        };
+        match app.info.application_lifecycle.get_state() {
+            ApplicationFileState::Confirmed => {
+                let app = app.reached_total_datacap();
+                let pr_handler =
+                    LDNPullRequest::load(&app.id, &app.info.core_information.data_owner_name);
+                let gh: GithubWrapper<'_> = GithubWrapper::new();
+
+                let ContentItems { items } = gh
+                    .get_file(&pr_handler.path, &pr_handler.branch_name)
+                    .await
+                    .unwrap();
+
+                LDNPullRequest::create_refill_pr(
+                    app.id.clone(),
+                    app.info.core_information.data_owner_name.clone(),
+                    items[0].sha.clone(),
+                    serde_json::to_string_pretty(&app).unwrap(),
+                )
+                .await?;
+                // let app_file: ApplicationFile = self.file().await?;
+                // let file_content = serde_json::to_string_pretty(&app_file).unwrap();
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
     fn content_items_to_app_file(
         file: ContentItems,
     ) -> Result<ApplicationFile, LDNApplicationError> {

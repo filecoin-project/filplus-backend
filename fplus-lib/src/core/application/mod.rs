@@ -33,6 +33,25 @@ impl ApplicationFile {
         }
     }
 
+    pub fn reached_total_datacap(&self) -> Self {
+        let new_life_cycle = self
+            .info
+            .application_lifecycle
+            .clone()
+            .reached_total_datacap();
+        let info = ApplicationInfo {
+            core_information: self.info.core_information.clone(),
+            application_lifecycle: new_life_cycle,
+            datacap_allocations: self.info.datacap_allocations.clone(),
+        };
+        ApplicationFile {
+            id: self.id.clone(),
+            _type: self._type.clone(),
+            info,
+        }
+    }
+
+
     pub fn complete_governance_review(&self, actor: String, request_id: String) -> Self {
         let new_life_cycle = self
             .info
