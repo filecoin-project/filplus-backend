@@ -1,7 +1,10 @@
 [workspace]
 
 members = [
-  "fplus-http-server"
+  "fplus-lib",
+  "fplus-http-server",
+  "fplus-cli",
+  "fplus-database"
 ]
 
 resolver = "2"
