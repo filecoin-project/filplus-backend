@@ -30,7 +30,8 @@ jobs:
     - name: Build and tag Docker image
       run: |
         echo "Building Docker image..."
-        docker build -t "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}" .
+        docker build -t "public.ecr.aws/b3c4u5n1/filecoin-core-api:${{ github.ref_name }}" -f fplus-http-server/Dockerfile fplus-http-server
+        
 
     - name: Push Docker image to ECR
       run: |
