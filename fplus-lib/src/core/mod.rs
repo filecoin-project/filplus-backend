@@ -3,6 +3,7 @@ use actix_web::{
     body::{BodySize, MessageBody},
     web::Bytes,
 };
+use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
     pin::Pin,
@@ -36,18 +37,18 @@ use crate::{
 
 const _VALID_ADDRESSES: [&str; 1] = ["t1v2"];
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 pub struct CreateApplicationInfo {
     pub application_id: String,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct CompleteNewApplicationProposalInfo {
     signer: ApplicationAllocationsSigner,
     request_id: String,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ProposeApplicationInfo {
     uuid: String,
     client_address: String,
@@ -56,7 +57,7 @@ pub struct ProposeApplicationInfo {
     message_cid: String,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ApproveApplicationInfo {
     uuid: String,
     client_address: String,
@@ -79,7 +80,12 @@ pub enum LDNApplicationError {
     LoadApplicationError(String),
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Deserialize, Serialize, Debug)]
+pub struct RemoveDatacapRequest {
+    pub actor: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CompleteGovernanceReviewInfo {
     actor: String,
 }
@@ -188,7 +194,7 @@ impl LDNApplication {
     }
 
     /// Get Application by Pull Request Number
-    pub async fn get_by_pr_number(pr_number: u64)   -> Result<ApplicationFile, LDNApplicationError> {
+    pub async fn get_by_pr_number(pr_number: u64) -> Result<ApplicationFile, LDNApplicationError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let pr = gh.get_pull_request_files(pr_number).await.unwrap();
         // we should only have single file in the PR
@@ -594,6 +600,12 @@ impl LDNApplication {
         }
     }
 
+    pub async fn remove_datacap(application_id: String, info: RemoveDatacapRequest) -> Result<(), LDNApplicationError> {
+        dbg!(&info);
+        dbg!(&application_id);
+        Ok(())
+    }
+
     pub async fn get_merged_applications() -> Result<Vec<ApplicationFile>, LDNApplicationError> {
         let gh: GithubWrapper<'_> = GithubWrapper::new();
         let mut all_files = gh.get_all_files().await.map_err(|e| {
@@ -662,7 +674,7 @@ impl From<String> for ParsedApplicationDataFields {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum ParsedApplicationDataFields {
     Name,
     Region,
@@ -676,7 +688,7 @@ pub enum ParsedApplicationDataFields {
     InvalidField,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct LDNPullRequest {
     pub branch_name: String,
     pub title: String,

@@ -857,7 +857,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "fplus-database 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "fplus-lib 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fplus-lib 0.1.0",
  "futures",
  "mongodb",
  "reqwest",
