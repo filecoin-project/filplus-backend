@@ -769,7 +769,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_title(application_id: &str, owner_name: &str) -> String {
-        format!("Application:{}:{}", application_id, owner_name)
+        format!("Application_{}_{}", application_id, owner_name)
     }
 
     pub(super) fn application_body(application_id: &str) -> String {
@@ -777,7 +777,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
-        format!("Application:{}.json", application_id)
+        format!("{}.json", application_id)
     }
 
     pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
