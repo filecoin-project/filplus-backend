@@ -32,7 +32,6 @@ async fn sign_datacap_removal(
 ) -> HttpResponse {
     let request_body = json.into_inner();
     
-    // rest of your code...
     let url = env::var("SIGNER_URL").unwrap_or_else(|_| "http://localhost:3000/notary/sign-datacap-removal".to_string());
     let client = reqwest::Client::new();
     match client
