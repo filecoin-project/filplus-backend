@@ -904,6 +904,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "fplus-lib"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fc9730c32b049b1dfb9c94a826d554b5624529bb1b3bf8e3f714d58de8f3a07"
+dependencies = [
+ "actix-web",
+ "base64 0.13.1",
+ "chrono",
+ "dotenv",
+ "env_logger",
+ "futures",
+ "http",
+ "hyper",
+ "hyper-rustls",
+ "jsonwebtoken",
+ "markdown",
+ "octocrab",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
