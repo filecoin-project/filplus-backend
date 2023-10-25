@@ -789,6 +789,17 @@ impl LDNPullRequest {
     }
 }
 
+pub fn get_file_sha(content: &ContentItems) -> Option<String> {
+    match content.items.get(0) {
+        Some(item) => {
+            let sha = item.sha.clone();
+            Some(sha)
+        }
+        None => None,
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
