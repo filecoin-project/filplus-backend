@@ -1,12 +1,9 @@
 FROM rust:1.71 AS builder
 COPY Cargo.toml Cargo.lock ./
-COPY ./fplus-http-server ./fplus-http-server
-COPY ./fplus-database ./fplus-database
-COPY ./fplus-lib ./fplus-lib
-COPY ./fplus-cli ./fplus-cli
+COPY ./src ./src
 
 RUN cargo build --release
- 
+
 FROM debian:bullseye
 
 # Needed for openssl(hyper uses it)
