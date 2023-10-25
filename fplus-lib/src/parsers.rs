@@ -1,5 +1,39 @@
-use crate::core::ParsedApplicationDataFields;
 use markdown::{mdast::Node, to_mdast, ParseOptions};
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ParsedApplicationDataFields {
+    Name,
+    Region,
+    Website,
+    DatacapRequested,
+    DatacapWeeklyAllocation,
+    Address,
+    Identifier,
+    DataType,
+    InvalidField,
+}
+
+impl From<String> for ParsedApplicationDataFields {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "Data Owner Name" => ParsedApplicationDataFields::Name,
+            "Data Owner Country/Region" => ParsedApplicationDataFields::Region,
+            "Website" => ParsedApplicationDataFields::Website,
+            // "Custom multisig" => ParsedApplicationDataFields::CustomNotary,
+            "Identifier" => ParsedApplicationDataFields::Identifier,
+            "Data Type of Application" => ParsedApplicationDataFields::DataType,
+            "Total amount of DataCap being requested" => {
+                ParsedApplicationDataFields::DatacapRequested
+            }
+            "Weekly allocation of DataCap requested" => {
+                ParsedApplicationDataFields::DatacapWeeklyAllocation
+            }
+            "On-chain address for first allocation" => ParsedApplicationDataFields::Address,
+            _ => ParsedApplicationDataFields::InvalidField,
+        }
+    }
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ParsedLDN {
@@ -15,6 +49,7 @@ pub struct ParsedLDN {
 
 pub fn parse_ldn_app_body(body: &str) -> ParsedLDN {
     let tree: Node = to_mdast(body, &ParseOptions::default()).unwrap();
+    dbg!(&tree);
     let mut name: Option<String> = None;
     let mut website: Option<String> = None;
     let mut data_type: Option<String> = None;
@@ -76,29 +111,48 @@ pub fn parse_ldn_app_body(body: &str) -> ParsedLDN {
 
 #[cfg(test)]
 mod tests {
-    // use crate::github::GithubWrapper;
+    use crate::external_services::github::GithubWrapper;
 
-    // use super::*;
+    use super::*;
 
-    // #[tokio::test]
-    // async fn test_parse_ldn_app_body() {
-    //     let gh = GithubWrapper::new();
-    //     let issue = gh.list_issue(2).await.unwrap();
-    //     let parsed_ldn = parse_ldn_app_body(&issue.body.unwrap());
-    //     assert_eq!(parsed_ldn.name, "ciao");
-    //     assert_eq!(parsed_ldn.region, "Afghanistan");
-    //     assert_eq!(parsed_ldn.website, "ciao");
-    //     assert_eq!(parsed_ldn.data_type, "Public, Open Commercial/Enterprise");
-    //     assert_eq!(parsed_ldn.datacap_requested, "100TiB");
-    //     assert_eq!(parsed_ldn.datacap_weekly_allocation, "10TiB");
-    //     assert_eq!(
-    //         parsed_ldn.address,
-    //         "f1t476jko3mh67btetymtgyaysw4stj5b5hfv46bq"
-    //     );
-    //     // assert_eq!(
-    //     // parsed_ldn.custom_notary,
-    //     // "f1t476jko3mh67btetymtgyaysw4stj5b5hfv46bq"
-    //     // );
-    //     assert_eq!(parsed_ldn.identifier, "No response");
-    // }
+    #[tokio::test]
+    async fn test_parser() {
+        let gh = GithubWrapper::new();
+        let issue = gh.list_issue(258).await.unwrap();
+        let parsed_ldn = parse_ldn_app_body(&issue.body.unwrap());
+        dbg!(&parsed_ldn);
+        assert!(false);
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // assert_eq!(parsed_ldn.name, "ciao");
+        // assert_eq!(parsed_ldn.region, "Afghanistan");
+        // assert_eq!(parsed_ldn.website, "ciao");
+        // assert_eq!(parsed_ldn.data_type, "Public, Open Commercial/Enterprise");
+        // assert_eq!(parsed_ldn.datacap_requested, "100TiB");
+        // assert_eq!(parsed_ldn.datacap_weekly_allocation, "10TiB");
+        // assert_eq!(
+        //     parsed_ldn.address,
+        //     "f1t476jko3mh67btetymtgyaysw4stj5b5hfv46bq"
+        // );
+        // // assert_eq!(
+        // // parsed_ldn.custom_notary,
+        // // "f1t476jko3mh67btetymtgyaysw4stj5b5hfv46bq"
+        // // );
+        // assert_eq!(parsed_ldn.identifier, "No response");

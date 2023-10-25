@@ -4,11 +4,11 @@ use chrono::prelude::*;
 pub struct ApplicationLifecycle {
     state: ApplicationFileState,
     pub validated_time: String,
-    pub initial_pr_number: u64,
     pub validated_by: String,
     pub first_allocation_time: String,
     pub is_active: bool,
     pub time_of_new_state: String,
+    pub current_allocation_id: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -33,53 +33,60 @@ impl ApplicationFileState {
 }
 
 impl ApplicationLifecycle {
-    pub fn governance_review_state(pr_number: u64) -> Self {
+    pub fn governance_review_state(current_allocation_id: Option<String>) -> Self {
         ApplicationLifecycle {
             state: ApplicationFileState::GovernanceReview,
             validated_time: Utc::now().to_string(),
             first_allocation_time: "".to_string(),
             validated_by: "".to_string(),
             is_active: true,
-            initial_pr_number: pr_number,
             time_of_new_state: Utc::now().to_string(),
+            current_allocation_id,
         }
     }
 
     /// Change Application state to Proposal from Governance Review
     /// Actor input is the actor who is changing the state
-    pub fn set_proposal_state(&self, actor: String) -> Self {
+    pub fn set_proposal_state(&self, actor: String, current_allocation_id: Option<String>) -> Self {
         ApplicationLifecycle {
             state: ApplicationFileState::Proposal,
-            validated_time: self.validated_time.clone(),
             first_allocation_time: "".to_string(),
             validated_by: actor,
             is_active: true,
-            initial_pr_number: self.initial_pr_number.clone(),
             time_of_new_state: Utc::now().to_string(),
+            current_allocation_id,
+            ..self.clone()
         }
     }
 
-    pub fn set_approval_state(&self) -> Self {
+    pub fn set_refill_proposal_state(&self, current_allocation_id: Option<String>) -> Self {
         ApplicationLifecycle {
-            state: ApplicationFileState::Approval,
-            validated_time: self.validated_time.clone(),
-            validated_by: self.validated_by.clone(),
-            first_allocation_time: "".to_string(),
+            state: ApplicationFileState::Proposal,
             is_active: true,
             time_of_new_state: Utc::now().to_string(),
-            initial_pr_number: self.initial_pr_number.clone(),
+            current_allocation_id,
+            ..self.clone()
         }
     }
 
-    pub fn set_confirmed_state(&self) -> Self {
+    pub fn set_approval_state(&self, current_allocation_id: Option<String>) -> Self {
+        ApplicationLifecycle {
+            state: ApplicationFileState::Approval,
+            is_active: true,
+            time_of_new_state: Utc::now().to_string(),
+            current_allocation_id,
+            ..self.clone()
+        }
+    }
+
+    pub fn set_confirmed_state(&self, current_allocation_id: Option<String>) -> Self {
         ApplicationLifecycle {
             state: ApplicationFileState::Confirmed,
-            validated_time: self.validated_time.clone(),
-            validated_by: self.validated_by.clone(),
             first_allocation_time: Utc::now().to_string(),
-            is_active: false,
+            is_active: true,
             time_of_new_state: Utc::now().to_string(),
-            initial_pr_number: self.initial_pr_number.clone(),
+            current_allocation_id,
+            ..self.clone()
         }
     }
 
@@ -88,8 +95,10 @@ impl ApplicationLifecycle {
         res
     }
 
-    pub fn get_initial_pr_number(&self) -> u64 {
-        let res = self.initial_pr_number.clone();
-        res
+    pub fn reached_total_datacap(&self) -> Self {
+        ApplicationLifecycle {
+            is_active: false,
+            ..self.clone()
+        }
     }
 }
