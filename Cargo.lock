@@ -808,14 +808,26 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "clap",
- "fplus-database",
- "fplus-lib",
+ "fplus-database 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fplus-lib 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mongodb",
 ]
 
 [[package]]
 name = "fplus-database"
 version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "mongodb",
+ "serde",
+]
+
+[[package]]
+name = "fplus-database"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f36dd971dc72a1ab12451ee47bc17aee0f52b0cd755d2d81bba49599c61b052"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -833,8 +845,8 @@ dependencies = [
  "async-trait",
  "chrono",
  "env_logger",
- "fplus-database",
- "fplus-lib",
+ "fplus-database 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fplus-lib 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures",
  "mongodb",
  "reqwest",
@@ -865,6 +877,30 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuidv4",
+]
+
+[[package]]
+name = "fplus-lib"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fc9730c32b049b1dfb9c94a826d554b5624529bb1b3bf8e3f714d58de8f3a07"
+dependencies = [
+ "actix-web",
+ "base64 0.13.1",
+ "chrono",
+ "dotenv",
+ "env_logger",
+ "futures",
+ "http",
+ "hyper",
+ "hyper-rustls",
+ "jsonwebtoken",
+ "markdown",
+ "octocrab",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
