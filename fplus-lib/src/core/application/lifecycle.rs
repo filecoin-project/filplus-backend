@@ -95,10 +95,14 @@ impl ApplicationLifecycle {
         res
     }
 
-    pub fn reached_total_datacap(&self) -> Self {
+    pub fn get_active_allocation_id(self) -> Option<String> {
+        self.current_allocation_id
+    }
+
+    pub fn reached_total_datacap(self) -> Self {
         ApplicationLifecycle {
             is_active: false,
-            ..self.clone()
+            ..self
         }
     }
 }

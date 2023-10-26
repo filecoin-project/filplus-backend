@@ -166,10 +166,4 @@ impl ApplicationAllocations {
         self.0.push(allocation);
         self.clone()
     }
-
-    pub fn disable_all_requests(&mut self) {
-        for allocation in &mut self.0 {
-            allocation.request_information.is_active = false;
-        }
-    }
 }
