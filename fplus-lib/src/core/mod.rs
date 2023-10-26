@@ -810,7 +810,7 @@ mod tests {
     #[tokio::test]
     async fn ldnapplication() {
         let res: Result<Vec<ApplicationFile>, LDNApplicationError> =
-            LDNApplication::get_merged_applications().await;
+            LDNApplication::merged().await;
         dbg!(&res);
         assert!(false);
     }
