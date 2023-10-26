@@ -799,22 +799,12 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use octocrab::models::issues::Issue;
     use tokio::time::{sleep, Duration};
 
-    #[ignore]
-    #[tokio::test]
-    async fn ldnapplication() {
-        let res: Result<Vec<ApplicationFile>, LDNApplicationError> =
-            LDNApplication::get_merged_applications().await;
-        dbg!(&res);
-        assert!(false);
-    }
-    #[ignore]
     #[tokio::test]
     async fn end_to_end() {
         // Test Creating an application
@@ -872,9 +862,17 @@ mod tests {
         // // Test Proposing an application
         let ldn_application_after_trigger_success =
             LDNApplication::load(application_id.clone()).await.unwrap();
+        let active_request_id = ldn_application_after_trigger_success
+            .file()
+            .await
+            .unwrap()
+            .info
+            .application_lifecycle
+            .get_active_allocation_id()
+            .unwrap();
         ldn_application_after_trigger_success
             .complete_new_application_proposal(CompleteNewApplicationProposalInfo {
-                request_id: "request_id".to_string(),
+                request_id: active_request_id.clone(),
                 signer: ApplicationAllocationsSigner {
                     signing_address: "signing_address".to_string(),
                     time_of_signature: "time_of_signature".to_string(),
@@ -884,6 +882,7 @@ mod tests {
             })
             .await
             .unwrap();
+
         let ldn_application_after_proposal =
             LDNApplication::load(application_id.clone()).await.unwrap();
         assert_eq!(
@@ -898,7 +897,7 @@ mod tests {
             LDNApplication::load(application_id.clone()).await.unwrap();
         ldn_application_after_proposal_success
             .complete_new_application_approval(CompleteNewApplicationProposalInfo {
-                request_id: "request_id".to_string(),
+                request_id: active_request_id.clone(),
                 signer: ApplicationAllocationsSigner {
                     signing_address: "signing_address".to_string(),
                     time_of_signature: "time_of_signature".to_string(),

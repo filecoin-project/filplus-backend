@@ -49,7 +49,6 @@ pub struct ParsedLDN {
 
 pub fn parse_ldn_app_body(body: &str) -> ParsedLDN {
     let tree: Node = to_mdast(body, &ParseOptions::default()).unwrap();
-    dbg!(&tree);
     let mut name: Option<String> = None;
     let mut website: Option<String> = None;
     let mut data_type: Option<String> = None;
@@ -118,41 +117,18 @@ mod tests {
     #[tokio::test]
     async fn test_parser() {
         let gh = GithubWrapper::new();
-        let issue = gh.list_issue(258).await.unwrap();
+        let issue = gh.list_issue(63).await.unwrap();
         let parsed_ldn = parse_ldn_app_body(&issue.body.unwrap());
-        dbg!(&parsed_ldn);
-        assert!(false);
+        assert_eq!(parsed_ldn.name, "Stojan");
+        assert_eq!(parsed_ldn.region, "Afghanistan");
+        assert_eq!(parsed_ldn.website, "https://pangeo-data.github.io/pangeo-cmip6-cloud/");
+        assert_eq!(parsed_ldn.data_type, "Public, Open Dataset (Research/Non-Profit)");
+        assert_eq!(parsed_ldn.datacap_requested, "15PiB");
+        assert_eq!(parsed_ldn.datacap_weekly_allocation, "1PiB");
+        assert_eq!(
+            parsed_ldn.address,
+            "f1473tjqo3p5atezygb2koobcszvy5vftalcomcrq"
+        );
+        assert_eq!(parsed_ldn.identifier, "No response");
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        // assert_eq!(parsed_ldn.name, "ciao");
-        // assert_eq!(parsed_ldn.region, "Afghanistan");
-        // assert_eq!(parsed_ldn.website, "ciao");
-        // assert_eq!(parsed_ldn.data_type, "Public, Open Commercial/Enterprise");
-        // assert_eq!(parsed_ldn.datacap_requested, "100TiB");
-        // assert_eq!(parsed_ldn.datacap_weekly_allocation, "10TiB");
-        // assert_eq!(
-        //     parsed_ldn.address,
-        //     "f1t476jko3mh67btetymtgyaysw4stj5b5hfv46bq"
-        // );
-        // // assert_eq!(
-        // // parsed_ldn.custom_notary,
-        // // "f1t476jko3mh67btetymtgyaysw4stj5b5hfv46bq"
-        // // );
-        // assert_eq!(parsed_ldn.identifier, "No response");
