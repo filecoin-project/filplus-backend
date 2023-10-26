@@ -10,15 +10,16 @@ Front End
     - [x] Trigger an Application
     - [x] Propose an Application
     - [x] Approve an application
-    - [ ] Refill an application
-    - [ ] Remove an application
+    - [x] Refill an application
 
   - Integrations
 
     - [x] Github login
-    - [ ] Filecoin Wallet
+    - [x] Filecoin Wallet
 
 Github
+  - [ ] Create new issue template
+  - [ ] Finalize schema file
   - [x] Run a github action if an application issue is created, and
     convert it to a PR application
 
@@ -40,15 +41,7 @@ Backend
 
   - [x] HTTP endpoints for FE(s) to consume Fil+ data
 
-  - [ ] HTTP endpoints to register logs
-
   - [x] Integration with blockchain data
-
-  - CLI tools to:
-
-    - [ ] Convert issue to PR
-    - [ ] Validate schema
-    - [ ] Validate application step(s)
 
 SSA Bot(current\not automated\ version)
 
@@ -56,7 +49,7 @@ SSA Bot(current\not automated\ version)
 
   - [x] Check which of of the approved applications need refill
 
-  - [ ] Trigger new refill PR where needed
+  - [x] Trigger new refill PR where needed
 
 New Repos
   - Filplus Backend
@@ -82,10 +75,4 @@ New Repos
   - Filplus SSA Bot
 
     - [ ] Open Source
-    - [ ] CI
-    - [ ] CD
 
-Test Env
-
-  - [ ] Local test env setup
-  - [ ] Staging test env setup
