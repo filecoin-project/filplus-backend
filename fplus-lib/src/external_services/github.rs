@@ -38,6 +38,15 @@ impl GithubParams<'static> {
 }
 
 #[derive(Debug)]
+pub struct CreateRefillMergeRequestData {
+    pub application_id: String,
+    pub owner_name: String,
+    pub file_content: String,
+    pub commit: String,
+    pub file_sha: String,
+}
+
+#[derive(Debug)]
 pub struct CreateMergeRequestData {
     pub application_id: String,
     pub owner_name: String,
@@ -67,8 +76,14 @@ impl GithubWrapper<'static> {
         let gh_private_key = match std::env::var("GH_PRIVATE_KEY") {
             Ok(g) => g,
             Err(_) => {
-                println!("GH_PRIVATE_KEY not found in .env file");
-                std::process::exit(1);
+                println!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
+                match std::fs::read_to_string("gh-private-key.pem") {
+                    Ok(file_content) => file_content,
+                    Err(e) => {
+                        println!("Failed to read gh-private-key.pem. Error: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
         };
         let connector = HttpsConnectorBuilder::new()
@@ -336,16 +351,6 @@ impl GithubWrapper<'static> {
         Ok(request)
     }
 
-    pub fn get_file_sha(content: &ContentItems) -> Option<String> {
-        match content.items.get(0) {
-            Some(item) => {
-                let sha = item.sha.clone();
-                Some(sha)
-            }
-            None => None,
-        }
-    }
-
     pub async fn create_issue(&self, title: &str, body: &str) -> Result<Issue, OctocrabError> {
         Ok(self
             .inner
@@ -393,6 +398,37 @@ impl GithubWrapper<'static> {
             .await?)
     }
 
+    pub async fn create_refill_merge_request(
+        &self,
+        data: CreateRefillMergeRequestData,
+    ) -> Result<PullRequest, OctocrabError> {
+        let CreateRefillMergeRequestData {
+            application_id,
+            owner_name,
+            file_content,
+            commit,
+            file_sha,
+        } = data;
+        let pull_request_data = LDNPullRequest::load(&*application_id, &owner_name);
+        self.update_file_content(
+            &pull_request_data.path,
+            &commit,
+            &file_content,
+            &pull_request_data.branch_name,
+            &file_sha,
+        )
+        .await?;
+        let pr = self
+            .create_pull_request(
+                &pull_request_data.title,
+                &pull_request_data.branch_name,
+                &pull_request_data.body,
+            )
+            .await?;
+
+        Ok(pr)
+    }
+
     pub async fn create_merge_request(
         &self,
         data: CreateMergeRequestData,
@@ -436,9 +472,7 @@ impl GithubWrapper<'static> {
         Ok(())
     }
 
-    // This takes all files into the root, but it doesn't return their content
     pub async fn get_all_files(&self) -> Result<ContentItems, OctocrabError> {
-        // Fetch the list of contents in the repository.
         let contents_items = self
             .inner
             .repos(self.owner, self.repo)

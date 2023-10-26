@@ -5,20 +5,6 @@ use std::sync::Mutex;
 
 pub(crate) mod router;
 
-/// Http Server Setup
-/// Exposes Application and Blockchain endpoints
-/// Application endpoints:
-///    - Create Application
-///    - Trigger Application
-///    - Propose Application
-///    - Approve Application
-///    - Merge Application
-///    - Get All Merged Applications
-///    - Get Application
-///    - Get All Applications
-/// Blockchain endpoints:
-///   - Address Allowance
-///   - Verified Clients
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
@@ -38,14 +24,15 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(cors)
             .service(router::health)
-            .service(router::application::create_application)
-            .service(router::application::trigger_application)
-            .service(router::application::propose_application)
-            .service(router::application::approve_application)
-            .service(router::application::merge_application)
-            .service(router::application::get_merged_applications)
-            .service(router::application::get_application)
-            .service(router::application::get_all_applications)
+            .service(router::application::create)
+            .service(router::application::trigger)
+            .service(router::application::propose)
+            .service(router::application::approve)
+            .service(router::application::merged)
+            .service(router::application::active)
+            .service(router::application::refill)
+            .service(router::application::total_dc_reached)
+            .service(router::application::single)
             .service(router::blockchain::address_allowance)
             .service(router::blockchain::verified_clients)
             .service(router::rkh::receive_pr)

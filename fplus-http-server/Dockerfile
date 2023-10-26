@@ -1,5 +1,5 @@
 FROM rust:1.71 AS builder
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 COPY ./src ./src
 
 RUN cargo build --release

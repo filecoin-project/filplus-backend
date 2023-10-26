@@ -1,12 +1,16 @@
 [package]
 name = "fplus-database"
-version = "0.1.0"
+authors = ["jbesraa", "kokal33"]
+version = "0.1.1"
 edition = "2021"
+description = "FPlus main database module"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/filecoin-project/filplus-backend/tree/publish-to-crates/fplus-database"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 actix-web = "4.4.0"
 anyhow = "1.0.75"
-mongodb = "2.7.0"
+mongodb = {version = "2.7.0", features = ["openssl-tls"]}
 serde = "1.0.188"

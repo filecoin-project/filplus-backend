@@ -3,7 +3,7 @@ pub struct ApplicationAllocationsSigner {
     pub signing_address: String,
     pub time_of_signature: String,
     pub message_cid: String,
-    pub username: String
+    pub username: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -33,8 +33,7 @@ pub enum ApplicationAllocationTypes {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct AllocationRequest {
     pub actor: String,
-    pub uuid: String,
-    pub request_id: String,
+    pub id: String,
     pub request_type: ApplicationAllocationTypes,
     pub client_address: String,
     pub created_at: String,
@@ -45,8 +44,7 @@ pub struct AllocationRequest {
 impl AllocationRequest {
     pub fn new(
         actor: String,
-        uuid: String,
-        request_id: String,
+        id: String,
         request_type: ApplicationAllocationTypes,
         client_address: String,
         created_at: String,
@@ -54,8 +52,7 @@ impl AllocationRequest {
     ) -> Self {
         Self {
             actor,
-            uuid,
-            request_id,
+            id,
             request_type,
             client_address,
             created_at,
@@ -100,7 +97,7 @@ impl ApplicationAllocations {
         let curr: Vec<ApplicationAllocation> = self.0.clone();
         let mut allocation: Option<ApplicationAllocation> = None;
         for alloc in curr.iter() {
-            if alloc.request_information.request_id == request_id {
+            if alloc.request_information.id == request_id {
                 allocation = Some(alloc.clone());
                 break;
             }
@@ -108,10 +105,23 @@ impl ApplicationAllocations {
         allocation
     }
 
+    // should be changed to option
+    pub fn is_active(&self, request_id: String) -> bool {
+        let curr: Vec<ApplicationAllocation> = self.0.clone();
+        let mut is_active = false;
+        for alloc in curr.iter() {
+            if alloc.request_information.id == request_id {
+                is_active = alloc.request_information.is_active;
+                break;
+            }
+        }
+        is_active
+    }
+
     pub fn add_signer(&self, request_id: String, signer: ApplicationAllocationsSigner) -> Self {
         let mut res: Vec<ApplicationAllocation> = self.0.clone();
         for allocation in res.iter_mut() {
-            if allocation.request_information.request_id == request_id
+            if allocation.request_information.id == request_id
                 && allocation.request_information.is_active
             {
                 allocation.signers = allocation.signers.add(signer);
@@ -121,15 +131,39 @@ impl ApplicationAllocations {
         Self(res)
     }
 
+    pub fn add_signer_and_complete(
+        &self,
+        request_id: String,
+        signer: ApplicationAllocationsSigner,
+    ) -> Self {
+        let mut res: Vec<ApplicationAllocation> = self.0.clone();
+        for allocation in res.iter_mut() {
+            if allocation.request_information.id == request_id
+                && allocation.request_information.is_active
+            {
+                allocation.signers = allocation.signers.add(signer);
+                allocation.request_information.is_active = false;
+                break;
+            }
+        }
+        Self(res)
+    }
+
     pub fn complete_allocation(&self, request_id: String) -> Self {
         let mut res: Vec<ApplicationAllocation> = self.0.clone();
         for allocation in res.iter_mut() {
-            if allocation.request_information.request_id == request_id
+            if allocation.request_information.id == request_id
                 && allocation.request_information.is_active
             {
                 allocation.request_information.is_active = false;
             }
         }
         Self(res)
+    }
+
+    pub fn add_new_request(&mut self, request: AllocationRequest) -> Self {
+        let allocation = ApplicationAllocation::new(request);
+        self.0.push(allocation);
+        self.clone()
     }
 }
