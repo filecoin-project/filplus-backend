@@ -1,4 +1,3 @@
 target
-.env
 .vscode
-gh-private-key.pem
+Cargo.lock
