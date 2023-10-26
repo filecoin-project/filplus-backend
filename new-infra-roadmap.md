@@ -54,7 +54,7 @@ SSA Bot(current\not automated\ version)
 New Repos
   - Filplus Backend
 
-    - [ ] Open Source
+    - [ ] Open Source (first, invalidate current gh private key as its exposed and generate new one)
     - [x] CI
     - [x] CD
   - Filplus Registry
