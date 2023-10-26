@@ -39,7 +39,7 @@ pub enum DatacapAmount {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Client { 
+pub struct Client {
     #[serde(rename = "Name")]
     pub name: String,
     #[serde(rename = "Region")]
@@ -90,7 +90,16 @@ pub enum DataType {
 enum AssociatedProjects {
     Yes(String),
     No,
-} 
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+enum StorageProviders {
+    AWSCloud,
+    GoogleCloud,
+    AzureCloud,
+    InternalStorage,
+    Other(String),
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Project {
@@ -98,6 +107,10 @@ struct Project {
     history: String,
     #[serde(rename = "Is this project associated with other projects/ecosystem stakeholders?")]
     associated_projects: AssociatedProjects,
+    #[serde(rename = "Describe the data being stored onto Filecoin")]
+    stored_data_desc: String,
+    #[serde(rename = "Where was the data currently stored in this dataset sourced from} ")]
+    previous_stoarge: StorageProviders,
 }
 
 // {
@@ -106,8 +119,6 @@ struct Project {
 //       "Custom multisig": ""
 //     },
 //     "useCaseDetails": {
-//       "Describe the data being stored onto Filecoin": "",
-//       "Where was the data currently stored in this dataset sourced from": "AWS Cloud | Google Cloud | Azure Cloud | My Own Storage Infra | other",
 //       "If you answered 'Other' in the previous question, enter the details here": "",
 //       "How do you plan to prepare the dataset": "IPFS | Lotus | Singularity | Graphsplit | other/custom tool",
 //       "If you answered 'other/custom tool' in the previous question, enter the details here": "",
