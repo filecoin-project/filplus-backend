@@ -79,6 +79,37 @@ pub struct RefillInfo {
 }
 
 impl LDNApplication {
+    pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNApplicationError> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        let pull_request: Vec<FileDiff> = gh.get_pull_request_files(pr_number).await.unwrap();
+        let pull_request = pull_request.get(0).unwrap();
+
+        let pull_request: Response = reqwest::Client::new()
+            .get(&pull_request.raw_url.to_string())
+            .send()
+            .await
+            .map_err(|e| {
+                LDNApplicationError::LoadApplicationError(format!(
+                    "Failed to get pull request files /// {}",
+                    e
+                ))
+            })?;
+        let pull_request = pull_request.text().await.map_err(|e| {
+            LDNApplicationError::LoadApplicationError(format!(
+                "Failed to get pull request files /// {}",
+                e
+            ))
+        })?;
+        if let Ok(app) = serde_json::from_str::<ApplicationFile>(&pull_request) {
+            Ok(app)
+        } else {
+            Err(LDNApplicationError::LoadApplicationError(format!(
+                "Pull Request {} Application file is corrupted",
+                pr_number
+            )))
+        }
+    }
+
     pub async fn active(
         filter: Option<String>,
     ) -> Result<Vec<ApplicationFile>, LDNApplicationError> {
