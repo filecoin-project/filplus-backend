@@ -3,7 +3,6 @@ use http::header::USER_AGENT;
 use http::{Request, Uri};
 use hyper_rustls::HttpsConnectorBuilder;
 
-use crate::core::LDNPullRequest;
 use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
@@ -17,6 +16,28 @@ use std::sync::Arc;
 
 const GITHUB_API_URL: &str = "https://api.github.com";
 
+struct LDNPullRequest {
+    pub title: String,
+    pub body: String,
+    pub branch_name: String,
+    pub path: String,
+}
+
+impl LDNPullRequest {
+    pub fn load(application_id: &str, owner_name: &str) -> Self {
+        Self {
+            title: format!("Refill Datacap for {}", application_id),
+            body: format!(
+                r#"This is an automated pull request to refill datacap for application: {}.
+Please do not merge this pull request manually.
+If you have any questions, please contact @filecoin-plus/lotus-devnet-team."#,
+                application_id
+            ),
+            branch_name: format!("refill-datacap-{}", application_id),
+            path: format!("applications/{}/{}.json", owner_name, application_id),
+        }
+    }
+}
 struct GithubParams<'a> {
     pub owner: &'a str,
     pub repo: &'a str,
@@ -176,14 +197,14 @@ impl GithubWrapper<'static> {
     pub async fn get_pull_request_files(
         &self,
         pr_number: u64,
-    ) -> Result<Vec<octocrab::models::pulls::FileDiff>, OctocrabError> {
+    ) -> Result<(u64, Vec<octocrab::models::pulls::FileDiff>), OctocrabError> {
         let iid: Page<octocrab::models::pulls::FileDiff> = self
             .inner
             .pulls(self.owner, self.repo)
             .media_type(octocrab::params::pulls::MediaType::Full)
             .list_files(pr_number)
             .await?;
-        Ok(iid.items.into_iter().map(|i| i.into()).collect())
+        Ok((pr_number, iid.items.into_iter().map(|i| i.into()).collect()))
     }
 
     pub async fn list_branches(&self) -> Result<Vec<Branch>, OctocrabError> {
@@ -478,6 +499,18 @@ impl GithubWrapper<'static> {
             .repos(self.owner, self.repo)
             .get_content()
             .r#ref("main")
+            .send()
+            .await?;
+
+        Ok(contents_items)
+    }
+
+    pub async fn get_all_files_from_branch(&self, branch: &str) -> Result<ContentItems, OctocrabError> {
+        let contents_items = self
+            .inner
+            .repos(self.owner, self.repo)
+            .get_content()
+            .r#ref(branch)
             .send()
             .await?;
 

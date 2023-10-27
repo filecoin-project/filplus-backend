@@ -6,7 +6,7 @@ use fplus_lib::core::{
 
 #[post("/application")]
 pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
-    match LDNApplication::new(info.into_inner()).await {
+    match LDNApplication::new_from_issue(info.into_inner()).await {
         Ok(app) => HttpResponse::Ok().body(format!(
             "Created new application for issue: {}",
             app.application_id.clone()

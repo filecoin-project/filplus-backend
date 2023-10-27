@@ -1,107 +1,78 @@
 use chrono::prelude::*;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub struct ApplicationLifecycle {
-    state: ApplicationFileState,
-    pub validated_time: String,
-    pub validated_by: String,
-    pub first_allocation_time: String,
-    pub is_active: bool,
-    pub time_of_new_state: String,
-    pub current_allocation_id: Option<String>,
-}
+use super::file::{AppState, LifeCycle};
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
-pub enum ApplicationFileState {
-    Validation,
-    GovernanceReview,
-    Proposal,
-    Approval,
-    Confirmed,
-}
-
-impl ApplicationFileState {
+impl AppState {
     pub fn as_str(&self) -> &str {
         match *self {
-            ApplicationFileState::Validation => "Validation",
-            ApplicationFileState::GovernanceReview => "Governance Review",
-            ApplicationFileState::Proposal => "Proposal",
-            ApplicationFileState::Approval => "Approval",
-            ApplicationFileState::Confirmed => "Confirmed",
+            AppState::Submitted => "Submitted",
+            AppState::GovernanceReview => "Under Governance Review",
+            AppState::ReadyToSign => "Ready to Sign Datacap",
+            AppState::StartSignDatacap => "Start Sign Datacap",
+            AppState::Granted => "Granted",
+            AppState::TotalDatacapReached => "Total Datacap Reached",
+            AppState::Error => "Error",
         }
     }
 }
 
-impl ApplicationLifecycle {
-    pub fn governance_review_state(current_allocation_id: Option<String>) -> Self {
-        ApplicationLifecycle {
-            state: ApplicationFileState::GovernanceReview,
-            validated_time: Utc::now().to_string(),
-            first_allocation_time: "".to_string(),
-            validated_by: "".to_string(),
+impl LifeCycle {
+    pub fn submitted(client_on_chain_address: String, multisig_address: String) -> Self {
+        let empty = "".to_string();
+        LifeCycle {
+            state: AppState::Submitted,
+            validated_at: empty.clone(),
+            validated_by: empty.clone(),
             is_active: true,
-            time_of_new_state: Utc::now().to_string(),
-            current_allocation_id,
+            updated_at: Utc::now().to_string(),
+            active_request: None,
+            client_on_chain_address,
+            multisig_address,
         }
     }
 
     /// Change Application state to Proposal from Governance Review
     /// Actor input is the actor who is changing the state
-    pub fn set_proposal_state(&self, actor: String, current_allocation_id: Option<String>) -> Self {
-        ApplicationLifecycle {
-            state: ApplicationFileState::Proposal,
-            first_allocation_time: "".to_string(),
+    pub fn finish_governance_review(&self, actor: String, current_allocation_id: String) -> Self {
+        LifeCycle {
+            state: AppState::ReadyToSign,
             validated_by: actor,
-            is_active: true,
-            time_of_new_state: Utc::now().to_string(),
-            current_allocation_id,
+            validated_at: Utc::now().to_string(),
+            updated_at: Utc::now().to_string(),
+            active_request: Some(current_allocation_id),
             ..self.clone()
         }
     }
 
-    pub fn set_refill_proposal_state(&self, current_allocation_id: Option<String>) -> Self {
-        ApplicationLifecycle {
-            state: ApplicationFileState::Proposal,
-            is_active: true,
-            time_of_new_state: Utc::now().to_string(),
-            current_allocation_id,
+    pub fn finish_proposal(&self) -> Self {
+        LifeCycle {
+            state: AppState::StartSignDatacap,
+            updated_at: Utc::now().to_string(),
             ..self.clone()
         }
     }
 
-    pub fn set_approval_state(&self, current_allocation_id: Option<String>) -> Self {
-        ApplicationLifecycle {
-            state: ApplicationFileState::Approval,
-            is_active: true,
-            time_of_new_state: Utc::now().to_string(),
-            current_allocation_id,
+    pub fn finish_approval(&self) -> Self {
+        LifeCycle {
+            state: AppState::Granted,
+            updated_at: Utc::now().to_string(),
             ..self.clone()
         }
     }
 
-    pub fn set_confirmed_state(&self, current_allocation_id: Option<String>) -> Self {
-        ApplicationLifecycle {
-            state: ApplicationFileState::Confirmed,
-            first_allocation_time: Utc::now().to_string(),
-            is_active: true,
-            time_of_new_state: Utc::now().to_string(),
-            current_allocation_id,
-            ..self.clone()
-        }
-    }
-
-    pub fn get_state(&self) -> ApplicationFileState {
+    pub fn get_state(&self) -> AppState {
         let res = self.state.clone();
         res
     }
 
     pub fn get_active_allocation_id(self) -> Option<String> {
-        self.current_allocation_id
+        self.active_request
     }
 
     pub fn reached_total_datacap(self) -> Self {
-        ApplicationLifecycle {
+        LifeCycle {
             is_active: false,
+            active_request: None,
             ..self
         }
     }
