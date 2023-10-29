@@ -1,0 +1,31 @@
+name: Test Issue Workflow
+
+on:
+  issues:
+    types:
+      - opened
+  issue_comment:
+    types:
+      - created
+
+jobs:
+  extract-issue-number:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Issue Number as Environment Variable
+        run: |
+          echo "ISSUE_NUMBER=${{ github.event.issue.number || github.event.comment.issue_number }}" >> $GITHUB_ENV
+      - name: Set User Handle as Environment Variable
+        run: echo "USER_HANDLE=${{ github.actor }}" >> $GITHUB_ENV
+
+  call-backend:
+    needs: extract-issue-number
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Backend with Issue Number and User Handle
+        run: |
+           ISSUE_NUMBER=${{ env.ISSUE_NUMBER }}
+          USER_HANDLE=${{ env.USER_HANDLE }}
+          BACKEND_URL="https://286d-89-212-199-23.ngrok-free.app/validate_issue"
+          DATA="{\"issue_number\": \"$ISSUE_NUMBER\", \"user_handle\": \"$USER_HANDLE\"}"
+          curl -X POST -H "Content-Type: application/json" -d "$DATA" $BACKEND_URL

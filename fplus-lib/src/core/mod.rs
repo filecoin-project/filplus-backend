@@ -78,7 +78,47 @@ pub struct RefillInfo {
     pub amount_type: String,
 }
 
+#[derive(Deserialize)]
+pub struct ValidationPullRequestData {
+    pub pr_number: String,
+    pub user_handle: String,
+}
+
+#[derive(Deserialize)]
+pub struct ValidationIssueData {
+    pub issue_number: String,
+    pub user_handle: String,
+}
+
 impl LDNApplication {
+
+    pub async fn single_active_issue(issue_number: u64) -> Result<ApplicationFile, LDNApplicationError> {
+        let gh: GithubWrapper = GithubWrapper::new();
+        match gh.list_issue(issue_number).await {
+            Ok(issue) => {
+                if let Some(content) = issue.body {
+                    if let Ok(app) = serde_json::from_str::<ApplicationFile>(&content) {
+                        Ok(app)
+                    } else {
+                        Err(LDNApplicationError::LoadApplicationError(format!(
+                            "Issue {} Application file is corrupted",
+                            issue_number
+                        )))
+                    }
+                } else {
+                    Err(LDNApplicationError::LoadApplicationError(format!(
+                        "Issue {} has no content",
+                        issue_number
+                    )))
+                }
+            }
+            Err(e) => Err(LDNApplicationError::LoadApplicationError(format!(
+                "Failed to get issue {} /// {}",
+                issue_number, e
+            ))),
+        }
+    }
+    
     pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNApplicationError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let pull_request: Vec<FileDiff> = gh.get_pull_request_files(pr_number).await.unwrap();
@@ -654,6 +694,46 @@ impl LDNApplication {
             "Failed to get application file".to_string(),
         ))
     }
+    
+
+    pub async fn validate_pr(pr_number: u64, user_handle: &str) -> Result<bool, LDNApplicationError> {
+        match LDNApplication::single_active(pr_number).await {
+            Ok(application_file) => {
+                let app_state = application_file.info.application_lifecycle.get_state();
+                if app_state != ApplicationFileState::Validation && user_handle != "filplus-github-bot-read-write" {
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            },
+            Err(e) => {
+                Err(LDNApplicationError::LoadApplicationError(format!(
+                    "PR number {} not found: {}",
+                    pr_number, e
+                )))
+            },
+        }
+    }
+
+    pub async fn validate_issue(issue_number: u64, user_handle: &str) -> Result<bool, LDNApplicationError> {
+        match LDNApplication::single_active_issue(issue_number).await {
+            Ok(application_issue) => {
+                let issue_state = application_issue.info.application_lifecycle.get_state();
+                if issue_state != ApplicationFileState::Validation && user_handle != "filplus-github-bot-read-write" {
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            },
+            Err(e) => {
+                Err(LDNApplicationError::LoadApplicationError(format!(
+                    "Issue number {} not found: {}",
+                    issue_number, e
+                )))
+            },
+        }
+    }
+    
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -8,7 +8,7 @@ use self::{
 
 pub(crate) mod allocations;
 pub(crate) mod core_info;
-pub(crate) mod lifecycle;
+pub mod lifecycle;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ApplicationType {
