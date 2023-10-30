@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Call Backend with Issue Number and User Handle
         run: |
-           ISSUE_NUMBER=${{ env.ISSUE_NUMBER }}
+          ISSUE_NUMBER=${{ env.ISSUE_NUMBER }}
           USER_HANDLE=${{ env.USER_HANDLE }}
           BACKEND_URL="https://286d-89-212-199-23.ngrok-free.app/validate_issue"
           DATA="{\"issue_number\": \"$ISSUE_NUMBER\", \"user_handle\": \"$USER_HANDLE\"}"
