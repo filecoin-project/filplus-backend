@@ -65,6 +65,15 @@ impl LifeCycle {
         res
     }
 
+    pub fn start_refill_request(&self, request_id: String) -> Self {
+        LifeCycle {
+            state: AppState::ReadyToSign,
+            updated_at: Utc::now().to_string(),
+            active_request: Some(request_id),
+            ..self.clone()
+        }
+    }
+
     pub fn get_active_allocation_id(self) -> Option<String> {
         self.active_request
     }

@@ -56,7 +56,7 @@ impl Default for Allocations {
 }
 
 impl Allocations {
-    pub fn new(request_information: AllocationRequest) -> Self {
+    pub fn init(request_information: AllocationRequest) -> Self {
         let allocation = Allocation::new(request_information);
         Self(vec![allocation])
     }
@@ -120,7 +120,7 @@ impl Allocations {
         Self(res)
     }
 
-    pub fn add_new_request(&mut self, request: AllocationRequest) -> Self {
+    pub fn push(&mut self, request: AllocationRequest) -> Self {
         let allocation = Allocation::new(request);
         self.0.push(allocation);
         self.clone()

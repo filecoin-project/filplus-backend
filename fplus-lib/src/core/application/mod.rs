@@ -44,7 +44,17 @@ impl file::ApplicationFile {
             .lifecycle
             .clone()
             .finish_governance_review(actor, request.id.clone());
-        let allocations = Allocations::new(request.clone());
+        let allocations = Allocations::init(request.clone());
+        Self {
+            lifecycle: new_life_cycle,
+            allocation: allocations,
+            ..self.clone()
+        }
+    }
+
+    pub fn start_refill_request(&mut self, request: AllocationRequest) -> Self {
+        let new_life_cycle = self.lifecycle.clone().start_refill_request(request.id.clone());
+        let allocations = self.allocation.clone().push(request.clone());
         Self {
             lifecycle: new_life_cycle,
             allocation: allocations,

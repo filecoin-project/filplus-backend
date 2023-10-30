@@ -1,14 +1,14 @@
 use futures::future;
 use octocrab::models::{
-    pulls::{FileDiff, PullRequest},
-    repos::ContentItems,
+    pulls::PullRequest,
+    repos::{Content, ContentItems},
 };
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     base64,
-    error::LDNApplicationError,
+    error::LDNError,
     external_services::github::{
         CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
     },
@@ -73,7 +73,7 @@ pub struct RefillInfo {
 }
 
 impl LDNApplication {
-    pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNApplicationError> {
+    pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let (_, pull_request) = gh.get_pull_request_files(pr_number).await.unwrap();
         let pull_request = pull_request.get(0).unwrap();
@@ -81,22 +81,15 @@ impl LDNApplication {
             .get(&pull_request.raw_url.to_string())
             .send()
             .await
-            .map_err(|e| {
-                LDNApplicationError::LoadApplicationError(format!(
-                    "Failed to get pull request files /// {}",
-                    e
-                ))
-            })?;
-        let pull_request = pull_request.text().await.map_err(|e| {
-            LDNApplicationError::LoadApplicationError(format!(
-                "Failed to get pull request files /// {}",
-                e
-            ))
-        })?;
+            .map_err(|e| LDNError::Load(format!("Failed to get pull request files /// {}", e)))?;
+        let pull_request = pull_request
+            .text()
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to get pull request files /// {}", e)))?;
         if let Ok(app) = serde_json::from_str::<ApplicationFile>(&pull_request) {
             Ok(app)
         } else {
-            Err(LDNApplicationError::LoadApplicationError(format!(
+            Err(LDNError::Load(format!(
                 "Pull Request {} Application file is corrupted",
                 pr_number
             )))
@@ -105,7 +98,7 @@ impl LDNApplication {
 
     async fn load_pr_files(
         pr: PullRequest,
-    ) -> Result<(String, String, ApplicationFile, PullRequest), LDNApplicationError> {
+    ) -> Result<(String, String, ApplicationFile, PullRequest), LDNError> {
         let gh = GithubWrapper::new();
         let files = gh.get_pull_request_files(pr.number).await.unwrap();
         let response = reqwest::Client::new()
@@ -124,7 +117,7 @@ impl LDNApplication {
         ))
     }
 
-    pub async fn load(application_id: String) -> Result<Self, LDNApplicationError> {
+    pub async fn load(application_id: String) -> Result<Self, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
         let pull_requests = future::try_join_all(
@@ -146,12 +139,10 @@ impl LDNApplication {
                 });
             }
         }
-        Err(LDNApplicationError::LoadApplicationError(format!("")))
+        Err(LDNError::Load(format!("")))
     }
 
-    pub async fn active(
-        filter: Option<String>,
-    ) -> Result<Vec<ApplicationFile>, LDNApplicationError> {
+    pub async fn active(filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let mut apps: Vec<ApplicationFile> = Vec::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
@@ -176,7 +167,7 @@ impl LDNApplication {
     }
 
     /// Create New Application
-    pub async fn new_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNApplicationError> {
+    pub async fn new_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNError> {
         let issue_number = info.issue_number;
         let gh: GithubWrapper = GithubWrapper::new();
         let (parsed_ldn, _) = LDNApplication::parse_application_issue(issue_number.clone()).await?;
@@ -206,7 +197,7 @@ impl LDNApplication {
                 let file_content = match serde_json::to_string_pretty(&application_file) {
                     Ok(f) => f,
                     Err(e) => {
-                        return Err(LDNApplicationError::NewApplicationError(format!(
+                        return Err(LDNError::New(format!(
                             "Application issue file is corrupted /// {}",
                             e
                         )))
@@ -230,7 +221,7 @@ impl LDNApplication {
                 })
             }
             Ok(_) => {
-                return Err(LDNApplicationError::NewApplicationError(format!(
+                return Err(LDNError::New(format!(
                     "Application issue {} already exists",
                     application_id
                 )))
@@ -242,7 +233,7 @@ impl LDNApplication {
     pub async fn complete_governance_review(
         &self,
         info: CompleteGovernanceReviewInfo,
-    ) -> Result<ApplicationFile, LDNApplicationError> {
+    ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
                 AppState::GovernanceReview => {
@@ -267,19 +258,19 @@ impl LDNApplication {
                     {
                         Some(()) => Ok(app_file),
                         None => {
-                            return Err(LDNApplicationError::NewApplicationError(format!(
+                            return Err(LDNError::New(format!(
                                 "Application issue {} cannot be triggered(1)",
                                 self.application_id
                             )))
                         }
                     }
                 }
-                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                _ => Err(LDNError::New(format!(
                     "Application issue {} cannot be triggered(2)",
                     self.application_id
                 ))),
             },
-            Err(e) => Err(LDNApplicationError::NewApplicationError(format!(
+            Err(e) => Err(LDNError::New(format!(
                 "Application issue {} cannot be triggered {}(3)",
                 self.application_id, e
             ))),
@@ -290,14 +281,14 @@ impl LDNApplication {
     pub async fn complete_new_application_proposal(
         &self,
         info: CompleteNewApplicationProposalInfo,
-    ) -> Result<ApplicationFile, LDNApplicationError> {
+    ) -> Result<ApplicationFile, LDNError> {
         let CompleteNewApplicationProposalInfo { signer, request_id } = info;
         match self.app_state().await {
             Ok(s) => match s {
                 AppState::ReadyToSign => {
                     let app_file: ApplicationFile = self.file().await?;
                     if !app_file.allocation.is_active(request_id.clone()) {
-                        return Err(LDNApplicationError::LoadApplicationError(format!(
+                        return Err(LDNError::Load(format!(
                             "Request {} is not active",
                             request_id
                         )));
@@ -322,19 +313,19 @@ impl LDNApplication {
                     {
                         Some(()) => Ok(app_file),
                         None => {
-                            return Err(LDNApplicationError::NewApplicationError(format!(
+                            return Err(LDNError::New(format!(
                                 "Application issue {} cannot be proposed(1)",
                                 self.application_id
                             )))
                         }
                     }
                 }
-                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                _ => Err(LDNError::New(format!(
                     "Application issue {} cannot be proposed(2)",
                     self.application_id
                 ))),
             },
-            Err(e) => Err(LDNApplicationError::NewApplicationError(format!(
+            Err(e) => Err(LDNError::New(format!(
                 "Application issue {} cannot be proposed {}(3)",
                 self.application_id, e
             ))),
@@ -344,7 +335,7 @@ impl LDNApplication {
     pub async fn complete_new_application_approval(
         &self,
         info: CompleteNewApplicationProposalInfo,
-    ) -> Result<ApplicationFile, LDNApplicationError> {
+    ) -> Result<ApplicationFile, LDNError> {
         let CompleteNewApplicationProposalInfo { signer, request_id } = info;
         match self.app_state().await {
             Ok(s) => match s {
@@ -370,19 +361,19 @@ impl LDNApplication {
                     {
                         Some(()) => Ok(app_file),
                         None => {
-                            return Err(LDNApplicationError::NewApplicationError(format!(
+                            return Err(LDNError::New(format!(
                                 "Application issue {} cannot be proposed(1)",
                                 self.application_id
                             )))
                         }
                     }
                 }
-                _ => Err(LDNApplicationError::NewApplicationError(format!(
+                _ => Err(LDNError::New(format!(
                     "Application issue {} cannot be proposed(2)",
                     self.application_id
                 ))),
             },
-            Err(e) => Err(LDNApplicationError::NewApplicationError(format!(
+            Err(e) => Err(LDNError::New(format!(
                 "Application issue {} cannot be proposed {}(3)",
                 self.application_id, e
             ))),
@@ -391,12 +382,12 @@ impl LDNApplication {
 
     async fn parse_application_issue(
         issue_number: String,
-    ) -> Result<(ParsedIssue, String), LDNApplicationError> {
+    ) -> Result<(ParsedIssue, String), LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let issue = match gh.list_issue(issue_number.parse().unwrap()).await {
             Ok(issue) => issue,
             Err(e) => {
-                return Err(LDNApplicationError::LoadApplicationError(format!(
+                return Err(LDNError::Load(format!(
                     "Application issue {} does not exist /// {}",
                     issue_number, e
                 )))
@@ -405,7 +396,7 @@ impl LDNApplication {
         let issue_body = match issue.body {
             Some(body) => body,
             None => {
-                return Err(LDNApplicationError::LoadApplicationError(format!(
+                return Err(LDNError::Load(format!(
                     "Application issue {} is empty",
                     issue_number
                 )))
@@ -415,32 +406,29 @@ impl LDNApplication {
     }
 
     /// Return Application state
-    async fn app_state(&self) -> Result<AppState, LDNApplicationError> {
+    async fn app_state(&self) -> Result<AppState, LDNError> {
         let f = self.file().await?;
         Ok(f.lifecycle.get_state())
     }
 
     /// Return Application state
-    pub async fn total_dc_reached(application_id: String) -> Result<bool, LDNApplicationError> {
+    pub async fn total_dc_reached(application_id: String) -> Result<bool, LDNError> {
         let merged = Self::merged().await?;
-        let app = match merged.iter().find(|app| app.id == application_id) {
+        let app = match merged.iter().find(|(_, app)| app.id == application_id) {
             Some(app) => app,
             None => {
-                return Err(LDNApplicationError::LoadApplicationError(format!(
+                return Err(LDNError::Load(format!(
                     "Application issue {} does not exist",
                     application_id
                 )))
             }
         };
-        match app.lifecycle.get_state() {
+        match app.1.lifecycle.get_state() {
             AppState::Granted => {
-                let app = app.reached_total_datacap();
+                let app = app.1.reached_total_datacap();
                 let gh: GithubWrapper<'_> = GithubWrapper::new();
-				let ldn_app = LDNApplication::load(application_id.clone()).await?;
-                let ContentItems { items } = gh
-                    .get_file(&ldn_app.file_name, "main")
-                    .await
-                    .unwrap();
+                let ldn_app = LDNApplication::load(application_id.clone()).await?;
+                let ContentItems { items } = gh.get_file(&ldn_app.file_name, "main").await.unwrap();
 
                 LDNPullRequest::create_refill_pr(
                     app.id.clone(),
@@ -457,36 +445,30 @@ impl LDNApplication {
         }
     }
 
-    fn content_items_to_app_file(
-        file: ContentItems,
-    ) -> Result<ApplicationFile, LDNApplicationError> {
+    fn content_items_to_app_file(file: ContentItems) -> Result<ApplicationFile, LDNError> {
         let f = match &file.items[0].content {
             Some(f) => f,
-            None => {
-                return Err(LDNApplicationError::LoadApplicationError(format!(
-                    "Application file is corrupted",
-                )))
-            }
+            None => return Err(LDNError::Load(format!("Application file is corrupted",))),
         };
         match base64::decode(&f.replace("\n", "")) {
             Some(f) => {
                 return Ok(ApplicationFile::from(f));
             }
             None => {
-                return Err(LDNApplicationError::LoadApplicationError(format!(
+                return Err(LDNError::Load(format!(
                     "Application issue file is corrupted",
                 )))
             }
         }
     }
 
-    async fn file(&self) -> Result<ApplicationFile, LDNApplicationError> {
+    async fn file(&self) -> Result<ApplicationFile, LDNError> {
         let app_path = LDNPullRequest::application_path(&self.application_id);
         let app_branch_name = LDNPullRequest::application_branch_name(&self.application_id);
         match self.github.get_file(&app_path, &app_branch_name).await {
             Ok(file) => Ok(LDNApplication::content_items_to_app_file(file)?),
             Err(e) => {
-                return Err(LDNApplicationError::LoadApplicationError(format!(
+                return Err(LDNError::Load(format!(
                     "Application issue {} file does not exist /// {}",
                     self.application_id, e
                 )))
@@ -494,96 +476,111 @@ impl LDNApplication {
         }
     }
 
-    pub async fn merged() -> Result<Vec<ApplicationFile>, LDNApplicationError> {
-        let gh = GithubWrapper::new();
-        let mut all_files = gh.get_all_files().await.map_err(|e| {
-            LDNApplicationError::LoadApplicationError(format!(
-                "Failed to retrieve all files from GitHub. Reason: {}",
-                e
-            ))
-        })?;
-        all_files
-            .items
-            .retain(|item| item.download_url.is_some());
-        let all_files = future::try_join_all(
-            all_files
-                .items
-                .into_iter()
-                .map(|fd| reqwest::Client::new().get(&fd.download_url.unwrap()).send())
-                .collect::<Vec<_>>(),
-        )
-        .await
-        .map_err(|e| {
-            LDNApplicationError::LoadApplicationError(format!(
+    async fn single_merged(application_id: String) -> Result<(Content, ApplicationFile), LDNError> {
+        let merged = LDNApplication::merged().await?;
+        let app = match merged.into_iter().find(|(_, app)| app.id == application_id) {
+            Some(app) => Ok(app),
+            None => Err(LDNError::Load(format!(
+                "Application issue {} does not exist",
+                application_id
+            ))),
+        };
+        app
+    }
+
+    pub async fn think_merged(item: Content) -> Result<(Content, ApplicationFile), LDNError> {
+        let file = reqwest::Client::new()
+            .get(&item.download_url.clone().unwrap())
+            .send()
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to fetch application files from their URLs. Reason: {}",
+                    e
+                ))
+            })?;
+        let file = file.text().await.map_err(|e| {
+            LDNError::Load(format!(
                 "Failed to fetch application files from their URLs. Reason: {}",
                 e
             ))
         })?;
 
-        let mut apps: Vec<ApplicationFile> = vec![];
+        let app = match serde_json::from_str::<ApplicationFile>(&file) {
+            Ok(app) => {
+                if app.lifecycle.is_active {
+                    app
+                } else {
+                    return Err(LDNError::Load(format!(
+                        "Failed to fetch application files from their URLs",
+                    )));
+                }
+            }
+            Err(_) => {
+                return Err(LDNError::Load(format!(
+                    "Failed to fetch application files from their URLs",
+                )));
+            }
+        };
+        Ok((item, app))
+    }
+
+    pub async fn merged() -> Result<Vec<(Content, ApplicationFile)>, LDNError> {
+        let gh = GithubWrapper::new();
+        let all_files = gh.get_all_files().await.map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to retrieve all files from GitHub. Reason: {}",
+                e
+            ))
+        })?;
+        let all_files = future::try_join_all(
+            all_files
+                .items
+                .into_iter()
+                .filter(|item: &Content| item.download_url.is_some())
+                .map(|fd| LDNApplication::think_merged(fd))
+                .collect::<Vec<_>>(),
+        )
+        .await
+        .map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to fetch application files from their URLs. Reason: {}",
+                e
+            ))
+        })?;
+
+        let mut apps: Vec<(Content, ApplicationFile)> = vec![];
         let active: Vec<ApplicationFile> = Self::active(None).await?;
-        for f in all_files {
-            let f = match f.text().await {
-                Ok(f) => f,
-                Err(_) => {
-                    continue;
-                }
-            };
-            match serde_json::from_str::<ApplicationFile>(&f) {
-                Ok(app) => {
-                    if active.iter().find(|a| a.id == app.id).is_none() && app.lifecycle.is_active {
-                        apps.push(app);
-                    }
-                }
-                Err(_) => {
-                    continue;
-                }
-            };
+        for app in all_files {
+            if active.iter().find(|a| a.id == app.1.id).is_none() && app.1.lifecycle.is_active {
+                apps.push(app);
+            }
         }
         Ok(apps)
     }
 
-    pub async fn refill(refill_info: RefillInfo) -> Result<bool, LDNApplicationError> {
-        unimplemented!();
-        // let gh = GithubWrapper::new();
-        // let apps = LDNApplication::merged().await?;
-
-        // if let Some(app) = apps.iter().find(|app| app.id == refill_info.id) {
-        //     let uuid = uuidv4::uuid::v4();
-        //     let app_lifecycle = app.lifecycle.set_refill_proposal_state(Some(uuid.clone()));
-        //     let new_request = AllocationRequest::new(
-        //         "SSA Bot".to_string(),
-        //         uuid.clone(),
-        //         AllocationRequestType::Refill(0),
-        //         format!("{}{}", refill_info.amount, refill_info.amount_type),
-        //     );
-        //     let app_allocations = app.clone().allocations.add_new_request(new_request);
-        //     let app_info = ApplicationInfo::new(
-        //         app.info.core_information.clone(),
-        //         app_lifecycle,
-        //         app_allocations,
-        //     );
-        //     let application_file = ApplicationFile::new(app_info, app.id.clone()).await;
-        //     let pr_handler =
-        //         LDNPullRequest::load(&app.id, &app.info.core_information.data_owner_name);
-
-        //     let ContentItems { items } = gh
-        //         .get_file(&pr_handler.path, &pr_handler.branch_name)
-        //         .await
-        //         .unwrap();
-
-        //     LDNPullRequest::create_refill_pr(
-        //         app.id.clone(),
-        //         app.info.core_information.data_owner_name.clone(),
-        //         items[0].sha.clone(),
-        //         serde_json::to_string_pretty(&application_file).unwrap(),
-        //     )
-        //     .await?;
-        //     return Ok(true);
-        // }
-        // Err(LDNApplicationError::LoadApplicationError(
-        //     "Failed to get application file".to_string(),
-        // ))
+    pub async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
+        let apps = LDNApplication::merged().await?;
+        if let Some((content, mut app)) = apps.into_iter().find(|(_, app)| app.id == refill_info.id)
+        {
+            let uuid = uuidv4::uuid::v4();
+            let new_request = AllocationRequest::new(
+                "SSA Bot".to_string(),
+                uuid.clone(),
+                AllocationRequestType::Refill(0),
+                format!("{}{}", refill_info.amount, refill_info.amount_type),
+            );
+            let app_file = app.start_refill_request(new_request);
+            LDNPullRequest::create_refill_pr(
+                app.id.clone(),
+                app.client.name.clone(),
+                content.sha.clone(),
+                serde_json::to_string_pretty(&app_file).unwrap(),
+            )
+            .await?;
+            return Ok(true);
+        }
+        Err(LDNError::Load("Failed to get application file".to_string()))
     }
 }
 
@@ -601,14 +598,14 @@ impl LDNPullRequest {
         owner_name: String,
         app_branch_name: String,
         base_hash: Option<String>,
-    ) -> Result<String, LDNApplicationError> {
+    ) -> Result<String, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh: GithubWrapper = GithubWrapper::new();
         let create_ref_request =
             match gh.build_create_ref_request(app_branch_name.clone(), base_hash) {
                 Ok(req) => req,
                 Err(e) => {
-                    return Err(LDNApplicationError::NewApplicationError(format!(
+                    return Err(LDNError::New(format!(
                         "Application issue cannot create branch request object /// {}",
                         e
                     )))
@@ -627,7 +624,7 @@ impl LDNPullRequest {
         {
             Ok((pr, file_sha)) => (pr, file_sha),
             Err(e) => {
-                return Err(LDNApplicationError::NewApplicationError(format!(
+                return Err(LDNError::New(format!(
                     "Application issue {} cannot create branch /// {}",
                     application_id, e
                 )));
@@ -641,7 +638,7 @@ impl LDNPullRequest {
         owner_name: String,
         file_sha: String,
         file_content: String,
-    ) -> Result<u64, LDNApplicationError> {
+    ) -> Result<u64, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh: GithubWrapper = GithubWrapper::new();
         let pr = match gh
@@ -656,7 +653,7 @@ impl LDNPullRequest {
         {
             Ok(pr) => pr,
             Err(e) => {
-                return Err(LDNApplicationError::NewApplicationError(format!(
+                return Err(LDNError::New(format!(
                     "Application issue {} cannot create branch /// {}",
                     application_id, e
                 )));

@@ -10,31 +10,31 @@ use actix_web::{
 };
 
 #[derive(Debug)]
-pub enum LDNApplicationError {
-    NewApplicationError(String),
-    LoadApplicationError(String),
+pub enum LDNError {
+    New(String),
+    Load(String),
 }
 
-impl Display for LDNApplicationError {
+impl Display for LDNError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LDNApplicationError::LoadApplicationError(e) => {
-                write!(f, "LoadApplicationError: {}", e)
+            LDNError::Load(e) => {
+                write!(f, "Load: {}", e)
             }
-            LDNApplicationError::NewApplicationError(e) => {
-                write!(f, "NewApplicationError: {}", e)
+            LDNError::New(e) => {
+                write!(f, "New: {}", e)
             }
         }
     }
 }
 
-impl MessageBody for LDNApplicationError {
+impl MessageBody for LDNError {
     type Error = std::convert::Infallible;
 
     fn size(&self) -> BodySize {
         match self {
-            LDNApplicationError::LoadApplicationError(e) => BodySize::Sized(e.len() as u64),
-            LDNApplicationError::NewApplicationError(e) => BodySize::Sized(e.len() as u64),
+            LDNError::Load(e) => BodySize::Sized(e.len() as u64),
+            LDNError::New(e) => BodySize::Sized(e.len() as u64),
         }
     }
 
@@ -42,13 +42,9 @@ impl MessageBody for LDNApplicationError {
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Bytes, Self::Error>>> {
-        match Pin::<&mut LDNApplicationError>::into_inner(self) {
-            LDNApplicationError::LoadApplicationError(e) => {
-                Poll::Ready(Some(Ok(Bytes::from(e.clone()))))
-            }
-            LDNApplicationError::NewApplicationError(e) => {
-                Poll::Ready(Some(Ok(Bytes::from(e.clone()))))
-            }
+        match Pin::<&mut LDNError>::into_inner(self) {
+            LDNError::Load(e) => Poll::Ready(Some(Ok(Bytes::from(e.clone())))),
+            LDNError::New(e) => Poll::Ready(Some(Ok(Bytes::from(e.clone())))),
         }
     }
 }
