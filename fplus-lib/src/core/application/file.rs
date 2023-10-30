@@ -223,7 +223,6 @@ pub struct Provider {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AppState {
     Submitted,
-    GovernanceReview,
     ReadyToSign,
     StartSignDatacap,
     Granted,
