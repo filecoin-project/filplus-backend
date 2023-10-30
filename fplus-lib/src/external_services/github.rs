@@ -12,6 +12,8 @@ use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
 use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Page};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
 
 const GITHUB_API_URL: &str = "https://api.github.com";
@@ -22,6 +24,20 @@ struct LDNPullRequest {
     pub branch_name: String,
     pub path: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct RefObject {
+    sha: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct RefData {
+    #[serde(rename = "ref")]
+    _ref: String,
+    object: RefObject,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct RefList(pub Vec<RefData>);
 
 impl LDNPullRequest {
     pub fn load(application_id: &str, owner_name: &str) -> Self {
@@ -43,7 +59,6 @@ struct GithubParams<'a> {
     pub repo: &'a str,
     pub app_id: u64,
     pub installation_id: u64,
-    pub main_branch_hash: &'a str,
 }
 
 impl GithubParams<'static> {
@@ -53,7 +68,6 @@ impl GithubParams<'static> {
             repo: "filplus-tooling-backend-test",
             app_id: 373258,
             installation_id: 40514592,
-            main_branch_hash: "650a0aec11dc1cc436a45b316db5bb747e518514",
         }
     }
 }
@@ -62,7 +76,10 @@ impl GithubParams<'static> {
 pub struct CreateRefillMergeRequestData {
     pub application_id: String,
     pub owner_name: String,
+    pub ref_request: Request<String>,
     pub file_content: String,
+    pub file_name: String,
+    pub branch_name: String,
     pub commit: String,
     pub file_sha: String,
 }
@@ -83,7 +100,6 @@ pub struct GithubWrapper<'a> {
     pub inner: Arc<Octocrab>,
     pub owner: &'a str,
     pub repo: &'a str,
-    pub main_branch_hash: &'a str,
 }
 
 impl GithubWrapper<'static> {
@@ -93,7 +109,6 @@ impl GithubWrapper<'static> {
             repo,
             app_id,
             installation_id,
-            main_branch_hash,
         } = GithubParams::test_env();
         dotenv::dotenv().ok();
         let gh_private_key = match std::env::var("GH_PRIVATE_KEY") {
@@ -135,7 +150,6 @@ impl GithubWrapper<'static> {
         let iod: InstallationId = installation_id.try_into().expect("Invalid installation id");
         let installation = octocrab.installation(iod);
         Self {
-            main_branch_hash,
             owner,
             repo,
             inner: Arc::new(installation),
@@ -352,15 +366,36 @@ impl GithubWrapper<'static> {
         Ok(request)
     }
 
+    pub async fn get_main_branch_sha(&self) -> Result<String, http::Error> {
+        let url =
+            "https://api.github.com/repos/filecoin-project/filplus-tooling-backend-test/git/refs";
+		let request = http::request::Builder::new().method(http::Method::GET).uri(url);
+		let request = self.inner.build_request::<String>(request, None).unwrap();
+
+        let mut response = match self.inner.execute(request).await {
+            Ok( r) => r,
+            Err(e) => {
+                println!("Error getting main branch sha: {:?}", e);
+                return Ok("".to_string());
+            }
+        };
+		let response = response.body_mut();
+		let body = hyper::body::to_bytes(response).await.unwrap();
+		let shas = body.into_iter().map(|b| b as char).collect::<String>();
+		let shas: RefList = serde_json::from_str(&shas).unwrap();
+		for sha in shas.0 {
+		  if sha._ref == "refs/heads/main" {
+			return Ok(sha.object.sha);
+		  }
+		}
+        Ok("".to_string())
+    }
+
     pub fn build_create_ref_request(
         &self,
         name: String,
-        head_hash: Option<String>,
+        head_hash: String,
     ) -> Result<Request<String>, http::Error> {
-        let hash = match head_hash {
-            Some(hash) => hash,
-            None => self.main_branch_hash.to_string(),
-        };
         let request = Request::builder()
             .method("POST")
             .uri(format!(
@@ -369,7 +404,7 @@ impl GithubWrapper<'static> {
             ))
             .body(format!(
                 r#"{{"ref": "refs/heads/{}","sha": "{}" }}"#,
-                name, hash
+                name, head_hash
             ))?;
         Ok(request)
     }
@@ -424,32 +459,29 @@ impl GithubWrapper<'static> {
     pub async fn create_refill_merge_request(
         &self,
         data: CreateRefillMergeRequestData,
-    ) -> Result<PullRequest, OctocrabError> {
+    ) -> Result<(PullRequest, String), OctocrabError> {
         let CreateRefillMergeRequestData {
-            application_id,
+            application_id: _,
+            ref_request,
             owner_name,
             file_content,
+            file_name,
+            branch_name,
             commit,
             file_sha,
         } = data;
-        let pull_request_data = LDNPullRequest::load(&*application_id, &owner_name);
-        self.update_file_content(
-            &pull_request_data.path,
-            &commit,
-            &file_content,
-            &pull_request_data.branch_name,
-            &file_sha,
-        )
-        .await?;
+        let _create_branch_res = self.create_branch(ref_request).await?;
+        self.update_file_content(&file_name, &commit, &file_content, &branch_name, &file_sha)
+            .await?;
         let pr = self
             .create_pull_request(
-                &pull_request_data.title,
-                &pull_request_data.branch_name,
-                &pull_request_data.body,
+                &format!("Datacap for {}", owner_name),
+                &branch_name,
+                &format!("BODY"),
             )
             .await?;
 
-        Ok(pr)
+        Ok((pr, file_sha))
     }
 
     pub async fn create_merge_request(
@@ -521,23 +553,12 @@ impl GithubWrapper<'static> {
 
 #[cfg(test)]
 mod tests {
-    use octocrab::models::repos::Content;
-
     use crate::external_services::github::GithubWrapper;
 
-    #[ignore]
     #[tokio::test]
     async fn test_basic_integration() {
         let gh = GithubWrapper::new();
-        let files = gh.get_all_files().await.unwrap();
-        // get a single valid file
-        let valid_filename = "Application:218.json";
-        let file: Vec<Content> = files
-            .items
-            .into_iter()
-            .filter(|f| f.name == valid_filename)
-            .collect();
-        dbg!(file);
-        assert!(false);
+        let res = gh.get_main_branch_sha().await.unwrap();
+        assert_eq!(res.len() > 0, true);
     }
 }

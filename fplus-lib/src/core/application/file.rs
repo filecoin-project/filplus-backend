@@ -220,7 +220,7 @@ pub struct Provider {
     pub spo_org: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum AppState {
     Submitted,
     ReadyToSign,
@@ -282,14 +282,33 @@ pub struct Allocation {
 pub struct Notaries(pub Vec<Notary>);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Notary {
-    #[serde(rename(serialize = "Github Username"))]
+pub struct NotaryInput {
     pub github_username: String,
-    #[serde(rename(serialize = "Signing Address"))]
     pub signing_address: String,
-    #[serde(rename(serialize = "Created At"))]
     pub created_at: String,
-    #[serde(rename(serialize = "Message CID"))]
+    pub message_cid: String,
+}
+
+impl From<NotaryInput> for Notary {
+    fn from(input: NotaryInput) -> Self {
+        Self {
+            github_username: input.github_username,
+            signing_address: input.signing_address,
+            created_at: input.created_at,
+            message_cid: input.message_cid,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Notary {
+    #[serde(rename = "Github Username")]
+    pub github_username: String,
+    #[serde(rename = "Signing Address")]
+    pub signing_address: String,
+    #[serde(rename = "Created At")]
+    pub created_at: String,
+    #[serde(rename = "Message CID")]
     pub message_cid: String,
 }
 
