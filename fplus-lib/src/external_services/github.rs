@@ -73,6 +73,8 @@ pub struct CreateMergeRequestData {
     pub owner_name: String,
     pub ref_request: Request<String>,
     pub file_content: String,
+    pub file_name: String,
+    pub branch_name: String,
     pub commit: String,
 }
 
@@ -455,28 +457,24 @@ impl GithubWrapper<'static> {
         data: CreateMergeRequestData,
     ) -> Result<(PullRequest, String), OctocrabError> {
         let CreateMergeRequestData {
-            application_id,
+            application_id: _,
             ref_request,
             owner_name,
             file_content,
+            file_name,
+            branch_name,
             commit,
         } = data;
-        let pull_request_data = LDNPullRequest::load(&*application_id, &owner_name);
         let _create_branch_res = self.create_branch(ref_request).await?;
         let add_file_res = self
-            .add_file(
-                &pull_request_data.path,
-                &file_content,
-                &commit,
-                &pull_request_data.branch_name,
-            )
+            .add_file(&file_name, &file_content, &commit, &branch_name)
             .await?;
         let file_sha = add_file_res.content.sha;
         let pr = self
             .create_pull_request(
-                &pull_request_data.title,
-                &pull_request_data.branch_name,
-                &pull_request_data.body,
+                &format!("Datacap for {}", owner_name),
+                &branch_name,
+                &format!("BODY"),
             )
             .await?;
 
@@ -505,7 +503,10 @@ impl GithubWrapper<'static> {
         Ok(contents_items)
     }
 
-    pub async fn get_all_files_from_branch(&self, branch: &str) -> Result<ContentItems, OctocrabError> {
+    pub async fn get_all_files_from_branch(
+        &self,
+        branch: &str,
+    ) -> Result<ContentItems, OctocrabError> {
         let contents_items = self
             .inner
             .repos(self.owner, self.repo)

@@ -284,13 +284,13 @@ pub struct Notaries(pub Vec<Notary>);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Notary {
-    #[serde(rename = "Github Username")]
+    #[serde(rename(serialize = "Github Username"))]
     pub github_username: String,
-    #[serde(rename = "Signing Address")]
+    #[serde(rename(serialize = "Signing Address"))]
     pub signing_address: String,
-    #[serde(rename = "Created At")]
+    #[serde(rename(serialize = "Created At"))]
     pub created_at: String,
-    #[serde(rename = "Message CID")]
+    #[serde(rename(serialize = "Message CID"))]
     pub message_cid: String,
 }
 

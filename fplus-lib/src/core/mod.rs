@@ -98,23 +98,36 @@ impl LDNApplication {
 
     async fn load_pr_files(
         pr: PullRequest,
-    ) -> Result<(String, String, ApplicationFile, PullRequest), LDNError> {
+    ) -> Result<Option<(String, String, ApplicationFile, PullRequest)>, LDNError> {
         let gh = GithubWrapper::new();
-        let files = gh.get_pull_request_files(pr.number).await.unwrap();
-        let response = reqwest::Client::new()
-            .get(files.1.get(0).unwrap().raw_url.to_string())
-            .send()
-            .await;
-        let response = response.unwrap();
+        let files = match gh.get_pull_request_files(pr.number).await {
+            Ok(files) => files,
+            Err(_) => return Ok(None),
+        };
+        let raw_url = match files.1.get(0) {
+            Some(f) => f.raw_url.clone(),
+            None => return Ok(None),
+        };
+        let response = reqwest::Client::new().get(raw_url).send().await;
+        let response = match response {
+            Ok(response) => response,
+            Err(_) => return Ok(None),
+        };
         let response = response.text().await;
-        let response = response.unwrap();
-        let app = serde_json::from_str::<ApplicationFile>(&response).unwrap();
-        Ok((
+        let response = match response {
+            Ok(response) => response,
+            Err(_) => return Ok(None),
+        };
+        let app = match serde_json::from_str::<ApplicationFile>(&response) {
+            Ok(app) => app,
+            Err(_) => return Ok(None),
+        };
+        Ok(Some((
             files.1.get(0).unwrap().sha.clone(),
             files.1.get(0).unwrap().filename.clone(),
             app,
             pr.clone(),
-        ))
+        )))
     }
 
     pub async fn load(application_id: String) -> Result<Self, LDNError> {
@@ -126,9 +139,13 @@ impl LDNApplication {
                 .map(|pr: PullRequest| (LDNApplication::load_pr_files(pr)))
                 .collect::<Vec<_>>(),
         )
-        .await
-        .unwrap();
+        .await?;
+        let pull_requests = pull_requests
+            .into_iter()
+            .filter(|pr| pr.is_some())
+            .collect::<Vec<_>>();
         for r in pull_requests {
+            let r = r.unwrap();
             if String::from(r.2.id.clone()) == application_id.clone() {
                 return Ok(Self {
                     github: gh,
@@ -139,7 +156,7 @@ impl LDNApplication {
                 });
             }
         }
-        Err(LDNError::Load(format!("")))
+        Err(LDNError::Load(format!("No Apps Found!")))
     }
 
     pub async fn active(filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
@@ -154,12 +171,17 @@ impl LDNApplication {
         )
         .await
         .unwrap();
+            dbg!(&pull_requests);
         for r in pull_requests {
-            if filter.is_none() {
-                apps.push(r.2)
-            } else {
-                if r.2.id == filter.clone().unwrap() {
+            if r.is_some() {
+                let r = r.unwrap();
+                dbg!(&r);
+                if filter.is_none() {
                     apps.push(r.2)
+                } else {
+                    if r.2.id == filter.clone().unwrap() {
+                        apps.push(r.2)
+                    }
                 }
             }
         }
@@ -172,20 +194,13 @@ impl LDNApplication {
         let gh: GithubWrapper = GithubWrapper::new();
         let (parsed_ldn, _) = LDNApplication::parse_application_issue(issue_number.clone()).await?;
         let application_id = parsed_ldn.id.clone();
-        let app_path = LDNPullRequest::application_path(&application_id);
-        let app_branch_name = LDNPullRequest::application_branch_name(&application_id);
+        let file_name = LDNPullRequest::application_path(&application_id);
+        let branch_name = LDNPullRequest::application_branch_name(&application_id);
 
-        match gh.get_file(&app_path, &app_branch_name).await {
+        match gh.get_file(&file_name, &branch_name).await {
             Err(_) => {
-                let file_sha = LDNPullRequest::create_empty_pr(
-                    application_id.clone(),
-                    parsed_ldn.client.name.clone(),
-                    LDNPullRequest::application_branch_name(&issue_number),
-                    None,
-                )
-                .await?;
                 let application_file = ApplicationFile::new(
-                    issue_number,
+                    issue_number.clone(),
                     "MULTISIG ADDRESS".to_string(),
                     parsed_ldn.version,
                     parsed_ldn.id,
@@ -203,21 +218,20 @@ impl LDNApplication {
                         )))
                     }
                 };
-                let pr_handler =
-                    LDNPullRequest::load(&application_id, &parsed_ldn.client.name.clone());
-                pr_handler
-                    .add_commit(
-                        LDNPullRequest::application_move_to_governance_review(),
-                        file_content,
-                        file_sha.clone(),
-                    )
-                    .await;
+                let file_sha = LDNPullRequest::create_pr(
+                    issue_number.clone(),
+                    parsed_ldn.client.name.clone(),
+                    branch_name.clone(),
+                    file_name.clone(),
+                    file_content.clone(),
+                )
+                .await?;
                 Ok(LDNApplication {
                     github: gh,
                     application_id,
                     file_sha,
-                    file_name: pr_handler.path,
-                    branch_name: pr_handler.branch_name,
+                    file_name,
+                    branch_name,
                 })
             }
             Ok(_) => {
@@ -236,7 +250,7 @@ impl LDNApplication {
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
-                AppState::GovernanceReview => {
+                AppState::Submitted => {
                     let app_file: ApplicationFile = self.file().await?;
                     let uuid = uuidv4::uuid::v4();
                     let request = AllocationRequest::new(
@@ -341,6 +355,7 @@ impl LDNApplication {
             Ok(s) => match s {
                 AppState::StartSignDatacap => {
                     let app_file: ApplicationFile = self.file().await?;
+                    dbg!(&app_file);
                     let app_lifecycle = app_file.lifecycle.finish_approval();
                     let app_file = app_file.add_signer_to_allocation_and_complete(
                         signer.clone(),
@@ -408,6 +423,7 @@ impl LDNApplication {
     /// Return Application state
     async fn app_state(&self) -> Result<AppState, LDNError> {
         let f = self.file().await?;
+        dbg!(&f);
         Ok(f.lifecycle.get_state())
     }
 
@@ -463,9 +479,11 @@ impl LDNApplication {
     }
 
     async fn file(&self) -> Result<ApplicationFile, LDNError> {
-        let app_path = LDNPullRequest::application_path(&self.application_id);
-        let app_branch_name = LDNPullRequest::application_branch_name(&self.application_id);
-        match self.github.get_file(&app_path, &app_branch_name).await {
+        match self
+            .github
+            .get_file(&self.file_name, &self.branch_name)
+            .await
+        {
             Ok(file) => Ok(LDNApplication::content_items_to_app_file(file)?),
             Err(e) => {
                 return Err(LDNError::Load(format!(
@@ -593,43 +611,42 @@ pub struct LDNPullRequest {
 }
 
 impl LDNPullRequest {
-    async fn create_empty_pr(
+    async fn create_pr(
         application_id: String,
         owner_name: String,
         app_branch_name: String,
-        base_hash: Option<String>,
+        file_name: String,
+        file_content: String,
     ) -> Result<String, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh: GithubWrapper = GithubWrapper::new();
-        let create_ref_request =
-            match gh.build_create_ref_request(app_branch_name.clone(), base_hash) {
-                Ok(req) => req,
-                Err(e) => {
-                    return Err(LDNError::New(format!(
-                        "Application issue cannot create branch request object /// {}",
-                        e
-                    )))
-                }
-            };
+        let create_ref_request = gh
+            .build_create_ref_request(app_branch_name.clone(), None)
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Application issue {} cannot create branch /// {}",
+                    application_id, e
+                ));
+            })?;
 
-        let (_pr, file_sha) = match gh
+        let (_pr, file_sha) = gh
             .create_merge_request(CreateMergeRequestData {
                 application_id: application_id.clone(),
+                branch_name: app_branch_name,
+                file_name,
                 owner_name,
                 ref_request: create_ref_request,
-                file_content: "{}".to_string(),
+                file_content,
                 commit: initial_commit,
             })
             .await
-        {
-            Ok((pr, file_sha)) => (pr, file_sha),
-            Err(e) => {
-                return Err(LDNError::New(format!(
-                    "Application issue {} cannot create branch /// {}",
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Application issue {} cannot create merge request /// {}",
                     application_id, e
-                )));
-            }
-        };
+                ));
+            })?;
+
         Ok(file_sha)
     }
 
@@ -685,47 +702,8 @@ impl LDNPullRequest {
         }
     }
 
-    pub(super) async fn add_commit(
-        &self,
-        commit_message: String,
-        new_content: String,
-        file_sha: String,
-    ) -> Option<()> {
-        let gh: GithubWrapper = GithubWrapper::new();
-        match gh
-            .update_file_content(
-                &self.path,
-                &commit_message,
-                &new_content,
-                &self.branch_name,
-                &file_sha,
-            )
-            .await
-        {
-            Ok(_) => Some(()),
-            Err(_) => None,
-        }
-    }
-
-    pub(super) fn load(application_id: &str, owner_name: &str) -> Self {
-        LDNPullRequest {
-            branch_name: LDNPullRequest::application_branch_name(application_id),
-            title: LDNPullRequest::application_title(application_id, owner_name),
-            body: LDNPullRequest::application_body(application_id),
-            path: LDNPullRequest::application_path(application_id),
-        }
-    }
-
     pub(super) fn application_branch_name(application_id: &str) -> String {
         format!("Application/{}", application_id)
-    }
-
-    pub(super) fn application_title(application_id: &str, owner_name: &str) -> String {
-        format!("Application_{}_{}", application_id, owner_name)
-    }
-
-    pub(super) fn application_body(application_id: &str) -> String {
-        format!("resolves #{}", application_id)
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
@@ -734,10 +712,6 @@ impl LDNPullRequest {
 
     pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
         format!("Start Application: {}-{}", owner_name, application_id)
-    }
-
-    pub(super) fn application_move_to_governance_review() -> String {
-        format!("Application is under review of governance team")
     }
 
     pub(super) fn application_move_to_proposal_commit(actor: &str) -> String {

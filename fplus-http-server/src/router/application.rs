@@ -37,13 +37,15 @@ pub async fn trigger(
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
+    dbg!(&ldn_application);
     match ldn_application
         .complete_governance_review(info.into_inner())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
-        Err(_) => {
-            return HttpResponse::BadRequest().body("Application is not in the correct state");
+        Err(e) => {
+            return HttpResponse::BadRequest()
+                .body(format!("Application is not in the correct state {}", e));
         }
     }
 }
@@ -81,6 +83,7 @@ pub async fn approve(
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
+        dbg!(&ldn_application);
     match ldn_application
         .complete_new_application_approval(info.into_inner())
         .await
