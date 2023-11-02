@@ -24,7 +24,7 @@ impl LifeCycle {
             validated_by: empty.clone(),
             is_active: true,
             updated_at: Utc::now().to_string(),
-            active_request: None,
+            active_request: Some(empty),
             client_on_chain_address,
             multisig_address,
         }

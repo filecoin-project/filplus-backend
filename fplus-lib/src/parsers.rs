@@ -96,7 +96,7 @@ impl From<String> for ParsedApplicationDataFields {
 	  "Group" => ParsedApplicationDataFields::DatacapGroup,
 	  "Type" => ParsedApplicationDataFields::Type,
 	  "Total Requested Amount" => ParsedApplicationDataFields::TotalRequestedAmount,
-	  "single size dataset" => ParsedApplicationDataFields::SingleSizeDataset,
+	  "Single Size Dataset" => ParsedApplicationDataFields::SingleSizeDataset,
 	  "Replicas" => ParsedApplicationDataFields::Replicas,
 	  "Weekly Allocation" => ParsedApplicationDataFields::WeeklyAllocation,
 	  // Invalid field

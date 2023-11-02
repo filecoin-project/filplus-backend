@@ -67,9 +67,9 @@ pub struct Datacap {
     pub _group: DatacapGroup,
     #[serde(rename = "Data Type")]
     pub data_type: DataType,
-    #[serde(rename = "Total requested amount")]
+    #[serde(rename = "Total Requested Amount")]
     pub total_requested_amount: String,
-    #[serde(rename = "Single size dataset")]
+    #[serde(rename = "Single Size Dataset")]
     pub single_size_dataset: String,
     #[serde(rename = "Replicas")]
     pub replicas: u8,
