@@ -71,7 +71,6 @@ pub struct ValidationIssueData {
 }
 
 impl LDNApplication {
-
     pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let (_, pull_request) = gh.get_pull_request_files(pr_number).await.unwrap();
@@ -615,20 +614,31 @@ impl LDNApplication {
     }
 
     pub async fn validate_trigger(pr_number: u64, user_handle: &str) -> Result<bool, LDNError> {
+        dbg!(
+            "Validating trigger for PR number {} with user handle {}",
+            pr_number,
+            user_handle
+        );
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state = application_file.lifecycle.get_state();
+                dbg!("Validating trigger: App state is {:?}", app_state.as_str());
                 if app_state > AppState::Submitted {
+                    dbg!("State is greater than submitted");
                     let validated_by = application_file.lifecycle.validated_by;
+                    dbg!("json validated_by {}", &validated_by);
                     let validated_at: String = application_file.lifecycle.validated_at;
+                    dbg!("json validated_at {}", &validated_at);
                     if !validated_at.is_empty()
                         && !validated_by.is_empty()
                         && user_handle == BOT_USER
                     {
                         return Ok(true);
                     }
+                    dbg!("State is greater than submitted but not validated");
                     return Ok(false);
                 } else {
+                    dbg!("State is less than submitted");
                     Ok(false)
                 }
             }
@@ -640,26 +650,31 @@ impl LDNApplication {
     }
 
     pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
+        dbg!("Validating approval for PR number {}", pr_number);
         let valid_notaries = vec![
             "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
             "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
         ];
-        // let notary_list: NotaryList = serde_json::fr
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
+                dbg!("Validating approval: App state is {:?}", app_state.as_str());
                 if app_state < AppState::StartSignDatacap {
+                    dbg!("State is less than StartSignDatacap");
                     return Ok(false);
                 }
                 match app_state {
                     AppState::StartSignDatacap => {
+                        dbg!("State is StartSignDatacap");
                         let active_request = application_file.allocation.active();
                         if active_request.is_none() {
+                            dbg!("No active request");
                             return Ok(false);
                         }
                         let active_request = active_request.unwrap();
                         let signers = active_request.signers.clone();
                         if signers.0.len() != 2 {
+                            dbg!("Not enough signers");
                             return Ok(false);
                         }
                         let signer = signers.0.get(1).unwrap();
@@ -670,8 +685,10 @@ impl LDNApplication {
                             .find(|n| n == &signer_address)
                             .is_some()
                         {
+                            dbg!("Valid notary");
                             return Ok(true);
                         }
+                        dbg!("Not a valid notary");
                         Ok(false)
                     }
                     _ => Ok(true),
@@ -685,6 +702,7 @@ impl LDNApplication {
     }
 
     pub async fn validate_proposal(pr_number: u64) -> Result<bool, LDNError> {
+        dbg!("Validating proposal for PR number {}", pr_number);
         let valid_notaries = vec![
             "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
             "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
@@ -693,18 +711,22 @@ impl LDNApplication {
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
+                dbg!("Validating proposal: App state is {:?}", app_state.as_str());
                 if app_state < AppState::ReadyToSign {
+                    dbg!("State is less than ReadyToSign");
                     return Ok(false);
                 }
                 match app_state {
                     AppState::ReadyToSign => {
                         let active_request = application_file.allocation.active();
                         if active_request.is_none() {
+                            dbg!("No active request");
                             return Ok(false);
                         }
                         let active_request = active_request.unwrap();
                         let signers = active_request.signers.clone();
                         if signers.0.len() != 1 {
+                            dbg!("Not enough signers");
                             return Ok(false);
                         }
                         let signer = signers.0.get(0).unwrap();
@@ -715,8 +737,10 @@ impl LDNApplication {
                             .find(|n| n == &signer_address)
                             .is_some()
                         {
+                            dbg!("Valid notary");
                             return Ok(true);
                         }
+                        dbg!("Not a valid notary");
                         Ok(false)
                     }
                     _ => Ok(true),
