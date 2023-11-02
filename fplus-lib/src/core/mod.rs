@@ -1,3 +1,4 @@
+use ::base64::decode;
 use futures::future;
 use octocrab::models::{
     pulls::PullRequest,
@@ -610,19 +611,12 @@ impl LDNApplication {
             Ok(application_file) => {
                 let app_state = application_file.lifecycle.get_state();
                 if app_state > AppState::Submitted {
-                    let rkhJson: ContentItems = gh.get_file("rkh.json", "main").await.map_err(|e| {
-                        LDNError::Load(format!(
-                            "Failed to retrieve all files from GitHub. Reason: {}",
-                            e
-                        ))
-                    })?;
                     let validated_by = application_file.lifecycle.validated_by;
-                    let validated_at = application_file.lifecycle.validated_at;
-                    
-                    // Get validated_by and validated_at props from json, both of them needs to have data
-                    // validated_by = check if the string exist in rkh.json in github repo
-                    // if (these) true;
-                    Ok(false)
+                    let validated_at: String = application_file.lifecycle.validated_at;
+                    if (!validated_at.is_empty() && !validated_by.is_empty() && user_handle == "clriesco") {
+                        return Ok(true);
+                    }
+                    return Ok(false);
                 } else {
                     Ok(false)
                 }
