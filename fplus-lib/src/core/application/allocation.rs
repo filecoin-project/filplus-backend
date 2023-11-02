@@ -39,7 +39,7 @@ impl Allocation {
     pub fn new(request_information: AllocationRequest) -> Self {
         Self {
             id: request_information.id,
-            request_type: request_information.kind,
+            request_type: request_information.kind.to_string(),
             created_at: Utc::now().to_string(),
             updated_at: Utc::now().to_string(),
             is_active: true,
@@ -59,6 +59,19 @@ impl Allocations {
     pub fn init(request_information: AllocationRequest) -> Self {
         let allocation = Allocation::new(request_information);
         Self(vec![allocation])
+    }
+
+    // should be changed to option
+    pub fn active(&self) -> Option<Allocation> {
+        let curr: Vec<Allocation> = self.0.clone();
+        let mut allocation: Option<Allocation> = None;
+        for alloc in curr.iter() {
+            if alloc.is_active {
+                allocation = Some(alloc.clone());
+                break;
+            }
+        }
+        allocation
     }
 
     // should be changed to option

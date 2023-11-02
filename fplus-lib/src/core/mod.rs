@@ -1,3 +1,4 @@
+use chrono::Utc;
 use futures::future;
 use octocrab::models::{
     pulls::PullRequest,
@@ -16,15 +17,20 @@ use crate::{
 };
 
 use self::application::file::{
-    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, Notary, NotaryInput,
+    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, NotaryInput,
 };
 
 pub mod application;
+
+const BOT_USER: &str = "filplus-github-bot-read-write";
 
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
     pub issue_number: String,
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct NotaryList(pub Vec<String>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CompleteNewApplicationProposalInfo {
@@ -53,7 +59,20 @@ pub struct RefillInfo {
     pub amount_type: String,
 }
 
+#[derive(Deserialize)]
+pub struct ValidationPullRequestData {
+    pub pr_number: String,
+    pub user_handle: String,
+}
+
+#[derive(Deserialize)]
+pub struct ValidationIssueData {
+    pub issue_number: String,
+    pub user_handle: String,
+}
+
 impl LDNApplication {
+
     pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let (_, pull_request) = gh.get_pull_request_files(pr_number).await.unwrap();
@@ -99,7 +118,6 @@ impl LDNApplication {
             Ok(response) => response,
             Err(_) => return Ok(None),
         };
-        dbg!(&response);
         let app = match serde_json::from_str::<ApplicationFile>(&response) {
             Ok(app) => app,
             Err(e) => {
@@ -141,7 +159,19 @@ impl LDNApplication {
                 });
             }
         }
-        Err(LDNError::Load(format!("No Apps Found!")))
+        let merged = Self::merged().await?;
+        match merged.iter().find(|(_, app)| app.id == application_id) {
+            Some(app) => {
+                return Ok(Self {
+                    github: gh,
+                    application_id: app.1.id.clone(),
+                    file_sha: app.0.sha.clone(),
+                    file_name: app.0.path.clone(),
+                    branch_name: "main".to_string(),
+                })
+            }
+            None => return Err(LDNError::Load(format!("No Apps Found!"))),
+        };
     }
 
     pub async fn active(filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
@@ -156,11 +186,9 @@ impl LDNApplication {
         )
         .await
         .unwrap();
-        dbg!(&pull_requests);
         for r in pull_requests {
             if r.is_some() {
                 let r = r.unwrap();
-                dbg!(&r);
                 if filter.is_none() {
                     apps.push(r.2)
                 } else {
@@ -242,7 +270,7 @@ impl LDNApplication {
                         info.actor.clone(),
                         uuid,
                         AllocationRequestType::First,
-                        app_file.datacap.total_requested_amount.clone(),
+                        app_file.datacap.weekly_allocation.clone(),
                     );
                     let app_file = app_file.complete_governance_review(info.actor.clone(), request);
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
@@ -340,7 +368,6 @@ impl LDNApplication {
             Ok(s) => match s {
                 AppState::StartSignDatacap => {
                     let app_file: ApplicationFile = self.file().await?;
-                    dbg!(&app_file);
                     let app_lifecycle = app_file.lifecycle.finish_approval();
                     let app_file = app_file.add_signer_to_allocation_and_complete(
                         signer.clone().into(),
@@ -408,7 +435,6 @@ impl LDNApplication {
     /// Return Application state
     async fn app_state(&self) -> Result<AppState, LDNError> {
         let f = self.file().await?;
-        dbg!(&f);
         Ok(f.lifecycle.get_state())
     }
 
@@ -465,7 +491,7 @@ impl LDNApplication {
         }
     }
 
-    async fn file(&self) -> Result<ApplicationFile, LDNError> {
+    pub async fn file(&self) -> Result<ApplicationFile, LDNError> {
         match self
             .github
             .get_file(&self.file_name, &self.branch_name)
@@ -579,13 +605,128 @@ impl LDNApplication {
                 app.client.name.clone(),
                 serde_json::to_string_pretty(&app_file).unwrap(),
                 content.name.clone(), // filename
-                "nrewew_Brtach".to_string(),
+                Utc::now().to_string(),
                 content.sha,
             )
             .await?;
             return Ok(true);
         }
         Err(LDNError::Load("Failed to get application file".to_string()))
+    }
+
+    pub async fn validate_trigger(pr_number: u64, user_handle: &str) -> Result<bool, LDNError> {
+        match LDNApplication::single_active(pr_number).await {
+            Ok(application_file) => {
+                let app_state = application_file.lifecycle.get_state();
+                if app_state > AppState::Submitted {
+                    let validated_by = application_file.lifecycle.validated_by;
+                    let validated_at: String = application_file.lifecycle.validated_at;
+                    if !validated_at.is_empty()
+                        && !validated_by.is_empty()
+                        && user_handle == BOT_USER
+                    {
+                        return Ok(true);
+                    }
+                    return Ok(false);
+                } else {
+                    Ok(false)
+                }
+            }
+            Err(e) => Err(LDNError::Load(format!(
+                "PR number {} not found: {}",
+                pr_number, e
+            ))),
+        }
+    }
+
+    pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
+        let valid_notaries = vec![
+            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
+            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
+        ];
+        // let notary_list: NotaryList = serde_json::fr
+        match LDNApplication::single_active(pr_number).await {
+            Ok(application_file) => {
+                let app_state: AppState = application_file.lifecycle.get_state();
+                if app_state < AppState::StartSignDatacap {
+                    return Ok(false);
+                }
+                match app_state {
+                    AppState::StartSignDatacap => {
+                        let active_request = application_file.allocation.active();
+                        if active_request.is_none() {
+                            return Ok(false);
+                        }
+                        let active_request = active_request.unwrap();
+                        let signers = active_request.signers.clone();
+                        if signers.0.len() != 2 {
+                            return Ok(false);
+                        }
+                        let signer = signers.0.get(1).unwrap();
+                        // let signer_github_handle = signer.github_username.clone();
+                        let signer_address = signer.signing_address.clone();
+                        if valid_notaries
+                            .into_iter()
+                            .find(|n| n == &signer_address)
+                            .is_some()
+                        {
+                            return Ok(true);
+                        }
+                        Ok(false)
+                    }
+                    _ => Ok(true),
+                }
+            }
+            Err(e) => Err(LDNError::Load(format!(
+                "PR number {} not found: {}",
+                pr_number, e
+            ))),
+        }
+    }
+
+    pub async fn validate_proposal(pr_number: u64) -> Result<bool, LDNError> {
+        let valid_notaries = vec![
+            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
+            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
+        ];
+        // let notary_list: NotaryList = serde_json::fr
+        match LDNApplication::single_active(pr_number).await {
+            Ok(application_file) => {
+                let app_state: AppState = application_file.lifecycle.get_state();
+                if app_state < AppState::ReadyToSign {
+                    return Ok(false);
+                }
+                match app_state {
+                    AppState::ReadyToSign => {
+                        let active_request = application_file.allocation.active();
+                        if active_request.is_none() {
+                            return Ok(false);
+                        }
+                        let active_request = active_request.unwrap();
+                        let signers = active_request.signers.clone();
+                        if signers.0.len() != 1 {
+                            return Ok(false);
+                        }
+                        let signer = signers.0.get(0).unwrap();
+                        // let signer_github_handle = signer.github_username.clone();
+                        let signer_address = signer.signing_address.clone();
+                        if valid_notaries
+                            .into_iter()
+                            .find(|n| n == &signer_address)
+                            .is_some()
+                        {
+                            return Ok(true);
+                        }
+                        Ok(false)
+                    }
+                    _ => Ok(true),
+                }
+            }
+            Err(e) => Err(LDNError::Load(format!(
+                "PR number {} not found: {}",
+                pr_number, e
+            ))),
+        }
     }
 }
 
@@ -705,7 +846,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_branch_name(application_id: &str) -> String {
-        format!("Application/{}", application_id)
+        format!("Application/{}/{}", application_id, Utc::now().to_string())
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
@@ -771,7 +912,7 @@ mod tests {
         .await
         .unwrap();
 
-        let application_id =  ldn_application.application_id.to_string();
+        let application_id = ldn_application.application_id.to_string();
 
         // validate file was created
         assert!(gh

@@ -67,9 +67,9 @@ pub struct Datacap {
     pub _group: DatacapGroup,
     #[serde(rename = "Data Type")]
     pub data_type: DataType,
-    #[serde(rename = "Total requested amount")]
+    #[serde(rename = "Total Requested Amount")]
     pub total_requested_amount: String,
-    #[serde(rename = "Single size dataset")]
+    #[serde(rename = "Single Size Dataset")]
     pub single_size_dataset: String,
     #[serde(rename = "Replicas")]
     pub replicas: u8,
@@ -220,7 +220,7 @@ pub struct Provider {
     pub spo_org: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub enum AppState {
     Submitted,
     ReadyToSign,
@@ -260,12 +260,22 @@ pub enum AllocationRequestType {
     Refill(u8),
 }
 
+impl ToString for AllocationRequestType {
+    fn to_string(&self) -> String {
+        match self {
+            AllocationRequestType::First => "First".to_string(),
+            AllocationRequestType::Removal => "Removal".to_string(),
+            AllocationRequestType::Refill(_) => "Refill".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Allocation {
     #[serde(rename = "ID")]
     pub id: String,
     #[serde(rename = "Request Type")]
-    pub request_type: AllocationRequestType,
+    pub request_type: String,
     #[serde(rename = "Created At")]
     pub created_at: String,
     #[serde(rename = "Updated At")]
