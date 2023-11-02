@@ -255,7 +255,7 @@ impl LDNApplication {
                         info.actor.clone(),
                         uuid,
                         AllocationRequestType::First,
-                        app_file.datacap.total_requested_amount.clone(),
+                        app_file.datacap.weekly_allocation.clone(),
                     );
                     let app_file = app_file.complete_governance_review(info.actor.clone(), request);
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
@@ -567,7 +567,9 @@ impl LDNApplication {
         for app in all_files {
             if app.is_some() {
                 let app = app.unwrap();
+								dbg!(&app.1.id);
                 if active.iter().find(|a| a.id == app.1.id).is_none() && app.1.lifecycle.is_active {
+										dbg!("hey".to_string());
                     apps.push(app);
                 }
             }
