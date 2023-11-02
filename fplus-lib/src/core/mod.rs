@@ -1,4 +1,4 @@
-use ::base64::decode;
+use chrono::Utc;
 use futures::future;
 use octocrab::models::{
     pulls::PullRequest,
@@ -67,7 +67,7 @@ pub struct ValidationIssueData {
 }
 
 impl LDNApplication {
-    
+
     pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
         let (_, pull_request) = gh.get_pull_request_files(pr_number).await.unwrap();
@@ -363,7 +363,6 @@ impl LDNApplication {
             Ok(s) => match s {
                 AppState::StartSignDatacap => {
                     let app_file: ApplicationFile = self.file().await?;
-                    dbg!(&app_file);
                     let app_lifecycle = app_file.lifecycle.finish_approval();
                     let app_file = app_file.add_signer_to_allocation_and_complete(
                         signer.clone().into(),
@@ -431,7 +430,6 @@ impl LDNApplication {
     /// Return Application state
     async fn app_state(&self) -> Result<AppState, LDNError> {
         let f = self.file().await?;
-        dbg!(&f);
         Ok(f.lifecycle.get_state())
     }
 
@@ -577,9 +575,7 @@ impl LDNApplication {
         for app in all_files {
             if app.is_some() {
                 let app = app.unwrap();
-								dbg!(&app.1.id);
                 if active.iter().find(|a| a.id == app.1.id).is_none() && app.1.lifecycle.is_active {
-										dbg!("hey".to_string());
                     apps.push(app);
                 }
             }
@@ -604,7 +600,7 @@ impl LDNApplication {
                 app.client.name.clone(),
                 serde_json::to_string_pretty(&app_file).unwrap(),
                 content.name.clone(), // filename
-                "nrewew_Brtach".to_string(),
+                Utc::now().to_string(),
                 content.sha,
             )
             .await?;
@@ -612,7 +608,7 @@ impl LDNApplication {
         }
         Err(LDNError::Load("Failed to get application file".to_string()))
     }
-    
+
 
     pub async fn validate_trigger(pr_number: u64, user_handle: &str) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
@@ -638,7 +634,7 @@ impl LDNApplication {
             },
         }
     }
-    
+
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -757,7 +753,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_branch_name(application_id: &str) -> String {
-        format!("Application/{}", application_id)
+        format!("Application/{}/{}", application_id, Utc::now().to_string())
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
