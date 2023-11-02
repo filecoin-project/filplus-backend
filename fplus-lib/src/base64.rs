@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use base64;
 
-use crate::core::application::ApplicationFile;
+use crate::core::application::file::ApplicationFile;
 
 pub fn decode(i: &str) -> Option<ApplicationFile> {
     let mut binding = Cursor::new(i);
