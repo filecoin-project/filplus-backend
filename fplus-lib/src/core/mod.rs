@@ -113,7 +113,6 @@ impl LDNApplication {
             Ok(response) => response,
             Err(_) => return Ok(None),
         };
-        dbg!(&response);
         let app = match serde_json::from_str::<ApplicationFile>(&response) {
             Ok(app) => app,
             Err(e) => {
@@ -155,7 +154,19 @@ impl LDNApplication {
                 });
             }
         }
-        Err(LDNError::Load(format!("No Apps Found!")))
+        let merged = Self::merged().await?;
+        match merged.iter().find(|(_, app)| app.id == application_id) {
+            Some(app) => {
+                return Ok(Self {
+                    github: gh,
+                    application_id: app.1.id.clone(),
+                    file_sha: app.0.sha.clone(),
+                    file_name: app.0.path.clone(),
+                    branch_name: "main".to_string(),
+                })
+            }
+            None => return Err(LDNError::Load(format!("No Apps Found!"))),
+        };
     }
 
     pub async fn active(filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
@@ -170,11 +181,9 @@ impl LDNApplication {
         )
         .await
         .unwrap();
-        dbg!(&pull_requests);
         for r in pull_requests {
             if r.is_some() {
                 let r = r.unwrap();
-                dbg!(&r);
                 if filter.is_none() {
                     apps.push(r.2)
                 } else {
@@ -479,7 +488,7 @@ impl LDNApplication {
         }
     }
 
-    async fn file(&self) -> Result<ApplicationFile, LDNError> {
+    pub async fn file(&self) -> Result<ApplicationFile, LDNError> {
         match self
             .github
             .get_file(&self.file_name, &self.branch_name)
@@ -814,7 +823,7 @@ mod tests {
         .await
         .unwrap();
 
-        let application_id =  ldn_application.application_id.to_string();
+        let application_id = ldn_application.application_id.to_string();
 
         // validate file was created
         assert!(gh

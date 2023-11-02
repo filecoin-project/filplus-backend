@@ -19,11 +19,15 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
 
 #[get("/application/{id}")]
 pub async fn single(id: web::Path<String>) -> impl Responder {
-    let apps = match LDNApplication::active(Some(id.into_inner())).await {
+    let app = match LDNApplication::load(id.into_inner()).await {
         Ok(app) => app,
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
-    HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap())
+    if let Ok(app_file) = app.file().await {
+        HttpResponse::Ok().body(serde_json::to_string_pretty(&app_file).unwrap())
+    } else {
+        HttpResponse::BadRequest().body("Application not found")
+    }
 }
 
 #[post("/application/{id}/trigger")]
@@ -83,7 +87,7 @@ pub async fn approve(
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
-        dbg!(&ldn_application);
+    dbg!(&ldn_application);
     match ldn_application
         .complete_new_application_approval(info.into_inner())
         .await
