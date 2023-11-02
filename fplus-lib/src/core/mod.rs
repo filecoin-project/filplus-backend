@@ -21,7 +21,7 @@ use self::application::file::{
 
 pub mod application;
 
-const BOT_USER: &str = "filplus-github-bot-read-write";
+const BOT_USER: &str = "filplus-github-bot-read-write[bot]";
 
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
