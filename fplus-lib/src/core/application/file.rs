@@ -260,12 +260,22 @@ pub enum AllocationRequestType {
     Refill(u8),
 }
 
+impl ToString for AllocationRequestType {
+    fn to_string(&self) -> String {
+        match self {
+            AllocationRequestType::First => "First".to_string(),
+            AllocationRequestType::Removal => "Removal".to_string(),
+            AllocationRequestType::Refill(_) => "Refill".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Allocation {
     #[serde(rename = "ID")]
     pub id: String,
     #[serde(rename = "Request Type")]
-    pub request_type: AllocationRequestType,
+    pub request_type: String,
     #[serde(rename = "Created At")]
     pub created_at: String,
     #[serde(rename = "Updated At")]
