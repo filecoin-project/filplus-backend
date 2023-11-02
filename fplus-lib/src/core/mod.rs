@@ -1,4 +1,3 @@
-use chrono::Utc;
 use futures::future;
 use octocrab::models::{
     pulls::PullRequest,
@@ -593,9 +592,10 @@ impl LDNApplication {
         if let Some((content, mut app)) = apps.into_iter().find(|(_, app)| app.id == refill_info.id)
         {
             let uuid = uuidv4::uuid::v4();
+            let request_id = uuid.clone();
             let new_request = AllocationRequest::new(
                 "SSA Bot".to_string(),
-                uuid.clone(),
+                request_id.clone(),
                 AllocationRequestType::Refill(0),
                 format!("{}{}", refill_info.amount, refill_info.amount_type),
             );
@@ -605,7 +605,7 @@ impl LDNApplication {
                 app.client.name.clone(),
                 serde_json::to_string_pretty(&app_file).unwrap(),
                 content.name.clone(), // filename
-                Utc::now().to_string(),
+                request_id.clone(),
                 content.sha,
             )
             .await?;
@@ -846,7 +846,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_branch_name(application_id: &str) -> String {
-        format!("Application/{}/{}", application_id, Utc::now().to_string())
+        format!("Application/{}", application_id)
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
