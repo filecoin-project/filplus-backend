@@ -62,6 +62,19 @@ impl Allocations {
     }
 
     // should be changed to option
+    pub fn active(&self) -> Option<Allocation> {
+        let curr: Vec<Allocation> = self.0.clone();
+        let mut allocation: Option<Allocation> = None;
+        for alloc in curr.iter() {
+            if alloc.is_active {
+                allocation = Some(alloc.clone());
+                break;
+            }
+        }
+        allocation
+    }
+
+    // should be changed to option
     pub fn find_one(&self, request_id: String) -> Option<Allocation> {
         let curr: Vec<Allocation> = self.0.clone();
         let mut allocation: Option<Allocation> = None;

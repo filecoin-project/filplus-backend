@@ -135,10 +135,40 @@ pub async fn total_dc_reached(id: web::Path<String>) -> actix_web::Result<impl R
 #[post("application/trigger/validate")]
 pub async fn validate_application_trigger(info: web::Json<ValidationPullRequestData>) -> impl Responder {
     let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
-    
+
     match pr_number {
         Ok(pr_number) => {
             match LDNApplication::validate_trigger(pr_number, &info.user_handle).await {
+                Ok(result) => HttpResponse::Ok().json(result),
+                Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
+            }
+        },
+        Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
+    }
+}
+
+#[post("application/proposal/validate")]
+pub async fn validate_application_proposal(info: web::Json<ValidationPullRequestData>) -> impl Responder {
+    let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
+
+    match pr_number {
+        Ok(pr_number) => {
+            match LDNApplication::validate_proposal(pr_number).await {
+                Ok(result) => HttpResponse::Ok().json(result),
+                Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
+            }
+        },
+        Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
+    }
+}
+
+#[post("application/approval/validate")]
+pub async fn validate_application_approval(info: web::Json<ValidationPullRequestData>) -> impl Responder {
+    let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
+
+    match pr_number {
+        Ok(pr_number) => {
+            match LDNApplication::validate_approval(pr_number).await {
                 Ok(result) => HttpResponse::Ok().json(result),
                 Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
             }

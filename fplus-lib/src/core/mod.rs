@@ -22,10 +22,15 @@ use self::application::file::{
 
 pub mod application;
 
+const BOT_USER: &str = "filplus-github-bot-read-write";
+
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
     pub issue_number: String,
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct NotaryList(pub Vec<String>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CompleteNewApplicationProposalInfo {
@@ -609,32 +614,120 @@ impl LDNApplication {
         Err(LDNError::Load("Failed to get application file".to_string()))
     }
 
-
     pub async fn validate_trigger(pr_number: u64, user_handle: &str) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state = application_file.lifecycle.get_state();
                 if app_state > AppState::Submitted {
                     let validated_by = application_file.lifecycle.validated_by;
                     let validated_at: String = application_file.lifecycle.validated_at;
-                    if (!validated_at.is_empty() && !validated_by.is_empty() && user_handle == "clriesco") {
+                    if !validated_at.is_empty()
+                        && !validated_by.is_empty()
+                        && user_handle == BOT_USER
+                    {
                         return Ok(true);
                     }
                     return Ok(false);
                 } else {
                     Ok(false)
                 }
-            },
-            Err(e) => {
-                Err(LDNError::Load(format!(
-                    "PR number {} not found: {}",
-                    pr_number, e
-                )))
-            },
+            }
+            Err(e) => Err(LDNError::Load(format!(
+                "PR number {} not found: {}",
+                pr_number, e
+            ))),
         }
     }
 
+    pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
+        let valid_notaries = vec![
+            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
+            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
+        ];
+        // let notary_list: NotaryList = serde_json::fr
+        match LDNApplication::single_active(pr_number).await {
+            Ok(application_file) => {
+                let app_state: AppState = application_file.lifecycle.get_state();
+                if app_state < AppState::StartSignDatacap {
+                    return Ok(false);
+                }
+                match app_state {
+                    AppState::StartSignDatacap => {
+                        let active_request = application_file.allocation.active();
+                        if active_request.is_none() {
+                            return Ok(false);
+                        }
+                        let active_request = active_request.unwrap();
+                        let signers = active_request.signers.clone();
+                        if signers.0.len() != 2 {
+                            return Ok(false);
+                        }
+                        let signer = signers.0.get(1).unwrap();
+                        // let signer_github_handle = signer.github_username.clone();
+                        let signer_address = signer.signing_address.clone();
+                        if valid_notaries
+                            .into_iter()
+                            .find(|n| n == &signer_address)
+                            .is_some()
+                        {
+                            return Ok(true);
+                        }
+                        Ok(false)
+                    }
+                    _ => Ok(true),
+                }
+            }
+            Err(e) => Err(LDNError::Load(format!(
+                "PR number {} not found: {}",
+                pr_number, e
+            ))),
+        }
+    }
+
+    pub async fn validate_proposal(pr_number: u64) -> Result<bool, LDNError> {
+        let valid_notaries = vec![
+            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
+            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
+        ];
+        // let notary_list: NotaryList = serde_json::fr
+        match LDNApplication::single_active(pr_number).await {
+            Ok(application_file) => {
+                let app_state: AppState = application_file.lifecycle.get_state();
+                if app_state < AppState::ReadyToSign {
+                    return Ok(false);
+                }
+                match app_state {
+                    AppState::ReadyToSign => {
+                        let active_request = application_file.allocation.active();
+                        if active_request.is_none() {
+                            return Ok(false);
+                        }
+                        let active_request = active_request.unwrap();
+                        let signers = active_request.signers.clone();
+                        if signers.0.len() != 1 {
+                            return Ok(false);
+                        }
+                        let signer = signers.0.get(0).unwrap();
+                        // let signer_github_handle = signer.github_username.clone();
+                        let signer_address = signer.signing_address.clone();
+                        if valid_notaries
+                            .into_iter()
+                            .find(|n| n == &signer_address)
+                            .is_some()
+                        {
+                            return Ok(true);
+                        }
+                        Ok(false)
+                    }
+                    _ => Ok(true),
+                }
+            }
+            Err(e) => Err(LDNError::Load(format!(
+                "PR number {} not found: {}",
+                pr_number, e
+            ))),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
