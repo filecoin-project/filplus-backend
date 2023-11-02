@@ -66,33 +66,6 @@ pub struct ValidationIssueData {
 }
 
 impl LDNApplication {
-
-    pub async fn single_active_issue(issue_number: u64) -> Result<ApplicationFile, LDNError> {
-        let gh: GithubWrapper = GithubWrapper::new();
-        match gh.list_issue(issue_number).await {
-            Ok(issue) => {
-                if let Some(content) = issue.body {
-                    if let Ok(app) = serde_json::from_str::<ApplicationFile>(&content) {
-                        Ok(app)
-                    } else {
-                        Err(LDNError::Load(format!(
-                            "Issue {} Application file is corrupted",
-                            issue_number
-                        )))
-                    }
-                } else {
-                    Err(LDNError::Load(format!(
-                        "Issue {} has no content",
-                        issue_number
-                    )))
-                }
-            }
-            Err(e) => Err(LDNError::Load(format!(
-                "Failed to get issue {} /// {}",
-                issue_number, e
-            ))),
-        }
-    }
     
     pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
@@ -629,39 +602,33 @@ impl LDNApplication {
     }
     
 
-    pub async fn validate_pr(pr_number: u64, user_handle: &str) -> Result<bool, LDNError> {
+    pub async fn validate_trigger(pr_number: u64, user_handle: &str) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state = application_file.lifecycle.get_state();
-                if app_state != AppState::ReadyToSign && user_handle != "filplus-github-bot-read-write" {
+                if app_state > AppState::Submitted {
+                    let rkhJson: ContentItems = gh.get_file("rkh.json", "main").await.map_err(|e| {
+                        LDNError::Load(format!(
+                            "Failed to retrieve all files from GitHub. Reason: {}",
+                            e
+                        ))
+                    })?;
+                    let validated_by = application_file.lifecycle.validated_by;
+                    let validated_at = application_file.lifecycle.validated_at;
+                    
+                    // Get validated_by and validated_at props from json, both of them needs to have data
+                    // validated_by = check if the string exist in rkh.json in github repo
+                    // if (these) true;
                     Ok(false)
                 } else {
-                    Ok(true)
+                    Ok(false)
                 }
             },
             Err(e) => {
                 Err(LDNError::Load(format!(
                     "PR number {} not found: {}",
                     pr_number, e
-                )))
-            },
-        }
-    }
-
-    pub async fn validate_issue(issue_number: u64, user_handle: &str) -> Result<bool, LDNError> {
-        match LDNApplication::single_active_issue(issue_number).await {
-            Ok(application_file) => {
-                let app_state = application_file.lifecycle.get_state();
-                if app_state != AppState::ReadyToSign && user_handle != "filplus-github-bot-read-write" {
-                    Ok(false)
-                } else {
-                    Ok(true)
-                }
-            },
-            Err(e) => {
-                Err(LDNError::Load(format!(
-                    "Issue number {} not found: {}",
-                    issue_number, e
                 )))
             },
         }

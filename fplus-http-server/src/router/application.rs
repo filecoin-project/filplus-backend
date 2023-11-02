@@ -128,33 +128,18 @@ pub async fn total_dc_reached(id: web::Path<String>) -> actix_web::Result<impl R
     }
 }
 
-#[post("application/validate-pr")]
-pub async fn validate_application(info: web::Json<ValidationPullRequestData>) -> impl Responder {
+#[post("application/trigger/validate")]
+pub async fn validate_application_trigger(info: web::Json<ValidationPullRequestData>) -> impl Responder {
     let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
     
     match pr_number {
         Ok(pr_number) => {
-            match LDNApplication::validate_pr(pr_number, &info.user_handle).await {
+            match LDNApplication::validate_trigger(pr_number, &info.user_handle).await {
                 Ok(result) => HttpResponse::Ok().json(result),
                 Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
             }
         },
         Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
-    }
-}
-
-#[post("application/validate-issue")]
-pub async fn validate_issue(info: web::Json<ValidationIssueData>) -> impl Responder {
-    let issue_number = info.issue_number.trim_matches('"').parse::<u64>();
-
-    match issue_number {
-        Ok(issue_number) => {
-            match LDNApplication::validate_issue(issue_number, &info.user_handle).await {
-                Ok(result) => HttpResponse::Ok().json(result),
-                Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
-            }
-        },
-        Err(_) => HttpResponse::BadRequest().json("Invalid Issue Number"),
     }
 }
 

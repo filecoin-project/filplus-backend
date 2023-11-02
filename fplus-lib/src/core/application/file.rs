@@ -220,7 +220,7 @@ pub struct Provider {
     pub spo_org: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub enum AppState {
     Submitted,
     ReadyToSign,
