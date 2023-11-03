@@ -7,7 +7,7 @@ use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
 use octocrab::models::repos::{Branch, ContentItems, FileUpdate};
-use octocrab::models::{InstallationId, IssueState};
+use octocrab::models::{InstallationId, IssueState, Label};
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
@@ -181,6 +181,19 @@ impl GithubWrapper<'static> {
             .inner
             .issues(self.owner, self.repo)
             .create_comment(number, body)
+            .await?;
+        Ok(iid)
+    }
+
+    pub async fn replace_issue_labels(
+        &self,
+        number: u64,
+        labels: &[String],
+    ) -> Result<Vec<Label>, OctocrabError> {
+        let iid = self
+            .inner
+            .issues(self.owner, self.repo)
+            .replace_all_labels(number, labels)
             .await?;
         Ok(iid)
     }

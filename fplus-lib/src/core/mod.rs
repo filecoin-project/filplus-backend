@@ -237,6 +237,7 @@ impl LDNApplication {
                     file_content.clone(),
                 )
                 .await?;
+                Self::issue_waiting_for_gov_review(issue_number.clone()).await?;
                 Ok(LDNApplication {
                     github: gh,
                     application_id,
@@ -272,6 +273,7 @@ impl LDNApplication {
                     );
                     let app_file = app_file.complete_governance_review(info.actor.clone(), request);
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
+                    Self::issue_ready_to_sign(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
                         self.file_name.clone(),
                         self.branch_name.clone(),
@@ -325,6 +327,7 @@ impl LDNApplication {
                         app_lifecycle,
                     );
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
+                    Self::issue_start_sign_dc(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
                         self.file_name.clone(),
                         self.branch_name.clone(),
@@ -373,6 +376,7 @@ impl LDNApplication {
                         app_lifecycle,
                     );
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
+                    Self::issue_granted(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
                         self.file_name.clone(),
                         self.branch_name.clone(),
@@ -454,6 +458,7 @@ impl LDNApplication {
                 let gh: GithubWrapper<'_> = GithubWrapper::new();
                 let ldn_app = LDNApplication::load(application_id.clone()).await?;
                 let ContentItems { items } = gh.get_file(&ldn_app.file_name, "main").await.unwrap();
+                Self::issue_full_dc(app.issue_number.clone()).await?;
 
                 LDNPullRequest::create_refill_pr(
                     app.id.clone(),
@@ -599,6 +604,7 @@ impl LDNApplication {
                 format!("{}{}", refill_info.amount, refill_info.amount_type),
             );
             let app_file = app.start_refill_request(new_request);
+            Self::issue_refill(app.issue_number.clone()).await?;
             LDNPullRequest::create_refill_pr(
                 app.id.clone(),
                 app.client.name.clone(),
@@ -751,6 +757,159 @@ impl LDNApplication {
                 pr_number, e
             ))),
         }
+    }
+
+    async fn issue_waiting_for_gov_review(issue_number: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            "Application is waiting for governance review",
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })?;
+        gh.replace_issue_labels(
+            issue_number.parse().unwrap(),
+            &["waiting for governance review".to_string()],
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error add label to issue {} /// {}",
+                issue_number, e
+            ));
+        })?;
+
+        Ok(true)
+    }
+    async fn issue_ready_to_sign(issue_number: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            "Application is ready to sign",
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+        gh.replace_issue_labels(
+            issue_number.parse().unwrap(),
+            &["ready to sign".to_string()],
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+        Ok(true)
+    }
+    async fn issue_start_sign_dc(issue_number: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            "Application is in the process of signing datacap",
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+        gh.replace_issue_labels(
+            issue_number.parse().unwrap(),
+            &["Start Sign Datacap".to_string()],
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+        Ok(true)
+    }
+    async fn issue_granted(issue_number: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Granted")
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        gh.replace_issue_labels(issue_number.parse().unwrap(), &["Granted".to_string()])
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+    async fn issue_refill(issue_number: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is in Refill")
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        gh.replace_issue_labels(issue_number.parse().unwrap(), &["Refill".to_string()])
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+    async fn issue_full_dc(issue_number: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Completed")
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        gh.replace_issue_labels(
+            issue_number.parse().unwrap(),
+            &["Completed".to_string(), "Reached Total Datacap".to_string()],
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+        Ok(true)
     }
 }
 
