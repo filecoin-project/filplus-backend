@@ -465,7 +465,7 @@ impl LDNApplication {
                     app.client.name.clone(),
                     serde_json::to_string_pretty(&app).unwrap(),
                     ldn_app.file_name.clone(),
-                    "dc-reached".to_string(),
+                    format!("{}-total-dc-reached", app.id),
                     items[0].sha.clone(),
                 )
                 .await?;
