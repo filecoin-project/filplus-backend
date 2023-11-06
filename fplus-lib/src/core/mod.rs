@@ -630,6 +630,19 @@ impl LDNApplication {
                 let app_state = application_file.lifecycle.get_state();
                 dbg!("Validating trigger: App state is {:?}", app_state.as_str());
                 if app_state > AppState::Submitted {
+                    let app_file = Self::single_active(pr_number).await?;
+                    if app_file.allocation.0.len() > 1 {
+                        dbg!("Application allocation is not empty - need to be defined");
+                        return Ok(false);
+                    }
+                    if app_file.allocation.0.len() == 1 {
+                        let allocation = app_file.allocation.0.get(0).unwrap();
+                        if allocation.signers.0.len() > 0 {
+                            dbg!("Allocation signers are not empty - need to be defined");
+                            return Ok(false);
+                        }
+                    }
+
                     dbg!("State is greater than submitted");
                     let validated_by = application_file.lifecycle.validated_by;
                     dbg!("json validated_by {}", &validated_by);
@@ -642,6 +655,22 @@ impl LDNApplication {
                         return Ok(true);
                     }
                     dbg!("State is greater than submitted but not validated");
+                    // fetch application
+                    let app_file = app_file.move_back_to_governance_review();
+                    let ldn_application = LDNApplication::load(app_file.id.clone()).await?;
+                    match LDNPullRequest::add_commit_to(
+                        ldn_application.file_name.clone(),
+                        ldn_application.branch_name.clone(),
+                        format!("Move application back to governance review"),
+                        serde_json::to_string_pretty(&app_file).unwrap(),
+                        ldn_application.file_sha.clone(),
+                    )
+                    .await
+                    {
+                        Some(()) => {}
+                        None => {}
+                    };
+                    // change application state to "submitted"
                     return Ok(false);
                 } else {
                     dbg!("State is less than submitted");
