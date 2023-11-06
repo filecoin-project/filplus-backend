@@ -40,10 +40,7 @@ impl file::ApplicationFile {
     }
 
     pub fn move_back_to_governance_review(&self) -> Self {
-        let new_life_cycle = self
-            .lifecycle
-            .clone()
-            .move_back_to_governance_review(); // move back to submitted state
+        let new_life_cycle = self.lifecycle.clone().move_back_to_governance_review(); // move back to submitted state
         let allocation = Allocations::default(); // empty allocations
         Self {
             lifecycle: new_life_cycle,
@@ -51,7 +48,6 @@ impl file::ApplicationFile {
             ..self.clone()
         }
     }
-
 
     pub fn complete_governance_review(&self, actor: String, request: AllocationRequest) -> Self {
         let new_life_cycle = self
@@ -67,7 +63,10 @@ impl file::ApplicationFile {
     }
 
     pub fn start_refill_request(&mut self, request: AllocationRequest) -> Self {
-        let new_life_cycle = self.lifecycle.clone().start_refill_request(request.id.clone());
+        let new_life_cycle = self
+            .lifecycle
+            .clone()
+            .start_refill_request(request.id.clone());
         let allocations = self.allocation.clone().push(request.clone());
         Self {
             lifecycle: new_life_cycle,

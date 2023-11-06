@@ -382,25 +382,27 @@ impl GithubWrapper<'static> {
     pub async fn get_main_branch_sha(&self) -> Result<String, http::Error> {
         let url =
             "https://api.github.com/repos/filecoin-project/filplus-tooling-backend-test/git/refs";
-		let request = http::request::Builder::new().method(http::Method::GET).uri(url);
-		let request = self.inner.build_request::<String>(request, None).unwrap();
+        let request = http::request::Builder::new()
+            .method(http::Method::GET)
+            .uri(url);
+        let request = self.inner.build_request::<String>(request, None).unwrap();
 
         let mut response = match self.inner.execute(request).await {
-            Ok( r) => r,
+            Ok(r) => r,
             Err(e) => {
                 println!("Error getting main branch sha: {:?}", e);
                 return Ok("".to_string());
             }
         };
-		let response = response.body_mut();
-		let body = hyper::body::to_bytes(response).await.unwrap();
-		let shas = body.into_iter().map(|b| b as char).collect::<String>();
-		let shas: RefList = serde_json::from_str(&shas).unwrap();
-		for sha in shas.0 {
-		  if sha._ref == "refs/heads/main" {
-			return Ok(sha.object.sha);
-		  }
-		}
+        let response = response.body_mut();
+        let body = hyper::body::to_bytes(response).await.unwrap();
+        let shas = body.into_iter().map(|b| b as char).collect::<String>();
+        let shas: RefList = serde_json::from_str(&shas).unwrap();
+        for sha in shas.0 {
+            if sha._ref == "refs/heads/main" {
+                return Ok(sha.object.sha);
+            }
+        }
         Ok("".to_string())
     }
 

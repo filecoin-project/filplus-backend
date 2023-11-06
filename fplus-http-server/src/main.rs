@@ -1,26 +1,18 @@
 use actix_web::middleware::Logger;
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, HttpServer};
 use env_logger;
-use std::sync::Mutex;
 
 pub(crate) mod router;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
-    let client = match fplus_database::core::setup::setup().await {
-        Ok(client) => client,
-        Err(e) => panic!("Error setting up database: {}", e),
-    };
-
-    let db_connection = web::Data::new(Mutex::new(client));
     HttpServer::new(move || {
         let cors = actix_cors::Cors::default()
             .allow_any_origin()
             .allow_any_method()
             .allow_any_header();
         App::new()
-            .app_data(db_connection.clone())
             .wrap(Logger::default())
             .wrap(cors)
             .service(router::health)

@@ -28,7 +28,8 @@ pub async fn address_allowance(address: web::Path<String>) -> impl Responder {
     {
         Ok(res) => return HttpResponse::Ok().body(res),
         Err(_) => {
-            return HttpResponse::InternalServerError().body("SOMETHING IS WRONG WITH DEMOB SETUP!");
+            return HttpResponse::InternalServerError()
+                .body("SOMETHING IS WRONG WITH DEMOB SETUP!");
         }
     }
 }
@@ -57,7 +58,8 @@ pub async fn verified_clients() -> impl Responder {
     match blockchain.get_verified_clients().await {
         Ok(res) => return HttpResponse::Ok().body(res),
         Err(_) => {
-            return HttpResponse::InternalServerError().body("SOMETHING IS WRONG WITH DEMOB SETUP!");
+            return HttpResponse::InternalServerError()
+                .body("SOMETHING IS WRONG WITH DEMOB SETUP!");
         }
     }
 }

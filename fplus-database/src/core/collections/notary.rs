@@ -1,8 +1,8 @@
 use actix_web::web;
-use mongodb::{Client, Collection};
-use serde::{Serialize, Deserialize};
-use std::sync::Mutex;
 use anyhow::Result;
+use mongodb::{Client, Collection};
+use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 
 use crate::core::common::get_collection;
 
@@ -14,7 +14,6 @@ pub struct Notary {
     pub on_chain_address: String,
 }
 
-
 pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<Notary>> {
     let notary_collection: Collection<Notary> = get_collection(state, COLLECTION_NAME).await?;
     let mut cursor = notary_collection.find(None, None).await?;
@@ -23,7 +22,9 @@ pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<Notary>> {
         if result {
             let d = match cursor.deserialize_current() {
                 Ok(d) => d,
-                Err(_) => { continue; }
+                Err(_) => {
+                    continue;
+                }
             };
             ret.push(d);
         } else {

@@ -1,5 +1,5 @@
 use clap::{arg, Command};
-use validators::{validate_trigger, validate_proposal};
+use validators::{validate_proposal, validate_trigger};
 
 use crate::validators::validate_approval;
 
@@ -38,25 +38,39 @@ async fn main() -> std::io::Result<()> {
 
     Ok(match matches.subcommand() {
         Some(("validate-trigger", sub_matches)) => {
-            let pull_request_number = sub_matches.get_one::<String>("PR_NUMBER").expect("required");
+            let pull_request_number = sub_matches
+                .get_one::<String>("PR_NUMBER")
+                .expect("required");
             let rkh_gh_handle = sub_matches
                 .get_one::<String>("RKH_GITHUB_HANDLE")
                 .expect("required");
             validate_trigger(rkh_gh_handle.to_string(), pull_request_number.to_string()).await;
         }
         Some(("validate-proposal", sub_matches)) => {
-            let pull_request_number = sub_matches.get_one::<String>("PR_NUMBER").expect("required");
+            let pull_request_number = sub_matches
+                .get_one::<String>("PR_NUMBER")
+                .expect("required");
             let notary_gh_handle = sub_matches
                 .get_one::<String>("NOTARY_GITHUB_HANDLE")
                 .expect("required");
-            validate_proposal(notary_gh_handle.to_string(), pull_request_number.to_string()).await;
+            validate_proposal(
+                notary_gh_handle.to_string(),
+                pull_request_number.to_string(),
+            )
+            .await;
         }
         Some(("validate-approval", sub_matches)) => {
-            let pull_request_number = sub_matches.get_one::<String>("PR_NUMBER").expect("required");
+            let pull_request_number = sub_matches
+                .get_one::<String>("PR_NUMBER")
+                .expect("required");
             let notary_gh_handle = sub_matches
                 .get_one::<String>("NOTARY_GITHUB_HANDLE")
                 .expect("required");
-            validate_approval(notary_gh_handle.to_string(), pull_request_number.to_string()).await;
+            validate_approval(
+                notary_gh_handle.to_string(),
+                pull_request_number.to_string(),
+            )
+            .await;
             println!("Validated approval {}", pull_request_number);
         }
         _ => {

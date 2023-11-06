@@ -3,9 +3,7 @@ use std::str::FromStr;
 use markdown::{mdast::Node, to_mdast, ParseOptions};
 use serde::{Deserialize, Serialize};
 
-use crate::core::application::file::{
-    Client, DataType, Datacap, DatacapGroup, Project,
-};
+use crate::core::application::file::{Client, DataType, Datacap, DatacapGroup, Project};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ParsedApplicationDataFields {
@@ -307,8 +305,14 @@ mod tests {
 
         assert_eq!(parsed_ldn.project.project_id, "IDID".to_string());
         assert_eq!(parsed_ldn.project.history, "history".to_string());
-        assert_eq!(parsed_ldn.project.associated_projects, "asodfjads".to_string());
+        assert_eq!(
+            parsed_ldn.project.associated_projects,
+            "asodfjads".to_string()
+        );
 
-        assert_eq!(parsed_ldn.datacap.total_requested_amount, "11GB".to_string());
+        assert_eq!(
+            parsed_ldn.datacap.total_requested_amount,
+            "11GB".to_string()
+        );
     }
 }

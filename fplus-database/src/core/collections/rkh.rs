@@ -1,8 +1,8 @@
 use actix_web::web;
-use mongodb::{Client, Collection};
-use serde::{Serialize, Deserialize};
-use std::sync::Mutex;
 use anyhow::Result;
+use mongodb::{Client, Collection};
+use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 
 use crate::core::common::get_collection;
 
@@ -21,7 +21,9 @@ pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<RootKeyHolder>>
         if result {
             let d = match cursor.deserialize_current() {
                 Ok(d) => d,
-                Err(_) => { continue; }
+                Err(_) => {
+                    continue;
+                }
             };
             ret.push(d);
         } else {
