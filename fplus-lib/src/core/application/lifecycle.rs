@@ -80,6 +80,20 @@ impl LifeCycle {
     pub fn reached_total_datacap(self) -> Self {
         LifeCycle {
             is_active: false,
+            updated_at: Utc::now().to_string(),
+            active_request: None,
+            ..self
+        }
+    }
+
+    pub fn move_back_to_governance_review(self) -> Self {
+        let empty = "".to_string();
+
+        LifeCycle {
+            state: AppState::Submitted,
+            validated_at: empty.clone(),
+            validated_by: empty.clone(),
+            updated_at: Utc::now().to_string(),
             active_request: None,
             ..self
         }
