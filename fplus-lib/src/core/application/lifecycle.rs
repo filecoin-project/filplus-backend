@@ -78,10 +78,12 @@ impl LifeCycle {
     }
 
     pub fn reached_total_datacap(self) -> Self {
+        let empty = "".to_string();
+
         LifeCycle {
             is_active: false,
             updated_at: Utc::now().to_string(),
-            active_request: None,
+            active_request: Some(empty),
             ..self
         }
     }
@@ -94,7 +96,7 @@ impl LifeCycle {
             validated_at: empty.clone(),
             validated_by: empty.clone(),
             updated_at: Utc::now().to_string(),
-            active_request: None,
+            active_request: Some(empty),
             ..self
         }
     }
