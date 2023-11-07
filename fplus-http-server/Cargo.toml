@@ -17,8 +17,8 @@ actix-cors = "0.6.4"
 reqwest = { version = "0.11.18", features = ["json"] }
 futures = "0.3.28"
 mongodb = "2.6.1"
-fplus-lib = { path = "../fplus-lib", version = "0.1.3"  }
-fplus-database = { path = "../fplus-database", version = "0.1.3" }
+fplus-lib = "0.1.3"
+fplus-database = "0.1.3"
 anyhow = "1.0.75"
 async-trait = "0.1.73"
 uuidv4 = "1.0.0"
