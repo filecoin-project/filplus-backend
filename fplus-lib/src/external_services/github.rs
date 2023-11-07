@@ -13,8 +13,8 @@ use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
 use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Page};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::sync::Arc;
+use crate::config;
 
 const GITHUB_API_URL: &str = "https://api.github.com";
 
@@ -50,7 +50,7 @@ If you have any questions, please contact @filecoin-plus/lotus-devnet-team."#,
                 application_id
             ),
             branch_name: format!("refill-datacap-{}", application_id),
-            path: format!("applications/{}/{}.json", owner_name, application_id),
+            path: format!("{}/{}/{}.json", config::get_applications_folder(), owner_name, application_id),
         }
     }
 }
@@ -111,19 +111,7 @@ impl GithubWrapper<'static> {
             installation_id,
         } = GithubParams::test_env();
         dotenv::dotenv().ok();
-        let gh_private_key = match std::env::var("GH_PRIVATE_KEY") {
-            Ok(g) => g,
-            Err(_) => {
-                println!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
-                match std::fs::read_to_string("gh-private-key.pem") {
-                    Ok(file_content) => file_content,
-                    Err(e) => {
-                        println!("Failed to read gh-private-key.pem. Error: {:?}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
-        };
+        let gh_private_key = config::get_github_private_key();
         let connector = HttpsConnectorBuilder::new()
             .with_native_roots() // enabled the `rustls-native-certs` feature in hyper-rustls
             .https_only()

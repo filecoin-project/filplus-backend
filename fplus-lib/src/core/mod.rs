@@ -14,7 +14,7 @@ use crate::{
     external_services::github::{
         CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
     },
-    parsers::ParsedIssue,
+    parsers::ParsedIssue, config,
 };
 
 use self::application::file::{
@@ -238,11 +238,12 @@ impl LDNApplication {
                         )))
                     }
                 };
+                let app_id = parsed_ldn.id.clone();
                 let file_sha = LDNPullRequest::create_pr(
                     issue_number.clone(),
                     parsed_ldn.client.name.clone(),
                     branch_name.clone(),
-                    LDNPullRequest::application_path(&parsed_ldn.id),
+                    LDNPullRequest::application_path(&app_id),
                     file_content.clone(),
                 )
                 .await?;
@@ -1084,7 +1085,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
-        format!("applications/{}.json", application_id)
+        format!("{}/{}.json", config::get_applications_folder(), application_id)
     }
 
     pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
@@ -1135,7 +1136,7 @@ mod tests {
         let gh: GithubWrapper = GithubWrapper::new();
 
         // let branches = gh.list_branches().await.unwrap();
-        let issue = gh.list_issue(359).await.unwrap();
+        let issue = gh.list_issue(473).await.unwrap();
         let test_issue: Issue = gh
             .create_issue("from test", &issue.body.unwrap())
             .await
