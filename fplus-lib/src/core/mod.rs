@@ -223,7 +223,7 @@ impl LDNApplication {
                     issue_number.clone(),
                     "MULTISIG ADDRESS".to_string(),
                     parsed_ldn.version,
-                    parsed_ldn.id,
+                    parsed_ldn.id.clone(),
                     parsed_ldn.client.clone(),
                     parsed_ldn.project,
                     parsed_ldn.datacap,
@@ -242,7 +242,7 @@ impl LDNApplication {
                     issue_number.clone(),
                     parsed_ldn.client.name.clone(),
                     branch_name.clone(),
-                    file_name.clone(),
+                    LDNPullRequest::application_path(&parsed_ldn.id),
                     file_content.clone(),
                 )
                 .await?;
@@ -1084,7 +1084,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
-        format!("{}.json", application_id)
+        format!("applications/{}.json", application_id)
     }
 
     pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
