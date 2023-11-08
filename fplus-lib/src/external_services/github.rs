@@ -526,15 +526,17 @@ impl GithubWrapper<'static> {
         Ok(())
     }
 
-    pub async fn get_all_files(&self) -> Result<ContentItems, OctocrabError> {
+    // If provided with empty string, will take all files from root
+    pub async fn get_files(&self, path: &str) -> Result<ContentItems, OctocrabError> {
         let contents_items = self
             .inner
             .repos(self.owner, self.repo)
             .get_content()
+            .path(path)
             .r#ref("main")
             .send()
             .await?;
-
+    
         Ok(contents_items)
     }
 

@@ -591,7 +591,8 @@ impl LDNApplication {
 
     pub async fn merged() -> Result<Vec<(Content, ApplicationFile)>, LDNError> {
         let gh = GithubWrapper::new();
-        let mut all_files = gh.get_all_files().await.map_err(|e| {
+        let applications_path = config::get_applications_folder().clone();
+        let mut all_files = gh.get_files(&applications_path).await.map_err(|e| {
             LDNError::Load(format!(
                 "Failed to retrieve all files from GitHub. Reason: {}",
                 e
