@@ -19,6 +19,7 @@ use crate::{
 
 use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, NotaryInput,
+    ValidNotaryList, ValidRKHList,
 };
 use rayon::prelude::*;
 
@@ -503,6 +504,46 @@ impl LDNApplication {
         }
     }
 
+    async fn fetch_noatries() -> Result<ValidNotaryList, LDNError> {
+        let gh = GithubWrapper::new();
+        let notaries = gh
+            .get_file("data/notaries.json", "main")
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve notaries /// {}", e)))?;
+
+        let notaries = &notaries.items[0]
+            .content
+            .clone()
+            .and_then(|f| base64::decode_notary(&f.replace("\n", "")))
+            .and_then(|f| Some(f));
+
+        if let Some(notaries) = notaries {
+            return Ok(notaries.clone());
+        } else {
+            return Err(LDNError::Load(format!("Failed to retrieve notaries ///")));
+        }
+    }
+
+    async fn fetch_rkh() -> Result<ValidRKHList, LDNError> {
+        let gh = GithubWrapper::new();
+        let rkh = gh
+            .get_file("data/rkh.json", "main")
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve rkh /// {}", e)))?;
+
+        let rkh = &rkh.items[0]
+            .content
+            .clone()
+            .and_then(|f| base64::decode_rkh(&f.replace("\n", "")))
+            .and_then(|f| Some(f));
+
+        if let Some(rkh) = rkh {
+            return Ok(rkh.clone());
+        } else {
+            return Err(LDNError::Load(format!("Failed to retrieve notaries ///")));
+        }
+    }
+
     async fn single_merged(application_id: String) -> Result<(Content, ApplicationFile), LDNError> {
         Ok(LDNApplication::merged()
             .await?
@@ -643,10 +684,13 @@ impl LDNApplication {
                     dbg!("json validated_by {}", &validated_by);
                     let validated_at: String = application_file.lifecycle.validated_at;
                     dbg!("json validated_at {}", &validated_at);
+                    let valid_rkh = Self::fetch_rkh().await?;
                     if !validated_at.is_empty()
                         && !validated_by.is_empty()
                         && user_handle == BOT_USER
+                        && valid_rkh.is_valid(&validated_by)
                     {
+                        dbg!("Validated by SSA Bot");
                         return Ok(true);
                     }
                     dbg!("State is greater than submitted but not validated");
@@ -681,10 +725,6 @@ impl LDNApplication {
 
     pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
         dbg!("Validating approval for PR number {}", pr_number);
-        let valid_notaries = vec![
-            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
-            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
-        ];
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
@@ -708,13 +748,9 @@ impl LDNApplication {
                             return Ok(false);
                         }
                         let signer = signers.0.get(1).unwrap();
-                        // let signer_github_handle = signer.github_username.clone();
                         let signer_address = signer.signing_address.clone();
-                        if valid_notaries
-                            .into_iter()
-                            .find(|n| n == &signer_address)
-                            .is_some()
-                        {
+                        let valid_notaries = Self::fetch_noatries().await?;
+                        if valid_notaries.is_valid(&signer_address) {
                             dbg!("Valid notary");
                             return Ok(true);
                         }
@@ -733,10 +769,6 @@ impl LDNApplication {
 
     pub async fn validate_proposal(pr_number: u64) -> Result<bool, LDNError> {
         dbg!("Validating proposal for PR number {}", pr_number);
-        let valid_notaries = vec![
-            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
-            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
-        ];
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
@@ -760,11 +792,8 @@ impl LDNApplication {
                         }
                         let signer = signers.0.get(0).unwrap();
                         let signer_address = signer.signing_address.clone();
-                        if valid_notaries
-                            .into_iter()
-                            .find(|n| n == &signer_address)
-                            .is_some()
-                        {
+                        let valid_notaries = Self::fetch_noatries().await?;
+                        if valid_notaries.is_valid(&signer_address) {
                             dbg!("Valid notary");
                             return Ok(true);
                         }
