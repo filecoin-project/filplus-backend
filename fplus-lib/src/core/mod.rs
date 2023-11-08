@@ -285,7 +285,7 @@ impl LDNApplication {
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     Self::issue_ready_to_sign(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
-                        self.file_name.clone(),
+                        LDNPullRequest::application_path(&self.file_name),
                         self.branch_name.clone(),
                         LDNPullRequest::application_move_to_proposal_commit(&info.actor),
                         file_content,
@@ -339,7 +339,7 @@ impl LDNApplication {
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     Self::issue_start_sign_dc(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
-                        self.file_name.clone(),
+                        LDNPullRequest::application_path(&self.file_name),
                         self.branch_name.clone(),
                         LDNPullRequest::application_move_to_approval_commit(
                             &signer.signing_address,
@@ -388,7 +388,7 @@ impl LDNApplication {
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     Self::issue_granted(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
-                        self.file_name.clone(),
+                        LDNPullRequest::application_path(&self.file_name),
                         self.branch_name.clone(),
                         LDNPullRequest::application_move_to_confirmed_commit(
                             &signer.signing_address,
@@ -700,7 +700,7 @@ impl LDNApplication {
                     let app_file = app_file.move_back_to_governance_review();
                     let ldn_application = LDNApplication::load(app_file.id.clone()).await?;
                     match LDNPullRequest::add_commit_to(
-                        ldn_application.file_name.clone(),
+                        LDNPullRequest::application_path(&ldn_application.file_name),
                         ldn_application.branch_name.clone(),
                         format!("Move application back to governance review"),
                         serde_json::to_string_pretty(&app_file).unwrap(),
@@ -1038,7 +1038,7 @@ impl LDNPullRequest {
             .create_refill_merge_request(CreateRefillMergeRequestData {
                 application_id: application_id.clone(),
                 owner_name,
-                file_name,
+                file_name: Self::application_path(&file_name),
                 file_sha,
                 ref_request: create_ref_request,
                 branch_name,
