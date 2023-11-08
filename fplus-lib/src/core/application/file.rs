@@ -330,3 +330,25 @@ pub struct AllocationRequest {
     pub is_active: bool,
     pub allocation_amount: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ValidNotaryList {
+    notaries: Vec<String>,
+}
+
+impl ValidNotaryList {
+    pub fn is_valid(&self, notary: &str) -> bool {
+        self.notaries.contains(&notary.to_string())
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ValidRKHList {
+    rkh: Vec<String>,
+}
+
+impl ValidRKHList {
+    pub fn is_valid(&self, rkh: &str) -> bool {
+        self.rkh.contains(&rkh.to_string())
+    }
+}

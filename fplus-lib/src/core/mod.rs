@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use futures::future;
 use octocrab::models::{
     pulls::PullRequest,
@@ -17,7 +19,9 @@ use crate::{
 
 use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, NotaryInput,
+    ValidNotaryList, ValidRKHList,
 };
+use rayon::prelude::*;
 
 pub mod application;
 
@@ -116,7 +120,7 @@ impl LDNApplication {
             Ok(response) => response,
             Err(_) => return Ok(None),
         };
-        let app = match serde_json::from_str::<ApplicationFile>(&response) {
+        let app = match ApplicationFile::from_str(&response) {
             Ok(app) => app,
             Err(e) => {
                 dbg!(&e);
@@ -141,35 +145,40 @@ impl LDNApplication {
                 .collect::<Vec<_>>(),
         )
         .await?;
-        let pull_requests = pull_requests
-            .into_iter()
-            .filter(|pr| pr.is_some())
+        let result = pull_requests
+            .par_iter()
+            .filter(|pr| {
+                if let Some(r) = pr {
+                    if String::from(r.2.id.clone()) == application_id.clone() {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            })
             .collect::<Vec<_>>();
-        for r in pull_requests {
-            let r = r.unwrap();
-            if String::from(r.2.id.clone()) == application_id.clone() {
+        if let Some(r) = result.get(0) {
+            if let Some(r) = r {
                 return Ok(Self {
                     github: gh,
                     application_id: r.2.id.clone(),
-                    file_sha: r.0,
-                    file_name: r.1,
-                    branch_name: r.3.head.ref_field,
+                    file_sha: r.0.clone(),
+                    file_name: r.1.clone(),
+                    branch_name: "main".to_string(),
                 });
             }
         }
-        let merged = Self::merged().await?;
-        match merged.iter().find(|(_, app)| app.id == application_id) {
-            Some(app) => {
-                return Ok(Self {
-                    github: gh,
-                    application_id: app.1.id.clone(),
-                    file_sha: app.0.sha.clone(),
-                    file_name: app.0.path.clone(),
-                    branch_name: "main".to_string(),
-                })
-            }
-            None => return Err(LDNError::Load(format!("No Apps Found!"))),
-        };
+
+        let app = Self::single_merged(application_id).await?;
+        return Ok(Self {
+            github: gh,
+            application_id: app.1.id.clone(),
+            file_sha: app.0.sha.clone(),
+            file_name: app.0.path.clone(),
+            branch_name: "main".to_string(),
+        });
     }
 
     pub async fn active(filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
@@ -413,25 +422,23 @@ impl LDNApplication {
         issue_number: String,
     ) -> Result<(ParsedIssue, String), LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
-        let issue = match gh.list_issue(issue_number.parse().unwrap()).await {
-            Ok(issue) => issue,
-            Err(e) => {
-                return Err(LDNError::Load(format!(
-                    "Application issue {} does not exist /// {}",
+        let issue = gh
+            .list_issue(issue_number.parse().unwrap())
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to retrieve issue {} from GitHub. Reason: {}",
                     issue_number, e
-                )))
-            }
-        };
-        let issue_body = match issue.body {
-            Some(body) => body,
-            None => {
-                return Err(LDNError::Load(format!(
-                    "Application issue {} is empty",
-                    issue_number
-                )))
-            }
-        };
-        Ok((ParsedIssue::from_issue_body(&issue_body), issue.user.login))
+                ))
+            })?;
+        if let Some(issue_body) = issue.body {
+            Ok((ParsedIssue::from_issue_body(&issue_body), issue.user.login))
+        } else {
+            Err(LDNError::Load(format!(
+                "Failed to retrieve issue {} from GitHub. Reason: {}",
+                issue_number, "No body"
+            )))
+        }
     }
 
     /// Return Application state
@@ -443,88 +450,117 @@ impl LDNApplication {
     /// Return Application state
     pub async fn total_dc_reached(application_id: String) -> Result<bool, LDNError> {
         let merged = Self::merged().await?;
-        let app = match merged.iter().find(|(_, app)| app.id == application_id) {
-            Some(app) => app,
-            None => {
-                return Err(LDNError::Load(format!(
-                    "Application issue {} does not exist",
-                    application_id
-                )))
-            }
-        };
-        match app.1.lifecycle.get_state() {
-            AppState::Granted => {
-                let app = app.1.reached_total_datacap();
-                let gh: GithubWrapper<'_> = GithubWrapper::new();
-                let ldn_app = LDNApplication::load(application_id.clone()).await?;
-                let ContentItems { items } = gh.get_file(&ldn_app.file_name, "main").await.unwrap();
-                Self::issue_full_dc(app.issue_number.clone()).await?;
-
-                LDNPullRequest::create_refill_pr(
-                    app.id.clone(),
-                    app.client.name.clone(),
-                    serde_json::to_string_pretty(&app).unwrap(),
-                    ldn_app.file_name.clone(),
-                    format!("{}-total-dc-reached", app.id),
-                    items[0].sha.clone(),
-                )
-                .await?;
-                // let app_file: ApplicationFile = self.file().await?;
-                // let file_content = serde_json::to_string_pretty(&app_file).unwrap();
-                Ok(true)
-            }
-            _ => Ok(false),
+        let app = merged
+            .par_iter()
+            .find_first(|(_, app)| app.id == application_id);
+        if app.is_some() && app.unwrap().1.lifecycle.get_state() == AppState::Granted {
+            let app = app.unwrap().1.reached_total_datacap();
+            let gh: GithubWrapper<'_> = GithubWrapper::new();
+            let ldn_app = LDNApplication::load(application_id.clone()).await?;
+            let ContentItems { items } = gh.get_file(&ldn_app.file_name, "main").await.unwrap();
+            Self::issue_full_dc(app.issue_number.clone()).await?;
+            LDNPullRequest::create_refill_pr(
+                app.id.clone(),
+                app.client.name.clone(),
+                serde_json::to_string_pretty(&app).unwrap(),
+                ldn_app.file_name.clone(),
+                format!("{}-total-dc-reached", app.id),
+                items[0].sha.clone(),
+            )
+            .await?;
+            Ok(true)
+        } else {
+            return Err(LDNError::Load(format!(
+                "Application issue {} does not exist",
+                application_id
+            )));
         }
     }
 
     fn content_items_to_app_file(file: ContentItems) -> Result<ApplicationFile, LDNError> {
-        let f = match &file.items[0].content {
-            Some(f) => f,
-            None => return Err(LDNError::Load(format!("Application file is corrupted",))),
-        };
-        match base64::decode(&f.replace("\n", "")) {
-            Some(f) => {
-                return Ok(ApplicationFile::from(f));
-            }
-            None => {
-                return Err(LDNError::Load(format!(
-                    "Application issue file is corrupted",
-                )))
-            }
-        }
+        let f = &file
+            .clone()
+            .take_items()
+            .get(0)
+            .and_then(|f| f.content.clone())
+            .and_then(|f| base64::decode(&f.replace("\n", "")))
+            .ok_or(LDNError::Load(format!("Application file is corrupted",)))?;
+        return Ok(ApplicationFile::from(f.clone()));
     }
 
     pub async fn file(&self) -> Result<ApplicationFile, LDNError> {
-        match self
+        if let Some(file) = self
             .github
             .get_file(&self.file_name, &self.branch_name)
             .await
+            .ok()
         {
-            Ok(file) => Ok(LDNApplication::content_items_to_app_file(file)?),
-            Err(e) => {
-                return Err(LDNError::Load(format!(
-                    "Application issue {} file does not exist /// {}",
-                    self.application_id, e
-                )))
-            }
+            return Ok(LDNApplication::content_items_to_app_file(file)?);
+        } else {
+            return Err(LDNError::Load(format!(
+                "Application issue {} file does not exist ///",
+                self.application_id
+            )));
+        }
+    }
+
+    async fn fetch_noatries() -> Result<ValidNotaryList, LDNError> {
+        let gh = GithubWrapper::new();
+        let notaries = gh
+            .get_file("data/notaries.json", "main")
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve notaries /// {}", e)))?;
+
+        let notaries = &notaries.items[0]
+            .content
+            .clone()
+            .and_then(|f| base64::decode_notary(&f.replace("\n", "")))
+            .and_then(|f| Some(f));
+
+        if let Some(notaries) = notaries {
+            return Ok(notaries.clone());
+        } else {
+            return Err(LDNError::Load(format!("Failed to retrieve notaries ///")));
+        }
+    }
+
+    async fn fetch_rkh() -> Result<ValidRKHList, LDNError> {
+        let gh = GithubWrapper::new();
+        let rkh = gh
+            .get_file("data/rkh.json", "main")
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve rkh /// {}", e)))?;
+
+        let rkh = &rkh.items[0]
+            .content
+            .clone()
+            .and_then(|f| base64::decode_rkh(&f.replace("\n", "")))
+            .and_then(|f| Some(f));
+
+        if let Some(rkh) = rkh {
+            return Ok(rkh.clone());
+        } else {
+            return Err(LDNError::Load(format!("Failed to retrieve notaries ///")));
         }
     }
 
     async fn single_merged(application_id: String) -> Result<(Content, ApplicationFile), LDNError> {
-        let merged = LDNApplication::merged().await?;
-        let app = match merged.into_iter().find(|(_, app)| app.id == application_id) {
-            Some(app) => Ok(app),
-            None => Err(LDNError::Load(format!(
-                "Application issue {} does not exist",
-                application_id
-            ))),
-        };
-        app
+        Ok(LDNApplication::merged()
+            .await?
+            .into_iter()
+            .find(|(_, app)| app.id == application_id)
+            .map_or_else(
+                || {
+                    return Err(LDNError::Load(format!(
+                        "Application issue {} does not exist",
+                        application_id
+                    )));
+                },
+                |app| Ok(app),
+            )?)
     }
 
-    pub async fn think_merged(
-        item: Content,
-    ) -> Result<Option<(Content, ApplicationFile)>, LDNError> {
+    async fn map_merged(item: Content) -> Result<Option<(Content, ApplicationFile)>, LDNError> {
         if item.download_url.is_none() {
             return Ok(None);
         }
@@ -537,7 +573,7 @@ impl LDNApplication {
             .text()
             .await
             .map_err(|e| LDNError::Load(format!("here1 {}", e)))?;
-        let app = match serde_json::from_str::<ApplicationFile>(&file) {
+        let app = match ApplicationFile::from_str(&file) {
             Ok(app) => {
                 if app.lifecycle.is_active {
                     app
@@ -567,7 +603,7 @@ impl LDNApplication {
             all_files
                 .items
                 .into_iter()
-                .map(|fd| LDNApplication::think_merged(fd))
+                .map(|fd| LDNApplication::map_merged(fd))
                 .collect::<Vec<_>>(),
         )
         .await
@@ -648,10 +684,13 @@ impl LDNApplication {
                     dbg!("json validated_by {}", &validated_by);
                     let validated_at: String = application_file.lifecycle.validated_at;
                     dbg!("json validated_at {}", &validated_at);
+                    let valid_rkh = Self::fetch_rkh().await?;
                     if !validated_at.is_empty()
                         && !validated_by.is_empty()
                         && user_handle == BOT_USER
+                        && valid_rkh.is_valid(&validated_by)
                     {
+                        dbg!("Validated by SSA Bot");
                         return Ok(true);
                     }
                     dbg!("State is greater than submitted but not validated");
@@ -686,10 +725,6 @@ impl LDNApplication {
 
     pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
         dbg!("Validating approval for PR number {}", pr_number);
-        let valid_notaries = vec![
-            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
-            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
-        ];
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
@@ -713,13 +748,9 @@ impl LDNApplication {
                             return Ok(false);
                         }
                         let signer = signers.0.get(1).unwrap();
-                        // let signer_github_handle = signer.github_username.clone();
                         let signer_address = signer.signing_address.clone();
-                        if valid_notaries
-                            .into_iter()
-                            .find(|n| n == &signer_address)
-                            .is_some()
-                        {
+                        let valid_notaries = Self::fetch_noatries().await?;
+                        if valid_notaries.is_valid(&signer_address) {
                             dbg!("Valid notary");
                             return Ok(true);
                         }
@@ -738,11 +769,6 @@ impl LDNApplication {
 
     pub async fn validate_proposal(pr_number: u64) -> Result<bool, LDNError> {
         dbg!("Validating proposal for PR number {}", pr_number);
-        let valid_notaries = vec![
-            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
-            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
-        ];
-        // let notary_list: NotaryList = serde_json::fr
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
@@ -765,13 +791,9 @@ impl LDNApplication {
                             return Ok(false);
                         }
                         let signer = signers.0.get(0).unwrap();
-                        // let signer_github_handle = signer.github_username.clone();
                         let signer_address = signer.signing_address.clone();
-                        if valid_notaries
-                            .into_iter()
-                            .find(|n| n == &signer_address)
-                            .is_some()
-                        {
+                        let valid_notaries = Self::fetch_noatries().await?;
+                        if valid_notaries.is_valid(&signer_address) {
                             dbg!("Valid notary");
                             return Ok(true);
                         }
