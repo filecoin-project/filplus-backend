@@ -9,12 +9,12 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base64,
+    base64, config,
     error::LDNError,
     external_services::github::{
         CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
     },
-    parsers::ParsedIssue, config,
+    parsers::ParsedIssue,
 };
 
 use self::application::file::{
@@ -727,33 +727,6 @@ impl LDNApplication {
 
     pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
         dbg!("Validating approval for PR number {}", pr_number);
-        let gh = GithubWrapper::new();
-        let data_path = "data";
-        let mut data_files = gh.get_files(&data_path).await.map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to retrieve all files from GitHub. Reason: {}",
-                e
-            ))
-        })?;
-
-        let notaries_content = data_files.items.iter()
-        .find(|content| content.name == "notaries.json")
-        .ok_or_else(|| LDNError::Load("notaries.json not found".to_string()))?
-        .decoded_content()
-        .ok_or_else(|| LDNError::Load("Failed to decode content for notaries.json".to_string()))?;
-
-                
-        let rkh_content = data_files.items.iter()
-        .find(|content| content.name == "rkh.json")
-        .ok_or_else(|| LDNError::Load("rkh.json not found".to_string()))?
-        .decoded_content()
-        .ok_or_else(|| LDNError::Load("Failed to decode content for rkh.json".to_string()))?;
-
-        let valid_notaries: Vec<&str> = vec![
-            "f1fqzg6wzl6xfjikjx45mscj6ajziktnioql4otfq",
-            "f1hqrkc2yn2upnv5yj7ijfqwssk2gylrzsozascsy",
-        ];
->>>>>>> cec07ff (getting notaries and rkh json files)
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
@@ -1113,7 +1086,11 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
-        format!("{}/{}.json", config::get_applications_folder(), application_id)
+        format!(
+            "{}/{}.json",
+            config::get_applications_folder(),
+            application_id
+        )
     }
 
     pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
