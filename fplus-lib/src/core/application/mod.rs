@@ -106,3 +106,10 @@ impl file::ApplicationFile {
         }
     }
 }
+
+impl std::str::FromStr for file::ApplicationFile {
+    type Err = serde_json::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
+}
