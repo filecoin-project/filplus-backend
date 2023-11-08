@@ -738,10 +738,11 @@ impl LDNApplication {
 
         let notaries_content = data_files.items.iter()
         .find(|content| content.name == "notaries.json")
-        .ok_or_else(|| LDNError::Load("notaries.json not found".to_string()))?
+        .ok_or_else(|| LDNError::Load("rkh.json not found".to_string()))?
         .decoded_content()
         .ok_or_else(|| LDNError::Load("Failed to decode content for notaries.json".to_string()))?;
 
+                
         let rkh_content = data_files.items.iter()
         .find(|content| content.name == "rkh.json")
         .ok_or_else(|| LDNError::Load("rkh.json not found".to_string()))?
