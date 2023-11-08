@@ -672,7 +672,7 @@ impl LDNApplication {
             Ok(application_file) => {
                 let app_state = application_file.lifecycle.get_state();
                 dbg!("Validating trigger: App state is {:?}", app_state.as_str());
-                if app_state > AppState::Submitted {
+                if app_state == AppState::ReadyToSign {
                     let app_file = Self::single_active(pr_number).await?;
                     if app_file.allocation.0.len() > 1 {
                         dbg!("Application allocation is not empty - need to be defined");
