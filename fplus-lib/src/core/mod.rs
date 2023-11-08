@@ -9,7 +9,7 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base64, config,
+    base64,
     error::LDNError,
     external_services::github::{
         CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
@@ -591,8 +591,8 @@ impl LDNApplication {
 
     pub async fn merged() -> Result<Vec<(Content, ApplicationFile)>, LDNError> {
         let gh = GithubWrapper::new();
-        let applications_path = config::get_applications_folder().clone();
-        let mut all_files = gh.get_files(&applications_path).await.map_err(|e| {
+        let applications_path = "applications";
+        let mut all_files = gh.get_files(applications_path).await.map_err(|e| {
             LDNError::Load(format!(
                 "Failed to retrieve all files from GitHub. Reason: {}",
                 e
@@ -1086,11 +1086,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
-        format!(
-            "{}/{}.json",
-            config::get_applications_folder(),
-            application_id
-        )
+        format!("{}/{}.json", "applications", application_id)
     }
 
     pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
