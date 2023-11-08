@@ -166,7 +166,7 @@ impl LDNApplication {
                     application_id: r.2.id.clone(),
                     file_sha: r.0.clone(),
                     file_name: r.1.clone(),
-                    branch_name: "main".to_string(),
+                    branch_name: r.3.head.ref_field.clone(),
                 });
             }
         }
@@ -283,10 +283,12 @@ impl LDNApplication {
                     );
                     let app_file = app_file.complete_governance_review(info.actor.clone(), request);
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
+                    let app_path = &self.file_name.clone();
+                    let app_branch = self.branch_name.clone();
                     Self::issue_ready_to_sign(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
-                        LDNPullRequest::application_path(&self.file_name),
-                        self.branch_name.clone(),
+                        app_path.to_string(),
+                        app_branch,
                         LDNPullRequest::application_move_to_proposal_commit(&info.actor),
                         file_content,
                         self.file_sha.clone(),
@@ -339,7 +341,7 @@ impl LDNApplication {
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     Self::issue_start_sign_dc(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
-                        LDNPullRequest::application_path(&self.file_name),
+                        self.file_name.to_string(),
                         self.branch_name.clone(),
                         LDNPullRequest::application_move_to_approval_commit(
                             &signer.signing_address,
@@ -388,7 +390,7 @@ impl LDNApplication {
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     Self::issue_granted(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
-                        LDNPullRequest::application_path(&self.file_name),
+                        self.file_name.to_string(),
                         self.branch_name.clone(),
                         LDNPullRequest::application_move_to_confirmed_commit(
                             &signer.signing_address,
@@ -490,18 +492,21 @@ impl LDNApplication {
     }
 
     pub async fn file(&self) -> Result<ApplicationFile, LDNError> {
-        if let Some(file) = self
+        match self
             .github
             .get_file(&self.file_name, &self.branch_name)
             .await
-            .ok()
         {
-            return Ok(LDNApplication::content_items_to_app_file(file)?);
-        } else {
-            return Err(LDNError::Load(format!(
-                "Application issue {} file does not exist ///",
-                self.application_id
-            )));
+            Ok(file) => {
+                return Ok(LDNApplication::content_items_to_app_file(file)?);
+            }
+            Err(e) => {
+                dbg!(&e);
+                return Err(LDNError::Load(format!(
+                    "Application issue {} file does not exist ///",
+                    self.application_id
+                )));
+            }
         }
     }
 
@@ -700,7 +705,7 @@ impl LDNApplication {
                     let app_file = app_file.move_back_to_governance_review();
                     let ldn_application = LDNApplication::load(app_file.id.clone()).await?;
                     match LDNPullRequest::add_commit_to(
-                        LDNPullRequest::application_path(&ldn_application.file_name),
+                        ldn_application.file_name,
                         ldn_application.branch_name.clone(),
                         format!("Move application back to governance review"),
                         serde_json::to_string_pretty(&app_file).unwrap(),
@@ -1128,7 +1133,6 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use octocrab::models::issues::Issue;
     use tokio::time::{sleep, Duration};
 
     #[tokio::test]
@@ -1137,13 +1141,8 @@ mod tests {
         let gh: GithubWrapper = GithubWrapper::new();
 
         // let branches = gh.list_branches().await.unwrap();
-        let issue = gh.list_issue(473).await.unwrap();
-        let test_issue: Issue = gh
-            .create_issue("from test", &issue.body.unwrap())
-            .await
-            .unwrap();
         let ldn_application = LDNApplication::new_from_issue(CreateApplicationInfo {
-            issue_number: test_issue.number.to_string(),
+            issue_number: "473".to_string(),
         })
         .await
         .unwrap();
@@ -1240,7 +1239,6 @@ mod tests {
         sleep(Duration::from_millis(1000)).await;
 
         // // Cleanup
-        assert!(gh.close_issue(test_issue.number).await.is_ok());
         assert!(gh
             .close_pull_request(
                 gh.get_pull_request_by_head(&LDNPullRequest::application_branch_name(
