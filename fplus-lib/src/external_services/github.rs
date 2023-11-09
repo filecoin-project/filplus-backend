@@ -139,7 +139,11 @@ impl GithubWrapper {
     }
 
     pub async fn list_issue(&self, number: u64) -> Result<Issue, OctocrabError> {
-        let iid = self.inner.issues(&self.owner, &self.repo).get(number).await?;
+        let iid = self
+            .inner
+            .issues(&self.owner, &self.repo)
+            .get(number)
+            .await?;
         Ok(iid)
     }
 
@@ -244,7 +248,11 @@ impl GithubWrapper {
     }
 
     pub async fn list_pull_request(&self, number: u64) -> Result<PullRequest, OctocrabError> {
-        let iid = self.inner.pulls(&self.owner, &self.repo).get(number).await?;
+        let iid = self
+            .inner
+            .pulls(&self.owner, &self.repo)
+            .get(number)
+            .await?;
         Ok(iid)
     }
 
@@ -301,7 +309,11 @@ impl GithubWrapper {
         &self,
         number: u64,
     ) -> Result<octocrab::models::pulls::PullRequest, OctocrabError> {
-        let iid = self.inner.pulls(&self.owner, &self.repo).get(number).await?;
+        let iid = self
+            .inner
+            .pulls(&self.owner, &self.repo)
+            .get(number)
+            .await?;
         Ok(iid)
     }
 
