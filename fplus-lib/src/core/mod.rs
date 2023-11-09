@@ -43,7 +43,7 @@ pub struct CompleteNewApplicationProposalInfo {
 
 #[derive(Debug)]
 pub struct LDNApplication {
-    github: GithubWrapper<'static>,
+    github: GithubWrapper,
     pub application_id: String,
     pub file_sha: String,
     pub file_name: String,
@@ -458,7 +458,7 @@ impl LDNApplication {
             .find_first(|(_, app)| app.id == application_id);
         if app.is_some() && app.unwrap().1.lifecycle.get_state() == AppState::Granted {
             let app = app.unwrap().1.reached_total_datacap();
-            let gh: GithubWrapper<'_> = GithubWrapper::new();
+            let gh: GithubWrapper = GithubWrapper::new();
             let ldn_app = LDNApplication::load(application_id.clone()).await?;
             let ContentItems { items } = gh.get_file(&ldn_app.file_name, "main").await.unwrap();
             Self::issue_full_dc(app.issue_number.clone()).await?;
@@ -652,7 +652,7 @@ impl LDNApplication {
                 app.id.clone(),
                 app.client.name.clone(),
                 serde_json::to_string_pretty(&app_file).unwrap(),
-                content.name.clone(), // filename
+                content.path.clone(), // filename
                 request_id.clone(),
                 content.sha,
             )
@@ -662,72 +662,87 @@ impl LDNApplication {
         Err(LDNError::Load("Failed to get application file".to_string()))
     }
 
-    pub async fn validate_trigger(pr_number: u64, user_handle: &str) -> Result<bool, LDNError> {
+    pub async fn validate_trigger(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
         dbg!(
             "Validating trigger for PR number {} with user handle {}",
             pr_number,
-            user_handle
+            actor
         );
-        match LDNApplication::single_active(pr_number).await {
-            Ok(application_file) => {
-                let app_state = application_file.lifecycle.get_state();
-                dbg!("Validating trigger: App state is {:?}", app_state.as_str());
-                if app_state == AppState::ReadyToSign {
-                    let app_file = Self::single_active(pr_number).await?;
-                    if app_file.allocation.0.len() > 1 {
-                        dbg!("Application allocation is not empty - need to be defined");
-                        return Ok(false);
-                    }
-                    if app_file.allocation.0.len() == 1 {
-                        let allocation = app_file.allocation.0.get(0).unwrap();
-                        if allocation.signers.0.len() > 0 {
-                            dbg!("Allocation signers are not empty - need to be defined");
-                            return Ok(false);
-                        }
-                    }
-
-                    dbg!("State is greater than submitted");
-                    let validated_by = application_file.lifecycle.validated_by;
-                    dbg!("json validated_by {}", &validated_by);
-                    let validated_at: String = application_file.lifecycle.validated_at;
-                    dbg!("json validated_at {}", &validated_at);
-                    let valid_rkh = Self::fetch_rkh().await?;
-                    if !validated_at.is_empty()
+        if let Ok(application_file) = LDNApplication::single_active(pr_number).await {
+            let validated_by = application_file.lifecycle.validated_by.clone();
+            let validated_at = application_file.lifecycle.validated_at.clone();
+            let app_state = application_file.lifecycle.get_state();
+            let valid_rkh = Self::fetch_rkh().await?;
+            let res: bool = match app_state {
+                AppState::Submitted => return Ok(false),
+                AppState::ReadyToSign => {
+                    if application_file.allocation.0.len() > 0
+                        && application_file
+                            .allocation
+                            .0
+                            .get(0)
+                            .unwrap()
+                            .signers
+                            .0
+                            .len()
+                            > 0
+                    {
+                        false
+                    } else if !validated_at.is_empty()
                         && !validated_by.is_empty()
-                        && user_handle == BOT_USER
+                        && actor == BOT_USER
                         && valid_rkh.is_valid(&validated_by)
                     {
-                        dbg!("Validated by SSA Bot");
-                        return Ok(true);
+                        true
+                    } else {
+                        false
                     }
-                    dbg!("State is greater than submitted but not validated");
-                    // fetch application
-                    let app_file = app_file.move_back_to_governance_review();
-                    let ldn_application = LDNApplication::load(app_file.id.clone()).await?;
-                    match LDNPullRequest::add_commit_to(
-                        ldn_application.file_name,
-                        ldn_application.branch_name.clone(),
-                        format!("Move application back to governance review"),
-                        serde_json::to_string_pretty(&app_file).unwrap(),
-                        ldn_application.file_sha.clone(),
-                    )
-                    .await
-                    {
-                        Some(()) => {}
-                        None => {}
-                    };
-                    // change application state to "submitted"
-                    return Ok(false);
-                } else {
-                    dbg!("State is less than submitted");
-                    Ok(false)
                 }
+                AppState::StartSignDatacap => {
+                    if !validated_at.is_empty()
+                        && !validated_by.is_empty()
+                        && valid_rkh.is_valid(&validated_by)
+                    {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                AppState::Granted => {
+                    if !validated_at.is_empty()
+                        && !validated_by.is_empty()
+                        && valid_rkh.is_valid(&validated_by)
+                    {
+                        true
+                    } else {
+                        false
+                    }
+                }
+                AppState::TotalDatacapReached => true,
+                AppState::Error => return Ok(false),
+            };
+            if res {
+                dbg!("Validated");
+                return Ok(true);
             }
-            Err(e) => Err(LDNError::Load(format!(
-                "PR number {} not found: {}",
-                pr_number, e
-            ))),
-        }
+            let app_file = application_file.move_back_to_governance_review();
+            let ldn_application = LDNApplication::load(app_file.id.clone()).await?;
+            match LDNPullRequest::add_commit_to(
+                ldn_application.file_name,
+                ldn_application.branch_name.clone(),
+                format!("Move application back to governance review"),
+                serde_json::to_string_pretty(&app_file).unwrap(),
+                ldn_application.file_sha.clone(),
+            )
+            .await
+            {
+                Some(()) => {}
+                None => {}
+            };
+            return Ok(false);
+        };
+        dbg!("Failed to fetch Application File");
+        Ok(false)
     }
 
     pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
@@ -1043,7 +1058,7 @@ impl LDNPullRequest {
             .create_refill_merge_request(CreateRefillMergeRequestData {
                 application_id: application_id.clone(),
                 owner_name,
-                file_name: Self::application_path(&file_name),
+                file_name,
                 file_sha,
                 ref_request: create_ref_request,
                 branch_name,

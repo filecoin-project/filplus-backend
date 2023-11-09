@@ -31,22 +31,11 @@ struct RefData {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct RefList(pub Vec<RefData>);
 
-struct GithubParams<'a> {
-    pub owner: &'a str,
-    pub repo: &'a str,
+struct GithubParams {
+    pub owner: String,
+    pub repo: String,
     pub app_id: u64,
     pub installation_id: u64,
-}
-
-impl GithubParams<'static> {
-    fn test_env() -> Self {
-        Self {
-            owner: "filecoin-project",
-            repo: "filplus-tooling-backend-test",
-            app_id: 373258,
-            installation_id: 40514592,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -73,21 +62,26 @@ pub struct CreateMergeRequestData {
 }
 
 #[derive(Debug)]
-pub struct GithubWrapper<'a> {
+pub struct GithubWrapper {
     pub inner: Arc<Octocrab>,
-    pub owner: &'a str,
-    pub repo: &'a str,
+    pub owner: String,
+    pub repo: String,
 }
 
-impl GithubWrapper<'static> {
+impl GithubWrapper {
     pub fn new() -> Self {
-        let GithubParams {
-            owner,
-            repo,
-            app_id,
-            installation_id,
-        } = GithubParams::test_env();
         dotenv::dotenv().ok();
+        let owner = std::env::var("GITHUB_OWNER").unwrap_or("filecoin-project".to_string());
+        let repo =
+            std::env::var("GITHUB_REPO").unwrap_or("filplus-tooling-backend-test".to_string());
+        let app_id = std::env::var("GITHUB_APP_ID")
+            .unwrap_or("373258".to_string())
+            .parse::<u64>()
+            .unwrap_or(373258);
+        let installation_id = std::env::var("GITHUB_INSTALLATION_ID")
+            .unwrap_or("40514592".to_string())
+            .parse::<u64>()
+            .unwrap_or(40514592);
         let gh_private_key = match std::env::var("GH_PRIVATE_KEY") {
             Ok(g) => g,
             Err(_) => {
@@ -136,7 +130,7 @@ impl GithubWrapper<'static> {
     pub async fn list_issues(&self) -> Result<Vec<Issue>, OctocrabError> {
         let iid = self
             .inner
-            .issues(self.owner, self.repo)
+            .issues(&self.owner, &self.repo)
             .list()
             .state(State::Open)
             .send()
@@ -145,7 +139,7 @@ impl GithubWrapper<'static> {
     }
 
     pub async fn list_issue(&self, number: u64) -> Result<Issue, OctocrabError> {
-        let iid = self.inner.issues(self.owner, self.repo).get(number).await?;
+        let iid = self.inner.issues(&self.owner, &self.repo).get(number).await?;
         Ok(iid)
     }
 
@@ -156,7 +150,7 @@ impl GithubWrapper<'static> {
     ) -> Result<Comment, OctocrabError> {
         let iid = self
             .inner
-            .issues(self.owner, self.repo)
+            .issues(&self.owner, &self.repo)
             .create_comment(number, body)
             .await?;
         Ok(iid)
@@ -169,7 +163,7 @@ impl GithubWrapper<'static> {
     ) -> Result<Vec<Label>, OctocrabError> {
         let iid = self
             .inner
-            .issues(self.owner, self.repo)
+            .issues(&self.owner, &self.repo)
             .replace_all_labels(number, labels)
             .await?;
         Ok(iid)
@@ -178,7 +172,7 @@ impl GithubWrapper<'static> {
     pub async fn list_pull_requests(&self) -> Result<Vec<PullRequest>, OctocrabError> {
         let iid = self
             .inner
-            .pulls(self.owner, self.repo)
+            .pulls(&self.owner, &self.repo)
             .list()
             .state(State::Open)
             .send()
@@ -193,7 +187,7 @@ impl GithubWrapper<'static> {
     ) -> Result<octocrab::models::commits::Comment, OctocrabError> {
         let iid = self
             .inner
-            .commits(self.owner, self.repo)
+            .commits(&self.owner, &self.repo)
             .create_comment(branch_name, commit_body)
             .send()
             .await?;
@@ -206,7 +200,7 @@ impl GithubWrapper<'static> {
     ) -> Result<(u64, Vec<octocrab::models::pulls::FileDiff>), OctocrabError> {
         let iid: Page<octocrab::models::pulls::FileDiff> = self
             .inner
-            .pulls(self.owner, self.repo)
+            .pulls(&self.owner, &self.repo)
             .media_type(octocrab::params::pulls::MediaType::Full)
             .list_files(pr_number)
             .await?;
@@ -216,7 +210,7 @@ impl GithubWrapper<'static> {
     pub async fn list_branches(&self) -> Result<Vec<Branch>, OctocrabError> {
         let iid = self
             .inner
-            .repos(self.owner, self.repo)
+            .repos(&self.owner, &self.repo)
             .list_branches()
             .send()
             .await?;
@@ -250,7 +244,7 @@ impl GithubWrapper<'static> {
     }
 
     pub async fn list_pull_request(&self, number: u64) -> Result<PullRequest, OctocrabError> {
-        let iid = self.inner.pulls(self.owner, self.repo).get(number).await?;
+        let iid = self.inner.pulls(&self.owner, &self.repo).get(number).await?;
         Ok(iid)
     }
 
@@ -262,7 +256,7 @@ impl GithubWrapper<'static> {
     ) -> Result<PullRequest, OctocrabError> {
         let iid = self
             .inner
-            .pulls(self.owner, self.repo)
+            .pulls(&self.owner, &self.repo)
             .create(title, head, "main")
             .body(body)
             .maintainer_can_modify(true)
@@ -278,7 +272,7 @@ impl GithubWrapper<'static> {
     ) -> Result<PullRequest, OctocrabError> {
         let iid = self
             .inner
-            .pulls(self.owner, self.repo)
+            .pulls(&self.owner, &self.repo)
             .update(number)
             .body(body)
             .send()
@@ -295,7 +289,7 @@ impl GithubWrapper<'static> {
     ) -> Result<FileUpdate, OctocrabError> {
         let iid = self
             .inner
-            .repos(self.owner, self.repo)
+            .repos(&self.owner, &self.repo)
             .create_file(path, message, content)
             .branch(branch)
             .send()
@@ -307,7 +301,7 @@ impl GithubWrapper<'static> {
         &self,
         number: u64,
     ) -> Result<octocrab::models::pulls::PullRequest, OctocrabError> {
-        let iid = self.inner.pulls(self.owner, self.repo).get(number).await?;
+        let iid = self.inner.pulls(&self.owner, &self.repo).get(number).await?;
         Ok(iid)
     }
 
@@ -318,7 +312,7 @@ impl GithubWrapper<'static> {
     ) -> Result<ContentItems, octocrab::Error> {
         let iid = self
             .inner
-            .repos(self.owner, self.repo)
+            .repos(&self.owner, &self.repo)
             .get_content()
             .r#ref(branch)
             .path(path)
@@ -337,7 +331,7 @@ impl GithubWrapper<'static> {
     ) -> Result<FileUpdate, octocrab::Error> {
         let iid = self
             .inner
-            .repos(self.owner, self.repo)
+            .repos(&self.owner, &self.repo)
             .update_file(path, message, content, file_sha)
             .branch(branch)
             .send()
@@ -404,7 +398,7 @@ impl GithubWrapper<'static> {
     pub async fn create_issue(&self, title: &str, body: &str) -> Result<Issue, OctocrabError> {
         Ok(self
             .inner
-            .issues(self.owner, self.repo)
+            .issues(&self.owner, &self.repo)
             .create(title)
             .body(body)
             .send()
@@ -414,7 +408,7 @@ impl GithubWrapper<'static> {
     pub async fn close_issue(&self, issue_number: u64) -> Result<Issue, OctocrabError> {
         Ok(self
             .inner
-            .issues(self.owner, self.repo)
+            .issues(&self.owner, &self.repo)
             .update(issue_number)
             .state(IssueState::Closed)
             .send()
@@ -427,7 +421,7 @@ impl GithubWrapper<'static> {
     ) -> Result<Vec<PullRequest>, OctocrabError> {
         let mut pull_requests: Page<octocrab::models::pulls::PullRequest> = self
             .inner
-            .pulls(self.owner, self.repo)
+            .pulls(&self.owner, &self.repo)
             .list()
             .state(State::Open)
             .head(head)
@@ -441,7 +435,7 @@ impl GithubWrapper<'static> {
     pub async fn close_pull_request(&self, number: u64) -> Result<PullRequest, OctocrabError> {
         Ok(self
             .inner
-            .pulls(self.owner, self.repo)
+            .pulls(&self.owner, &self.repo)
             .update(number)
             .state(PullState::Closed)
             .send()
@@ -508,7 +502,7 @@ impl GithubWrapper<'static> {
     pub async fn merge_pull_request(&self, number: u64) -> Result<(), OctocrabError> {
         let _merge_res = self
             .inner
-            .pulls(self.owner, self.repo)
+            .pulls(&self.owner, &self.repo)
             .merge(number)
             .send()
             .await?;
@@ -519,7 +513,7 @@ impl GithubWrapper<'static> {
     pub async fn get_files(&self, path: &str) -> Result<ContentItems, OctocrabError> {
         let contents_items = self
             .inner
-            .repos(self.owner, self.repo)
+            .repos(&self.owner, &self.repo)
             .get_content()
             .path(path)
             .r#ref("main")
@@ -535,7 +529,7 @@ impl GithubWrapper<'static> {
     ) -> Result<ContentItems, OctocrabError> {
         let contents_items = self
             .inner
-            .repos(self.owner, self.repo)
+            .repos(&self.owner, &self.repo)
             .get_content()
             .r#ref(branch)
             .send()
