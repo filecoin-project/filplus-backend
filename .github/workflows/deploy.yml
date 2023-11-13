@@ -49,7 +49,11 @@ jobs:
             },
             "environment": { 
               "MONGODB_URL": "${{secrets.MONGODB_URL}}",
-              "GH_PRIVATE_KEY": "${{secrets.GH_PRIVATE_KEY}}"
+              "GH_PRIVATE_KEY": "${{secrets.GH_PRIVATE_KEY}}",
+              "GITHUB_OWNER": "${{secrets.GH_OWNER}}",
+              "GITHUB_REPO": "${{secrets.GH_REPO}}",
+              "GITHUB_APP_ID": "${{secrets.GH_APP_ID}}",
+              "GITHUB_INSTALLATION_ID": "${{secrets.GH_INSTALLATION_ID}}"
             }
           }
         }' > containers.json
@@ -70,7 +74,7 @@ jobs:
         
         # Deploy to Lightsail Container Service
         aws lightsail create-container-service-deployment \
-          --service-name fp-core \
+          --service-name fp-core-prod \
           --region us-east-2 \
           --containers file://containers.json \
           --public-endpoint file://public-endpoint.json
