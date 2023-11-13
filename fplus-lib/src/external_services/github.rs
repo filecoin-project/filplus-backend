@@ -95,6 +95,10 @@ impl GithubWrapper {
                 }
             }
         };
+				dbg!(&owner.to_string());
+				dbg!(&repo.to_string());
+				dbg!(&app_id.to_string());
+				dbg!(&installation_id.to_string());
         let connector = HttpsConnectorBuilder::new()
             .with_native_roots() // enabled the `rustls-native-certs` feature in hyper-rustls
             .https_only()
