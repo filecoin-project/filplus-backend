@@ -6,6 +6,7 @@ pub(crate) mod router;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    dotenv::dotenv().ok();
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
     HttpServer::new(move || {
         let cors = actix_cors::Cors::default()
