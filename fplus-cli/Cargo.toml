@@ -1,7 +1,7 @@
 [package]
 name = "fplus-cli"
 authors = ["jbesraa", "kokal33", "clriesco"]
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 description = "FPlus cli tool to validate different states of an application"
 license = "MIT OR Apache-2.0"
@@ -13,4 +13,4 @@ readme = "README.md"
 [dependencies]
 actix-web = "4.4.0"
 clap = {  version = "4.4.6", features = ["derive"] }
-fplus-lib = "1.0.3"
+fplus-lib = "1.0.4"

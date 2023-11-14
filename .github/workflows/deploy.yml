@@ -48,12 +48,12 @@ jobs:
               "8080": "HTTP"
             },
             "environment": { 
-              "MONGODB_URL": "${{secrets.MONGODB_URL}}",
               "GH_PRIVATE_KEY": "${{secrets.GH_PRIVATE_KEY}}",
               "GITHUB_OWNER": "${{secrets.GH_OWNER}}",
               "GITHUB_REPO": "${{secrets.GH_REPO}}",
               "GITHUB_APP_ID": "${{secrets.GH_APP_ID}}",
               "GITHUB_INSTALLATION_ID": "${{secrets.GH_INSTALLATION_ID}}"
+              "RUST_LOG": "debug"
             }
           }
         }' > containers.json

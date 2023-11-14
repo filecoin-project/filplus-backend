@@ -1,13 +1,19 @@
+use std::env;
+
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
 use env_logger;
+use log::info;
 
 pub(crate) mod router;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
+    let log_level = env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string());
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
+    info!("Logger initialized at log level: {}", log_level);
+
     HttpServer::new(move || {
         let cors = actix_cors::Cors::default()
             .allow_any_origin()
