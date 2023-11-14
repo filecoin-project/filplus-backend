@@ -293,7 +293,7 @@ mod tests {
         assert_eq!(parsed_ldn.version, 1);
         assert_eq!(
             parsed_ldn.id,
-            "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1v".to_string()
+            "f1gdesul7rjuv5uyxanyhtphz6n2vee7igdyax7ia".to_string()
         );
 
         assert_eq!(parsed_ldn.client.name, "ClientNme".to_string());
