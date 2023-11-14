@@ -364,7 +364,7 @@ impl GithubWrapper {
 
     pub async fn get_main_branch_sha(&self) -> Result<String, http::Error> {
         let url =
-            "https://api.github.com/repos/filecoin-project/filplus-tooling-backend-test/git/refs";
+				format!("https://api.github.com/repos/{}/{}/git/refs",self.owner, self.repo);
         let request = http::request::Builder::new()
             .method(http::Method::GET)
             .uri(url);
