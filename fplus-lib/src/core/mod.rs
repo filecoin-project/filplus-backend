@@ -1157,7 +1157,7 @@ mod tests {
 
         // let branches = gh.list_branches().await.unwrap();
         let ldn_application = LDNApplication::new_from_issue(CreateApplicationInfo {
-            issue_number: "473".to_string(),
+            issue_number: "5".to_string(),
         })
         .await
         .unwrap();
