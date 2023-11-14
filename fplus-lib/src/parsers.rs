@@ -287,7 +287,7 @@ mod tests {
     #[tokio::test]
     async fn test_parser() {
         let gh = GithubWrapper::new();
-        let issue = gh.list_issue(359).await.unwrap();
+        let issue = gh.list_issue(5).await.unwrap();
         let parsed_ldn = super::ParsedIssue::from_issue_body(&issue.body.unwrap());
 
         assert_eq!(parsed_ldn.version, 1);
