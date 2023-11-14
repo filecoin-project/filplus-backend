@@ -17,9 +17,9 @@ jobs:
     - uses: actions/checkout@v3
     - name: Run tests
       env: 
-          GH_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }}
-          GITHUB_OWNER: ${{secrets.GH_OWNER}},
-          GITHUB_REPO: ${{secrets.GH_REPO}},
-          GITHUB_APP_ID: ${{secrets.GH_APP_ID}},
-          GITHUB_INSTALLATION_ID: ${{secrets.GH_INSTALLATION_ID}}
+        GH_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }}
+        GITHUB_OWNER: ${{secrets.GH_OWNER}}
+        GITHUB_REPO: ${{secrets.GH_REPO}}
+        GITHUB_APP_ID: ${{secrets.GH_APP_ID}}
+        GITHUB_INSTALLATION_ID: ${{secrets.GH_INSTALLATION_ID}}
       run: cargo test -- --nocapture
