@@ -15,6 +15,8 @@ use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Pag
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::config::get_env_var_or_default;
+
 const GITHUB_API_URL: &str = "https://api.github.com";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -70,35 +72,29 @@ pub struct GithubWrapper {
 
 impl GithubWrapper {
     pub fn new() -> Self {
-        dotenv::dotenv().ok();
-        let owner = std::env::var("GITHUB_OWNER").unwrap_or("filecoin-project".to_string());
-        let repo =
-            std::env::var("GITHUB_REPO").unwrap_or("filplus-tooling-backend-test".to_string());
-        let app_id = std::env::var("GITHUB_APP_ID")
-            .unwrap_or("373258".to_string())
+        let owner = get_env_var_or_default("GITHUB_OWNER", "filecoin-project");
+        let repo = get_env_var_or_default("GITHUB_REPO", "filplus-tooling-backend-test");
+        let app_id = get_env_var_or_default("GITHUB_APP_ID", "373258")
             .parse::<u64>()
-            .unwrap_or(373258);
-        let installation_id = std::env::var("GITHUB_INSTALLATION_ID")
-            .unwrap_or("40514592".to_string())
+            .unwrap_or_else(|_| {
+                log::error!("Failed to parse GITHUB_APP_ID, using default");
+                373258
+            });
+        let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID", "40514592")
             .parse::<u64>()
-            .unwrap_or(40514592);
-        let gh_private_key = match std::env::var("GH_PRIVATE_KEY") {
-            Ok(g) => g,
-            Err(_) => {
-                println!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
-                match std::fs::read_to_string("gh-private-key.pem") {
-                    Ok(file_content) => file_content,
-                    Err(e) => {
-                        println!("Failed to read gh-private-key.pem. Error: {:?}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
-        };
-				println!("owner: {}", &owner);
-				println!("repo: {}", &repo);
-				println!("app_id: {}", &app_id);
-				println!("installation_id: {}", &installation_id);
+            .unwrap_or_else(|_| {
+                log::error!("Failed to parse GITHUB_INSTALLATION_ID, using default");
+                40514592
+            });
+        
+        let gh_private_key = std::env::var("GH_PRIVATE_KEY").unwrap_or_else(|_| {
+            log::warn!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
+            std::fs::read_to_string("gh-private-key.pem").unwrap_or_else(|e| {
+                log::error!("Failed to read gh-private-key.pem. Error: {:?}", e);
+                std::process::exit(1);
+            })
+        });
+
         let connector = HttpsConnectorBuilder::new()
             .with_native_roots() // enabled the `rustls-native-certs` feature in hyper-rustls
             .https_only()
