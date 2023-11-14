@@ -63,3 +63,7 @@ TBD
 
 ### License
 TBD
+
+### CHANGELOG
+1.0.4
+- The database workspace is temporarily removed from the project and as a dependency.

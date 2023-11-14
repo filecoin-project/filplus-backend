@@ -3,8 +3,7 @@
 members = [
   "fplus-lib",
   "fplus-http-server",
-  "fplus-cli",
-  "fplus-database"
+  "fplus-cli"
 ]
 
 resolver = "2"
