@@ -6,7 +6,7 @@ use hyper_rustls::HttpsConnectorBuilder;
 use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
-use octocrab::models::repos::{Branch, ContentItems, FileUpdate};
+use octocrab::models::repos::{Branch, ContentItems, FileUpdate, FileDeletion};
 use octocrab::models::{InstallationId, IssueState, Label};
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
@@ -283,6 +283,23 @@ impl GithubWrapper {
             .pulls(&self.owner, &self.repo)
             .update(number)
             .body(body)
+            .send()
+            .await?;
+        Ok(iid)
+    }
+
+    pub async fn delete_file(
+        &self,
+        path: &str,
+        branch: &str,
+        message: &str,
+        sha: &str,
+    ) -> Result<FileDeletion, OctocrabError> {
+        let iid = self
+            .inner
+            .repos(&self.owner, &self.repo)
+            .delete_file(path, message, sha)
+            .branch(branch)
             .send()
             .await?;
         Ok(iid)
