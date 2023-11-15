@@ -2,7 +2,8 @@ target
 .vscode
 .env
 Cargo.lock
-fplus-cli/Cargo.lcok
-fplus-database/Cargo.lcok
-fplus-http-server/Cargo.lcok
+fplus-cli/Cargo.lock
+fplus-lib/Cargo.lock
+fplus-database/Cargo.lock
+fplus-http-server/Cargo.lock
 

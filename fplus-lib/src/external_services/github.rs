@@ -72,6 +72,7 @@ pub struct GithubWrapper {
 
 impl GithubWrapper {
     pub fn new() -> Self {
+        dotenv::dotenv().ok();
         let owner = get_env_var_or_default("GITHUB_OWNER", "filecoin-project");
         let repo = get_env_var_or_default("GITHUB_REPO", "filplus-tooling-backend-test");
         let app_id = get_env_var_or_default("GITHUB_APP_ID", "373258")
