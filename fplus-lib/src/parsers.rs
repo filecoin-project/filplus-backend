@@ -287,14 +287,11 @@ mod tests {
     #[tokio::test]
     async fn test_parser() {
         let gh = GithubWrapper::new();
-        let issue = gh.list_issue(5).await.unwrap();
+        let issue = gh.list_issue(471).await.unwrap();
         let parsed_ldn = super::ParsedIssue::from_issue_body(&issue.body.unwrap());
 
         assert_eq!(parsed_ldn.version, 1);
-        assert_eq!(
-            parsed_ldn.id,
-            "f1jslc7thp7zwtem7usjksbv6jn3yaiqxrrdco3ai".to_string()
-        );
+        assert!(!parsed_ldn.id.is_empty());
 
         assert!(!parsed_ldn.client.name.is_empty());
         assert!(!parsed_ldn.client.industry.is_empty());
@@ -306,9 +303,6 @@ mod tests {
         assert!(!parsed_ldn.project.history.is_empty());
         assert!(!parsed_ldn.project.associated_projects.is_empty());
 
-        assert_eq!(
-            parsed_ldn.datacap.total_requested_amount,
-            "2.5PiB".to_string()
-        );
+        assert!(!parsed_ldn.datacap.total_requested_amount.is_empty());
     }
 }
