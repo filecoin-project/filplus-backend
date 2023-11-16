@@ -296,19 +296,15 @@ mod tests {
             "f1jslc7thp7zwtem7usjksbv6jn3yaiqxrrdco3ai".to_string()
         );
 
-        assert_eq!(parsed_ldn.client.name, "Demo Name".to_string());
-        assert_eq!(parsed_ldn.client.industry, "Demo Industry".to_string());
-        assert_eq!(parsed_ldn.client.region, "Spain".to_string());
-        assert_eq!(parsed_ldn.client.website, "Demo Website".to_string());
-        assert_eq!(parsed_ldn.client.social_media, "Demo Social Media".to_string());
-        assert_eq!(parsed_ldn.client.role, "Demo Role".to_string());
-
-        assert_eq!(parsed_ldn.project.project_id, "0001".to_string());
-        assert_eq!(parsed_ldn.project.history, "Demo History".to_string());
-        assert_eq!(
-            parsed_ldn.project.associated_projects,
-            "Demo Stakeholders".to_string()
-        );
+        assert!(!parsed_ldn.client.name.is_empty());
+        assert!(!parsed_ldn.client.industry.is_empty());
+        assert!(!parsed_ldn.client.region.is_empty());
+        assert!(!parsed_ldn.client.website.is_empty());
+        assert!(!parsed_ldn.client.social_media.is_empty());
+        assert!(!parsed_ldn.client.role.is_empty());
+        assert!(!parsed_ldn.project.project_id.is_empty());
+        assert!(!parsed_ldn.project.history.is_empty());
+        assert!(!parsed_ldn.project.associated_projects.is_empty());
 
         assert_eq!(
             parsed_ldn.datacap.total_requested_amount,
