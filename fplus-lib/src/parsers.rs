@@ -293,26 +293,26 @@ mod tests {
         assert_eq!(parsed_ldn.version, 1);
         assert_eq!(
             parsed_ldn.id,
-            "f1gdesul7rjuv5uyxanyhtphz6n2vee7igdyax7ia".to_string()
+            "f1jslc7thp7zwtem7usjksbv6jn3yaiqxrrdco3ai".to_string()
         );
 
-        assert_eq!(parsed_ldn.client.name, "ClientNme".to_string());
-        assert_eq!(parsed_ldn.client.industry, "ClientIndustry".to_string());
-        assert_eq!(parsed_ldn.client.region, "Afghanistan".to_string());
-        assert_eq!(parsed_ldn.client.website, "ClientWebsite".to_string());
-        assert_eq!(parsed_ldn.client.social_media, "ClientSM".to_string());
-        assert_eq!(parsed_ldn.client.role, "ClientRole".to_string());
+        assert_eq!(parsed_ldn.client.name, "Demo Name".to_string());
+        assert_eq!(parsed_ldn.client.industry, "Demo Industry".to_string());
+        assert_eq!(parsed_ldn.client.region, "Spain".to_string());
+        assert_eq!(parsed_ldn.client.website, "Demo Website".to_string());
+        assert_eq!(parsed_ldn.client.social_media, "Demo Social Media".to_string());
+        assert_eq!(parsed_ldn.client.role, "Demo Role".to_string());
 
-        assert_eq!(parsed_ldn.project.project_id, "IDID".to_string());
-        assert_eq!(parsed_ldn.project.history, "history".to_string());
+        assert_eq!(parsed_ldn.project.project_id, "0001".to_string());
+        assert_eq!(parsed_ldn.project.history, "Demo History".to_string());
         assert_eq!(
             parsed_ldn.project.associated_projects,
-            "asodfjads".to_string()
+            "Demo Stakeholders".to_string()
         );
 
         assert_eq!(
             parsed_ldn.datacap.total_requested_amount,
-            "11GB".to_string()
+            "2.5PiB".to_string()
         );
     }
 }

@@ -1253,7 +1253,7 @@ mod tests {
         dbg!("waiting for 2 second");
         sleep(Duration::from_millis(1000)).await;
 
-        // // Cleanup
+        // Cleanup
         let remove_branch_request = gh
             .build_remove_ref_request(LDNPullRequest::application_branch_name(
                 &application_id.clone(),
