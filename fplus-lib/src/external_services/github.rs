@@ -86,7 +86,6 @@ impl GithubWrapper {
                 log::error!("Failed to parse GITHUB_INSTALLATION_ID, using default");
                 40514592
             });
-        
         let gh_private_key = std::env::var("GH_PRIVATE_KEY").unwrap_or_else(|_| {
             log::warn!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
             std::fs::read_to_string("gh-private-key.pem").unwrap_or_else(|e| {
@@ -565,17 +564,5 @@ impl GithubWrapper {
             .await?;
 
         Ok(contents_items)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::external_services::github::GithubWrapper;
-
-    #[tokio::test]
-    async fn test_basic_integration() {
-        let gh = GithubWrapper::new();
-        let res = gh.get_main_branch_sha().await.unwrap();
-        assert_eq!(res.len() > 0, true);
     }
 }

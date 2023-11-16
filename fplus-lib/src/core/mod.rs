@@ -1155,9 +1155,8 @@ mod tests {
         // Test Creating an application
         let gh: GithubWrapper = GithubWrapper::new();
 
-        // let branches = gh.list_branches().await.unwrap();
         let ldn_application = LDNApplication::new_from_issue(CreateApplicationInfo {
-            issue_number: "473".to_string(),
+            issue_number: "471".to_string(),
         })
         .await
         .unwrap();
@@ -1250,21 +1249,43 @@ mod tests {
             ldn_application_after_approval.app_state().await.unwrap(),
             AppState::Granted
         );
-        dbg!("waiting for 2 second");
-        sleep(Duration::from_millis(1000)).await;
+        dbg!("waiting for 3 second");
+        sleep(Duration::from_millis(3000)).await;
 
         // Cleanup
+        let head = &LDNPullRequest::application_branch_name(&application_id.clone());
+        match gh.get_pull_request_by_head(head).await {
+            Ok(prs) => {
+                let pr = prs.get(0);
+                if pr.is_some() {
+                    let number = pr.unwrap().number;
+                    match gh.merge_pull_request(number).await {
+                        Ok(_) => {
+                            dbg!("We merged the pr");
+                        }
+                        Err(_) => {
+                            dbg!("PR was merged by automation");
+                        }
+                    };
+                }
+            }
+            _ => {}
+        };
+        sleep(Duration::from_millis(3000)).await;
+        let file = gh
+            .get_file(&ldn_application.file_name, "main")
+            .await
+            .unwrap();
+        let file_sha = file.items[0].sha.clone();
+        let remove_file_request = gh
+            .delete_file(&ldn_application.file_name, "main", "remove file", &file_sha)
+            .await;
         let remove_branch_request = gh
             .build_remove_ref_request(LDNPullRequest::application_branch_name(
                 &application_id.clone(),
             ))
             .unwrap();
         assert!(gh.remove_branch(remove_branch_request).await.is_ok());
-        let file = gh.get_file(&ldn_application.file_name, "main").await.unwrap();
-        let file_sha = file.items[0].sha.clone();
-        let remove_file_request = gh
-            .delete_file(&ldn_application.file_name, "main", "remove file", &file_sha)
-            .await;
         assert!(remove_file_request.is_ok());
     }
 }
