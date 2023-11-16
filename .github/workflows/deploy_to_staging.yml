@@ -49,7 +49,7 @@ jobs:
               "8080": "HTTP"
             },
             "environment": { 
-              "GH_PRIVATE_KEY": "${{secrets.GH_STAGING_PRIVATE_KEY}}",
+              "GH_PRIVATE_KEY": "${{secrets.GH_STAGING_PRIVATE_KEY}}"
             }
           }
         }' > containers.json
