@@ -1,4 +1,4 @@
-name: Docker Image CI/CD Action
+name: Production Deployment
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
      - '*'
 
 jobs:
-  deploy_image:
+  deploy_to_prod:
     runs-on: ubuntu-latest
 
     steps:
