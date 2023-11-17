@@ -6,7 +6,7 @@ use hyper_rustls::HttpsConnectorBuilder;
 use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
-use octocrab::models::repos::{Branch, ContentItems, FileUpdate, FileDeletion};
+use octocrab::models::repos::{Branch, ContentItems, FileDeletion, FileUpdate};
 use octocrab::models::{InstallationId, IssueState, Label};
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
@@ -87,7 +87,9 @@ impl GithubWrapper {
                 40514592
             });
         let gh_private_key = std::env::var("GH_PRIVATE_KEY").unwrap_or_else(|_| {
-            log::warn!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
+            log::warn!(
+                "GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem"
+            );
             std::fs::read_to_string("gh-private-key.pem").unwrap_or_else(|e| {
                 log::error!("Failed to read gh-private-key.pem. Error: {:?}", e);
                 std::process::exit(1);
@@ -379,8 +381,10 @@ impl GithubWrapper {
     }
 
     pub async fn get_main_branch_sha(&self) -> Result<String, http::Error> {
-        let url =
-				format!("https://api.github.com/repos/{}/{}/git/refs",self.owner, self.repo);
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/git/refs",
+            self.owner, self.repo
+        );
         let request = http::request::Builder::new()
             .method(http::Method::GET)
             .uri(url);

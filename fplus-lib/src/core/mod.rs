@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base64,
+    config::get_env_var_or_default,
     error::LDNError,
     external_services::github::{
         CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
@@ -25,7 +26,8 @@ use rayon::prelude::*;
 
 pub mod application;
 
-const BOT_USER: &str = "filplus-github-bot-read-write[bot]";
+const DEV_BOT_USER: &str = "filplus-github-bot-read-write[bot]";
+const PROD_BOT_USER: &str = "filplus-falcon[bot]";
 
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
@@ -673,6 +675,7 @@ impl LDNApplication {
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
             let valid_rkh = Self::fetch_rkh().await?;
+            let bot_user = get_env_var_or_default("FILPLUS_ENV", "dev");
             let res: bool = match app_state {
                 AppState::Submitted => return Ok(false),
                 AppState::ReadyToSign => {
@@ -690,7 +693,7 @@ impl LDNApplication {
                         false
                     } else if !validated_at.is_empty()
                         && !validated_by.is_empty()
-                        && actor == BOT_USER
+                        && actor == bot_user
                         && valid_rkh.is_valid(&validated_by)
                     {
                         true
@@ -1148,7 +1151,7 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use env_logger::{Builder, Env};   
+    use env_logger::{Builder, Env};
     use tokio::time::{sleep, Duration};
 
     #[tokio::test]
@@ -1156,71 +1159,94 @@ mod tests {
         // Set logging
         Builder::from_env(Env::default().default_filter_or("info")).init();
         log::info!("Starting end-to-end test");
-    
+
         // Test Creating an application
         let gh: GithubWrapper = GithubWrapper::new();
-    
+
         log::info!("Creating a new LDNApplication from issue");
         let ldn_application = match LDNApplication::new_from_issue(CreateApplicationInfo {
             issue_number: "471".to_string(),
-        }).await {
+        })
+        .await
+        {
             Ok(app) => app,
             Err(e) => {
                 log::error!("Failed to create LDNApplication: {}", e);
                 return;
             }
         };
-    
+
         let application_id = ldn_application.application_id.to_string();
         log::info!("LDNApplication created with ID: {}", application_id);
-    
+
         // Validate file creation
         log::info!("Validating file creation for application");
-        if let Err(e) = gh.get_file(&ldn_application.file_name, &ldn_application.branch_name).await {
-            log::warn!("File validation failed for application ID {}: {}", application_id, e);
+        if let Err(e) = gh
+            .get_file(&ldn_application.file_name, &ldn_application.branch_name)
+            .await
+        {
+            log::warn!(
+                "File validation failed for application ID {}: {}",
+                application_id,
+                e
+            );
         }
-    
+
         // Validate pull request creation
         log::info!("Validating pull request creation for application");
-        if let Err(e) = gh.get_pull_request_by_head(&LDNPullRequest::application_branch_name(application_id.as_str())).await {
-            log::warn!("Pull request validation failed for application ID {}: {}", application_id, e);
+        if let Err(e) = gh
+            .get_pull_request_by_head(&LDNPullRequest::application_branch_name(
+                application_id.as_str(),
+            ))
+            .await
+        {
+            log::warn!(
+                "Pull request validation failed for application ID {}: {}",
+                application_id,
+                e
+            );
         }
-    
+
         sleep(Duration::from_millis(2000)).await;
-    
+
         // Test Triggering an application
         log::info!("Loading application for triggering");
-        let ldn_application_before_trigger = match LDNApplication::load(application_id.clone()).await {
-            Ok(app) => app,
-            Err(e) => {
-                log::error!("Failed to load application for triggering: {}", e);
-                return;
-            }
-        };
-    
+        let ldn_application_before_trigger =
+            match LDNApplication::load(application_id.clone()).await {
+                Ok(app) => app,
+                Err(e) => {
+                    log::error!("Failed to load application for triggering: {}", e);
+                    return;
+                }
+            };
+
         log::info!("Completing governance review");
-        if let Err(e) = ldn_application_before_trigger.complete_governance_review(CompleteGovernanceReviewInfo {
-            actor: "actor_address".to_string(),
-        }).await {
+        if let Err(e) = ldn_application_before_trigger
+            .complete_governance_review(CompleteGovernanceReviewInfo {
+                actor: "actor_address".to_string(),
+            })
+            .await
+        {
             log::error!("Failed to complete governance review: {}", e);
             return;
         }
-    
-        let ldn_application_after_trigger = match LDNApplication::load(application_id.clone()).await {
+
+        let ldn_application_after_trigger = match LDNApplication::load(application_id.clone()).await
+        {
             Ok(app) => app,
             Err(e) => {
                 log::error!("Failed to load application after triggering: {}", e);
                 return;
             }
         };
-    
+
         assert_eq!(
             ldn_application_after_trigger.app_state().await.unwrap(),
             AppState::ReadyToSign
         );
         log::info!("Application state updated to ReadyToSign");
         sleep(Duration::from_millis(2000)).await;
-    
+
         // Cleanup
         log::info!("Starting cleanup process");
         let head = &LDNPullRequest::application_branch_name(&application_id);
@@ -1236,9 +1262,9 @@ mod tests {
             }
             Err(e) => log::warn!("Failed to get pull request by head: {}", e),
         };
-    
+
         sleep(Duration::from_millis(3000)).await;
-    
+
         let file = match gh.get_file(&ldn_application.file_name, "main").await {
             Ok(f) => f,
             Err(e) => {
@@ -1246,18 +1272,25 @@ mod tests {
                 return;
             }
         };
-    
+
         let file_sha = file.items[0].sha.clone();
-        let remove_file_request = gh.delete_file(&ldn_application.file_name, "main", "remove file", &file_sha).await;
-        let remove_branch_request = gh.build_remove_ref_request(LDNPullRequest::application_branch_name(&application_id)).unwrap();
-    
+        let remove_file_request = gh
+            .delete_file(&ldn_application.file_name, "main", "remove file", &file_sha)
+            .await;
+        let remove_branch_request = gh
+            .build_remove_ref_request(LDNPullRequest::application_branch_name(&application_id))
+            .unwrap();
+
         if let Err(e) = gh.remove_branch(remove_branch_request).await {
             log::warn!("Failed to remove branch: {}", e);
         }
         if let Err(e) = remove_file_request {
             log::warn!("Failed to remove file: {}", e);
         }
-    
-        log::info!("End-to-end test completed for application ID: {}", application_id);
+
+        log::info!(
+            "End-to-end test completed for application ID: {}",
+            application_id
+        );
     }
 }
