@@ -1,4 +1,4 @@
-name: Staging CI/CD
+name: End to End Tests
 
 on:
   pull_request:
