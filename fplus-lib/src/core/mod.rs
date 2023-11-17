@@ -675,7 +675,11 @@ impl LDNApplication {
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
             let valid_rkh = Self::fetch_rkh().await?;
-            let bot_user = get_env_var_or_default("FILPLUS_ENV", "dev");
+            let bot_user = if get_env_var_or_default("FILPLUS_ENV", "dev") == "prod" {
+                PROD_BOT_USER
+            } else {
+                DEV_BOT_USER
+            };            
             let res: bool = match app_state {
                 AppState::Submitted => return Ok(false),
                 AppState::ReadyToSign => {
