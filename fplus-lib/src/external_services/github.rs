@@ -70,6 +70,21 @@ pub struct GithubWrapper {
     pub repo: String,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct CommitData {
+    commit: Commit,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Commit {
+    author: Author,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Author {
+    name: String,
+}
+
 impl GithubWrapper {
     pub fn new() -> Self {
         let owner = get_env_var_or_default("GITHUB_OWNER", "filecoin-project");
@@ -569,4 +584,47 @@ impl GithubWrapper {
 
         Ok(contents_items)
     }
+
+    pub async fn get_last_commit_author(&self, pr_number: u64) -> Result<String, http::Error> {
+        let url = format!(
+            "https://api.github.com/repos/{}/{}/pulls/{}/commits",
+            self.owner, self.repo, pr_number
+        );
+    
+        let request = http::request::Builder::new()
+            .method(http::Method::GET)
+            .uri(url);
+    
+        let request = self.inner.build_request::<String>(request, None).unwrap();
+    
+        let mut response = match self.inner.execute(request).await {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Error fetching last commit author: {:?}", e);
+                return Ok("".to_string());
+            }
+        };
+    
+        let response_body = response.body_mut();
+        let body = hyper::body::to_bytes(response_body).await.unwrap();
+        let body_str = String::from_utf8(body.to_vec()).unwrap();
+        let commits: Vec<CommitData> = serde_json::from_str(&body_str).unwrap();
+
+    
+        let last_commit: &CommitData = commits.last().unwrap();
+        let author = last_commit.commit.author.name.clone();
+    
+        Ok(author)
+    }
+
+    pub async fn get_branch_name_from_pr(&self, pr_number: u64) -> Result<String, OctocrabError> {
+        let pull_request = self
+            .inner
+            .pulls(&self.owner, &self.repo)
+            .get(pr_number)
+            .await?;
+        Ok(pull_request.head.ref_field.clone())
+    }
+
+
 }

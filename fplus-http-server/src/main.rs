@@ -32,6 +32,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::refill)
             .service(router::application::total_dc_reached)
             .service(router::application::single)
+            .service(router::application::validate_application_flow)
             .service(router::application::validate_application_trigger)
             .service(router::application::validate_application_proposal)
             .service(router::application::validate_application_approval)

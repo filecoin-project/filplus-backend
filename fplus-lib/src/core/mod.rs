@@ -664,6 +664,76 @@ impl LDNApplication {
         Err(LDNError::Load("Failed to get application file".to_string()))
     }
 
+    pub async fn validate_flow(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
+        dbg!(
+            "Validating flow for PR number {} with user handle {}",
+            pr_number,
+            actor
+        );
+
+        let gh = GithubWrapper::new();
+        let author = match gh.get_last_commit_author(pr_number).await {
+            Ok(author) => author,
+            Err(err) => return Err(LDNError::Load(format!("Failed to get last commit author. Reason: {}", err))),
+        };
+
+        if author.is_empty() {
+            return Ok(false);
+        }
+        
+
+        let (_, files) = match gh.get_pull_request_files(pr_number).await {
+            Ok(files) => files,
+            Err(err) => return Err(LDNError::Load(format!("Failed to get pull request files. Reason: {}", err))),
+        };
+
+        if files.len() != 1 {
+            return Ok(false);
+        }
+
+        let branch_name = match gh.get_branch_name_from_pr(pr_number).await {
+            Ok(branch_name) => branch_name,
+            Err(err) => return Err(LDNError::Load(format!("Failed to get pull request. Reason: {}", err))),
+        };
+
+        let application = match gh.get_file(&files[0].filename, &branch_name).await {
+            Ok(file) => LDNApplication::content_items_to_app_file(file)?,
+            Err(err) => return Err(LDNError::Load(format!("Failed to get file content. Reason: {}", err))),
+        };
+
+        //Check if application is in Submitted state
+        if application.lifecycle.get_state() == AppState::Submitted {
+            if !application.lifecycle.validated_by.is_empty() {
+                return Ok(false);
+            }
+            if !application.lifecycle.validated_at.is_empty() {
+                return Ok(false);
+            }
+            let active_request = application.allocation.active();
+            if active_request.is_some() {
+                return Ok(false);
+            }
+            if application.allocation.0.len() > 0 {
+                return Ok(false);
+            }
+            return Ok(true);
+        }
+        
+        //Check if application is in any other state
+        let bot_user = if get_env_var_or_default("FILPLUS_ENV", "dev") == "prod" {
+            PROD_BOT_USER
+        } else {
+            DEV_BOT_USER
+        };  
+
+        if author != bot_user {
+            return Ok(false);
+        }
+
+        return Ok(true);
+        
+    }
+
     pub async fn validate_trigger(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
         dbg!(
             "Validating trigger for PR number {} with user handle {}",
