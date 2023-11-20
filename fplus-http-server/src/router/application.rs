@@ -132,6 +132,23 @@ pub async fn total_dc_reached(id: web::Path<String>) -> actix_web::Result<impl R
     }
 }
 
+#[post("application/flow/validate")]
+pub async fn validate_application_flow(
+    info: web::Json<ValidationPullRequestData>,
+) -> impl Responder {
+    let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
+
+    match pr_number {
+        Ok(pr_number) => {
+            match LDNApplication::validate_flow(pr_number, &info.user_handle).await {
+                Ok(result) => HttpResponse::Ok().json(result),
+                Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
+            }
+        }
+        Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
+    }
+}
+
 #[post("application/trigger/validate")]
 pub async fn validate_application_trigger(
     info: web::Json<ValidationPullRequestData>,
