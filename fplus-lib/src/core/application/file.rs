@@ -77,6 +77,10 @@ pub struct Datacap {
     pub replicas: u8,
     #[serde(rename = "Weekly Allocation")]
     pub weekly_allocation: String,
+    #[serde(rename = "Custom multisig")]
+    pub custom_multisig: String,
+    #[serde(rename = "Identifier")]
+    pub identifier: String,
 }
 
 impl Default for Datacap {
@@ -88,6 +92,8 @@ impl Default for Datacap {
             single_size_dataset: "0".to_string(),
             replicas: 0,
             weekly_allocation: "0".to_string(),
+            custom_multisig:"0".to_string(),
+            identifier: "0".to_string(),
         }
     }
 }
