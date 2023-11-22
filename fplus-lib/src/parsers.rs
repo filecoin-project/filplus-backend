@@ -15,6 +15,7 @@ pub enum ParsedApplicationDataFields {
     Industry,
     Website,
     SocialMedia,
+    SocialMediaType,
     Role,
     // Project Info
     ProjectID,
@@ -51,6 +52,7 @@ impl From<String> for ParsedApplicationDataFields {
 	  "Industry" => ParsedApplicationDataFields::Industry,
 	  "Website" => ParsedApplicationDataFields::Website,
 	  "Social Media" => ParsedApplicationDataFields::SocialMedia,
+	  "Social Media Type" => ParsedApplicationDataFields::SocialMediaType,
 	  "Role" => ParsedApplicationDataFields::Role,
 	  // Project Info
 	  "Project ID" => ParsedApplicationDataFields::ProjectID,
@@ -240,6 +242,9 @@ impl From<IssueValidData> for Client {
                 ParsedApplicationDataFields::SocialMedia => {
                     client.social_media = value.0;
                 }
+                ParsedApplicationDataFields::SocialMediaType => {
+                    client.social_media_type = value.0;
+                }
                 ParsedApplicationDataFields::Role => {
                     client.role = value.0;
                 }
@@ -298,6 +303,7 @@ mod tests {
         assert!(!parsed_ldn.client.region.is_empty());
         assert!(!parsed_ldn.client.website.is_empty());
         assert!(!parsed_ldn.client.social_media.is_empty());
+        assert!(!parsed_ldn.client.social_media_type.is_empty());
         assert!(!parsed_ldn.client.role.is_empty());
         assert!(!parsed_ldn.project.project_id.is_empty());
         assert!(!parsed_ldn.project.history.is_empty());

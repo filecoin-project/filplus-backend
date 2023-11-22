@@ -12,6 +12,7 @@ impl Client {
             industry,
             website,
             social_media,
+            social_media_type,
             role,
         } = self;
         name.len() > 0
@@ -19,6 +20,7 @@ impl Client {
             && industry.len() > 0
             && website.len() > 0
             && social_media.len() > 0
+            && social_media_type.len() > 0
             && role.len() > 0
     }
 }

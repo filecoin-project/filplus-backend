@@ -57,6 +57,8 @@ pub struct Client {
     pub website: String,
     #[serde(rename = "Social Media")]
     pub social_media: String,
+    #[serde(rename = "Social Media Type")]
+    pub social_media_type: String,
     #[serde(rename = "Role")]
     pub role: String,
 }
