@@ -38,6 +38,8 @@ pub enum ParsedApplicationDataFields {
     SingleSizeDataset,
     Replicas,
     WeeklyAllocation,
+    CustomMultisig,
+    Identifier,
     InvalidField,
 }
 
@@ -99,6 +101,8 @@ impl From<String> for ParsedApplicationDataFields {
 	  "Single Size Dataset" => ParsedApplicationDataFields::SingleSizeDataset,
 	  "Replicas" => ParsedApplicationDataFields::Replicas,
 	  "Weekly Allocation" => ParsedApplicationDataFields::WeeklyAllocation,
+	  "Custom multisig" => ParsedApplicationDataFields::CustomMultisig,
+	  "Identifier" => ParsedApplicationDataFields::Identifier,
 	  // Invalid field
 	  _ => ParsedApplicationDataFields::InvalidField,
 	}
@@ -118,18 +122,20 @@ impl ParsedIssue {
     pub fn from_issue_body(body: &str) -> Self {
         let tree: Node = to_mdast(body, &ParseOptions::default()).unwrap();
         let mut data: IssueValidData = IssueValidData::default();
-        for (index, i) in tree.children().unwrap().into_iter().enumerate().step_by(2) {
-            let prop = i.to_string();
-            let tree = tree.children().unwrap().into_iter();
-            let value = match tree.skip(index + 1).next() {
-                Some(v) => v.to_string(),
-                None => continue,
-            };
-            match prop.clone().into() {
-                ParsedApplicationDataFields::InvalidField => {
-                    continue;
+        let children = tree.children().unwrap();
+        let child_iter = children.iter();
+        
+        for chunk in child_iter.collect::<Vec<_>>().chunks_exact(2) {
+            if let (Some(prop_node), Some(value_node)) = (chunk.get(0), chunk.get(1)) {
+                let prop = prop_node.to_string();
+                let value = value_node.to_string();
+            
+                match prop.clone().into() {
+                    ParsedApplicationDataFields::InvalidField => {
+                        continue;
+                    }
+                    _ => data.0.push((Prop(prop), Value(value))),
                 }
-                _ => data.0.push((Prop(prop), Value(value))),
             }
         }
         let client = Client::from(data.clone());
@@ -277,6 +283,12 @@ impl From<IssueValidData> for Datacap {
                 }
                 ParsedApplicationDataFields::WeeklyAllocation => {
                     datacap.weekly_allocation = value.0;
+                }
+                ParsedApplicationDataFields::CustomMultisig => {
+                    datacap.custom_multisig = value.0;
+                }
+                ParsedApplicationDataFields::Identifier => {
+                    datacap.identifier = value.0;
                 }
                 _ => {}
             }

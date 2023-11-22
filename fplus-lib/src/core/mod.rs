@@ -218,12 +218,19 @@ impl LDNApplication {
         let application_id = parsed_ldn.id.clone();
         let file_name = LDNPullRequest::application_path(&application_id);
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
+        
+        // If the user has checked Use Custom multisig, we set the multisig adress from the
+        let multisig_address = if parsed_ldn.datacap.custom_multisig == "[x] Use Custom Multisig" {
+            parsed_ldn.datacap.identifier.clone()
+        } else {
+            "".to_string()
+        };
 
         match gh.get_file(&file_name, &branch_name).await {
             Err(_) => {
                 let application_file = ApplicationFile::new(
                     issue_number.clone(),
-                    "MULTISIG ADDRESS".to_string(),
+                    multisig_address,
                     parsed_ldn.version,
                     parsed_ldn.id.clone(),
                     parsed_ldn.client.clone(),
