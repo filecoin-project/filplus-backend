@@ -18,23 +18,23 @@ Front End
     - [x] Filecoin Wallet
 
 Github
-  - [ ] Create new issue template
-  - [ ] Finalize schema file
+  - [x] Create new issue template
+  - [x] Finalize schema file
   - [x] Run a github action if an application issue is created, and
     convert it to a PR application
 
   - Run the following actions on each PR commit:
 
-    - [ ] Check if an application was triggered
-    - [ ] Check if an application was proposed
-    - [ ] Check if an application was approved
-    - [ ] Check if an application was refilled
+    - [x] Check if an application was triggered
+    - [x] Check if an application was proposed
+    - [x] Check if an application was approved
+    - [x] Check if an application was refilled
     - [ ] Check if an application was removed
 
   - Automate merging process
 
-    - [ ] If an application is approved
-    - [ ] If an application is refilled
+    - [x] If an application is approved
+    - [x] If an application is refilled
     - [ ] If an application is removed
 
 Backend
