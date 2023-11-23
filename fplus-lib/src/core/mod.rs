@@ -94,8 +94,9 @@ impl LDNApplication {
             Ok(app)
         } else {
             Err(LDNError::Load(format!(
-                "Pull Request {} Application file is corrupted",
-                pr_number
+                "Pull Request {} Application file is corrupted or invalid format: {}",
+                pr_number,
+                serde_json::from_str::<ApplicationFile>(&pull_request).unwrap_err()
             )))
         }
     }

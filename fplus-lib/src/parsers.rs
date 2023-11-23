@@ -31,6 +31,7 @@ pub enum ParsedApplicationDataFields {
     DataGeographies,
     DataDistribution,
     ProviderIDs,
+    FilplusGuideline,
     // Datacap Info
     DatacapGroup,
     Type,
@@ -93,6 +94,9 @@ impl From<String> for ParsedApplicationDataFields {
 	  },
 	  "Please list the provider IDs and location of the storage providers you will be working with. Note that it is a requirement to list a minimum of 5 unique provider IDs, and that your client address will be verified against this list in the future" => {
 		ParsedApplicationDataFields::ProviderIDs
+	  },
+      "Can you confirm that you will follow the Fil+ guideline (Data owner should engage at least 4 SPs and no single SP ID should receive >30% of a client's allocated DataCap)" => {
+		ParsedApplicationDataFields::FilplusGuideline
 	  },
 	  // Datacap info
 	  "Group" => ParsedApplicationDataFields::DatacapGroup,
@@ -220,6 +224,9 @@ impl From<IssueValidData> for Project {
                 }
                 ParsedApplicationDataFields::ProviderIDs => {
                     project.providers = value.0;
+                }
+                ParsedApplicationDataFields::FilplusGuideline => {
+                    project.filplus_guideline = value.0;
                 }
                 _ => {}
             }
