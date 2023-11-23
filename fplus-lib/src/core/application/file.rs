@@ -77,9 +77,9 @@ pub struct Datacap {
     pub replicas: u8,
     #[serde(rename = "Weekly Allocation")]
     pub weekly_allocation: String,
-    #[serde(rename = "Custom multisig")]
+    #[serde(rename = "Custom multisig", skip_serializing)]
     pub custom_multisig: String,
-    #[serde(rename = "Identifier")]
+    #[serde(rename = "Identifier", skip_serializing)]
     pub identifier: String,
 }
 
