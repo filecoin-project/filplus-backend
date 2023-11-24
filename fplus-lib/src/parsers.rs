@@ -36,11 +36,14 @@ pub enum ParsedApplicationDataFields {
     DatacapGroup,
     Type,
     TotalRequestedAmount,
-    SingleSizeDataset,
+    TotalRequestedType,
+    SingleSizeDatasetAmount,
+    SingleSizeDatasetType,
     Replicas,
-    WeeklyAllocation,
     CustomMultisig,
     Identifier,
+    WeeklyAllocationAmount,
+    WeeklyAllocationType,
     InvalidField,
 }
 
@@ -102,11 +105,14 @@ impl From<String> for ParsedApplicationDataFields {
 	  "Group" => ParsedApplicationDataFields::DatacapGroup,
 	  "Type" => ParsedApplicationDataFields::Type,
 	  "Total Requested Amount" => ParsedApplicationDataFields::TotalRequestedAmount,
-	  "Single Size Dataset" => ParsedApplicationDataFields::SingleSizeDataset,
+      "Total Requested Type" => ParsedApplicationDataFields::TotalRequestedType,
+	  "Single Size Dataset Amount" => ParsedApplicationDataFields::SingleSizeDatasetAmount,
+      "Single Size Dataset Type" => ParsedApplicationDataFields::SingleSizeDatasetType,
 	  "Replicas" => ParsedApplicationDataFields::Replicas,
-	  "Weekly Allocation" => ParsedApplicationDataFields::WeeklyAllocation,
 	  "Custom multisig" => ParsedApplicationDataFields::CustomMultisig,
 	  "Identifier" => ParsedApplicationDataFields::Identifier,
+      "Weekly Allocation Amount" => ParsedApplicationDataFields::WeeklyAllocationAmount,
+      "Weekly Allocation Type" => ParsedApplicationDataFields::WeeklyAllocationType,
 	  // Invalid field
 	  _ => ParsedApplicationDataFields::InvalidField,
 	}
@@ -279,17 +285,26 @@ impl From<IssueValidData> for Datacap {
                 ParsedApplicationDataFields::Type => {
                     datacap.data_type = DataType::from_str(&value.0).unwrap();
                 }
-                ParsedApplicationDataFields::TotalRequestedAmount => {
+                ParsedApplicationDataFields::TotalRequestedType => {
                     datacap.total_requested_amount = value.0;
                 }
-                ParsedApplicationDataFields::SingleSizeDataset => {
+                ParsedApplicationDataFields::TotalRequestedAmount => {
+                    datacap.total_requested_amount = value.0 + &datacap.total_requested_amount;
+                }
+                ParsedApplicationDataFields::SingleSizeDatasetType => {
                     datacap.single_size_dataset = value.0;
+                }
+                ParsedApplicationDataFields::SingleSizeDatasetAmount => {
+                    datacap.single_size_dataset = value.0 + &datacap.single_size_dataset;
                 }
                 ParsedApplicationDataFields::Replicas => {
                     datacap.replicas = value.0.parse::<u8>().unwrap();
                 }
-                ParsedApplicationDataFields::WeeklyAllocation => {
+                ParsedApplicationDataFields::WeeklyAllocationType => {
                     datacap.weekly_allocation = value.0;
+                }
+                ParsedApplicationDataFields::WeeklyAllocationAmount => {
+                    datacap.weekly_allocation = value.0 + &datacap.weekly_allocation;
                 }
                 ParsedApplicationDataFields::CustomMultisig => {
                     datacap.custom_multisig = value.0;
