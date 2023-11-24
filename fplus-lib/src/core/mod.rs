@@ -752,6 +752,7 @@ impl LDNApplication {
             let validated_by = application_file.lifecycle.validated_by.clone();
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
+            let active_request_id = application_file.lifecycle.active_request.clone();
             let valid_rkh = Self::fetch_rkh().await?;
             let bot_user = if get_env_var_or_default("FILPLUS_ENV", "dev") == "prod" {
                 PROD_BOT_USER
@@ -761,19 +762,23 @@ impl LDNApplication {
             let res: bool = match app_state {
                 AppState::Submitted => return Ok(false),
                 AppState::ReadyToSign => {
-                    if application_file.allocation.0.len() > 0
-                        && application_file
-                            .allocation
-                            .0
-                            .get(0)
-                            .unwrap()
-                            .signers
-                            .0
-                            .len()
-                            > 0
+                    if application_file.allocation.0.is_empty() {
+                        false;
+                    }
+                    let active_allocation = application_file.allocation.0.iter()
+                    .find(|obj| Some(&obj.id) == active_request_id.as_ref());
+                    if active_allocation.is_none() {
+                         false;
+                        }
+                    if  active_allocation.unwrap()
+                        .signers
+                        .0
+                        .len()
+                        > 0
                     {
-                        false
-                    } else if !validated_at.is_empty()
+                        false;
+                    }
+                    if !validated_at.is_empty()
                         && !validated_by.is_empty()
                         && actor == bot_user
                         && valid_rkh.is_valid(&validated_by)
