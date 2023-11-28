@@ -80,7 +80,7 @@ pub struct Datacap {
     #[serde(rename = "Custom multisig", skip_serializing, default)]
     pub custom_multisig: String,
     #[serde(rename = "Identifier", skip_serializing, default)]
-    pub identifier: String
+    pub identifier: String,
 }
 
 impl Default for Datacap {
@@ -92,7 +92,7 @@ impl Default for Datacap {
             single_size_dataset: "0".to_string(),
             replicas: 0,
             weekly_allocation: "0".to_string(),
-            custom_multisig:"0".to_string(),
+            custom_multisig: "0".to_string(),
             identifier: "0".to_string(),
         }
     }
@@ -339,14 +339,42 @@ pub struct AllocationRequest {
     pub allocation_amount: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NotaryConfig {
+    pub active_signer: bool,
+    pub signing_address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ValidNotary {
+    pub id: i32,
+    pub organization: String,
+    pub name: String,
+    pub election_round: String,
+    pub status: String,
+    pub use_case: String,
+    pub location: String,
+    pub notary_application_link: String,
+    pub website: String,
+    pub email: Vec<String>,
+    pub fil_slack_id: String,
+    pub github_user: Vec<String>,
+    pub ldn_config: NotaryConfig,
+    pub direct_config: NotaryConfig,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidNotaryList {
-    notaries: Vec<String>,
+    notaries: Vec<ValidNotary>,
 }
 
 impl ValidNotaryList {
     pub fn is_valid(&self, notary: &str) -> bool {
-        self.notaries.contains(&notary.to_string())
+        self.notaries
+            .iter()
+            .filter(|n| n.ldn_config.signing_address == notary)
+            .count()
+            > 0
     }
 }
 
