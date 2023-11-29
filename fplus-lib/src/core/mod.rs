@@ -219,10 +219,10 @@ impl LDNApplication {
         let application_id = parsed_ldn.id.clone();
         let file_name = LDNPullRequest::application_path(&application_id);
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
-        
+
         // If the user has checked Use Custom multisig, we set the multisig adress from the
-        let multisig_address = if parsed_ldn.datacap.custom_multisig == "[x] Use Custom Multisig" {
-            parsed_ldn.datacap.identifier.clone()
+        let multisig_address = if parsed_ldn.datacap.custom_multisig == "[X] Use Custom Multisig" {
+            "true".to_string()
         } else {
             "".to_string()
         };
