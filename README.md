@@ -26,6 +26,12 @@ parsers that validate the structure and format of the json file.
 ###### Application Version
 TBD
 
+
+### Related Projects
+- [Fil+ Registry](https://github.com/filecoin-project/filplus-registry)
+- [Fil+ SSA Bot](https://github.com/filecoin-project/filplus-ssa-bot)
+- [Fil+ Application Repository (Falcon)](https://github.com/filecoin-project/filecoin-plus-falcon)
+
 ### Swagger Documentation
 
 https://app.swaggerhub.com/apis/jesraa/FilecoinBackend/1.0.0#/
@@ -59,10 +65,28 @@ There are two different kinds of endpoints:
 - `cargo run` 
 
 ### Contributions
-TBD
+As an open-source project, we welcome and encourage the community to contribute to the Fil+ Backend. Your insights and improvements are valuable to us. Here's how you can contribute:
+
+- **Fork the Repository**: Start by forking the repository to your GitHub account.
+- **Clone the Forked Repository**: Clone it to your local machine for development purposes.
+- **Create a New Branch**: Always create a new branch for your changes.
+- **Make Your Changes**: Implement your features, bug fixes, or improvements.
+- **Commit Your Changes**: Make sure to write clear, concise commit messages.
+- **Push to Your Fork**: Push your changes to your forked repository.
+- **Create a Pull Request**: Submit a pull request from your forked repository to our main repository.
+
+Please read through our [CONTRIBUTING.md](CONTRIBUTING.md) file for detailed instructions on how to contribute.
 
 ### License
-TBD
+This project is dual-licensed under the `Permissive License Stack`, which means you can choose to use the project under either:
+
+- The Apache License 2.0, which is a free and open-source license, focusing on patent rights and copyright notices. For more details, see the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+- The MIT License, a permissive and open-source license, known for its broad permissions and limited restrictions. For more details, see the [MIT License](https://opensource.org/licenses/MIT).
+
+You may not use the contents of this repository except in compliance with one of these licenses. For an extended clarification of the intent behind the choice of licensing, please refer to the `LICENSE` file in this repository or visit [Permissive License Stack Explanation](https://protocol.ai/blog/announcing-the-permissive-license-stack/).
+
+For the full license text, please see the [LICENSE](LICENSE) file in this repository.
 
 ### CHANGELOG
 1.0.4
