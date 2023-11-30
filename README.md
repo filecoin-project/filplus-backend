@@ -26,6 +26,12 @@ parsers that validate the structure and format of the json file.
 ###### Application Version
 TBD
 
+
+### Related Projects
+- [Fil+ Registry](https://github.com/filecoin-project/filplus-registry)
+- [Fil+ SSA Bot](https://github.com/filecoin-project/filplus-ssa-bot)
+- [Fil+ Application Repository (Falcon)](https://github.com/filecoin-project/filecoin-plus-falcon)
+
 ### Swagger Documentation
 
 https://app.swaggerhub.com/apis/jesraa/FilecoinBackend/1.0.0#/
