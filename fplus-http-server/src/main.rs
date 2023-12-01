@@ -38,6 +38,8 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::validate_application_approval)
             .service(router::blockchain::address_allowance)
             .service(router::blockchain::verified_clients)
+            .service(router::notary::notaries)
+            .service(router::rkh::rkhs)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

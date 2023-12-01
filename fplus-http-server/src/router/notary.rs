@@ -1,10 +1,16 @@
-use actix_web::{get, http::header::ContentType, post, web, HttpResponse};
-use mongodb::Client;
-use std::sync::Mutex;
+use actix_web::{get, post, HttpResponse, Responder};
+use fplus_lib::core::LDNApplication;
 
-#[get("/notary")]
-pub async fn get() -> HttpResponse {
-    HttpResponse::InternalServerError().finish()
+#[get("/notaries")]
+pub async fn notaries() -> actix_web::Result<impl Responder> {
+    match LDNApplication::fetch_notaries().await {
+        Ok(notaries) => {
+            Ok(HttpResponse::Ok().json(notaries))
+        }
+        Err(e) => {
+            Ok(HttpResponse::InternalServerError().body(e.to_string()))
+        }
+    }
 }
 
 #[post("/notary")]

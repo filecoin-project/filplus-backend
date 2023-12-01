@@ -519,7 +519,7 @@ impl LDNApplication {
         }
     }
 
-    async fn fetch_noatries() -> Result<ValidNotaryList, LDNError> {
+    pub async fn fetch_notaries() -> Result<ValidNotaryList, LDNError> {
         let gh = GithubWrapper::new();
         let notaries = gh
             .get_file("data/notaries.json", "main")
@@ -539,7 +539,7 @@ impl LDNApplication {
         }
     }
 
-    async fn fetch_rkh() -> Result<ValidRKHList, LDNError> {
+    pub async fn fetch_rkh() -> Result<ValidRKHList, LDNError> {
         let gh = GithubWrapper::new();
         let rkh = gh
             .get_file("data/rkh.json", "main")
@@ -860,7 +860,7 @@ impl LDNApplication {
                         }
                         let signer = signers.0.get(1).unwrap();
                         let signer_address = signer.signing_address.clone();
-                        let valid_notaries = Self::fetch_noatries().await?;
+                        let valid_notaries = Self::fetch_notaries().await?;
                         if valid_notaries.is_valid(&signer_address) {
                             dbg!("Valid notary");
                             return Ok(true);
@@ -903,7 +903,7 @@ impl LDNApplication {
                         }
                         let signer = signers.0.get(0).unwrap();
                         let signer_address = signer.signing_address.clone();
-                        let valid_notaries = Self::fetch_noatries().await?;
+                        let valid_notaries = Self::fetch_notaries().await?;
                         if valid_notaries.is_valid(&signer_address) {
                             dbg!("Valid notary");
                             return Ok(true);
@@ -1073,6 +1073,8 @@ impl LDNApplication {
         .unwrap();
         Ok(true)
     }
+
+
 }
 
 #[derive(Serialize, Deserialize, Debug)]
