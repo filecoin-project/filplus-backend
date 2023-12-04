@@ -80,7 +80,7 @@ pub struct Datacap {
     #[serde(rename = "Custom multisig", skip_serializing, default)]
     pub custom_multisig: String,
     #[serde(rename = "Identifier", skip_serializing, default)]
-    pub identifier: String
+    pub identifier: String,
 }
 
 impl Default for Datacap {
@@ -92,7 +92,7 @@ impl Default for Datacap {
             single_size_dataset: "0".to_string(),
             replicas: 0,
             weekly_allocation: "0".to_string(),
-            custom_multisig:"0".to_string(),
+            custom_multisig: "0".to_string(),
             identifier: "0".to_string(),
         }
     }
@@ -339,9 +339,15 @@ pub struct AllocationRequest {
     pub allocation_amount: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub struct NotaryFile {
-    pub id: u32,
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NotaryConfig {
+    pub active_signer: bool,
+    pub signing_address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ValidNotary {
+    pub id: i32,
     pub organization: String,
     pub name: String,
     pub election_round: String,
@@ -355,28 +361,20 @@ pub struct NotaryFile {
     pub github_user: Vec<String>,
     pub ldn_config: NotaryConfig,
     pub direct_config: NotaryConfig,
-    pub previous_config: PreviousConfig,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct NotaryConfig {
-    active_signer: bool,
-    signing_address: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PreviousConfig {
-    signing_address: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidNotaryList {
-    pub notaries: Vec<NotaryFile>,
+    notaries: Vec<ValidNotary>,
 }
 
 impl ValidNotaryList {
-    pub fn is_valid(&self, notary_name: &str) -> bool {
-        self.notaries.iter().any(|notary| notary.name == notary_name)
+    pub fn is_valid(&self, notary: &str) -> bool {
+        self.notaries
+            .iter()
+            .filter(|n| n.ldn_config.signing_address == notary)
+            .count()
+            > 0
     }
 }
 

@@ -590,13 +590,13 @@ impl GithubWrapper {
             "https://api.github.com/repos/{}/{}/pulls/{}/commits",
             self.owner, self.repo, pr_number
         );
-    
+
         let request = http::request::Builder::new()
             .method(http::Method::GET)
             .uri(url);
-    
+
         let request = self.inner.build_request::<String>(request, None).unwrap();
-    
+
         let mut response = match self.inner.execute(request).await {
             Ok(r) => r,
             Err(e) => {
@@ -604,16 +604,15 @@ impl GithubWrapper {
                 return Ok("".to_string());
             }
         };
-    
+
         let response_body = response.body_mut();
         let body = hyper::body::to_bytes(response_body).await.unwrap();
         let body_str = String::from_utf8(body.to_vec()).unwrap();
         let commits: Vec<CommitData> = serde_json::from_str(&body_str).unwrap();
 
-    
         let last_commit: &CommitData = commits.last().unwrap();
         let author = last_commit.commit.author.name.clone();
-    
+
         Ok(author)
     }
 
@@ -625,6 +624,4 @@ impl GithubWrapper {
             .await?;
         Ok(pull_request.head.ref_field.clone())
     }
-
-
 }
