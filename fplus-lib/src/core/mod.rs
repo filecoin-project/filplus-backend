@@ -1073,8 +1073,20 @@ impl LDNApplication {
         .unwrap();
         Ok(true)
     }
-
-
+    
+    pub async fn fetch_rkh_and_notary_gh_users() -> Result<(Vec<String>, Vec<String>), LDNError> {
+        let rkh_list = Self::fetch_rkh().await.map_err(|e| LDNError::Load(format!("Failed to retrieve rkh: {}", e)))?;
+    
+        let notary_list = Self::fetch_notaries().await.map_err(|e| LDNError::Load(format!("Failed to retrieve notaries: {}", e)))?;
+    
+        let notary_gh_names = notary_list.notaries.into_iter()
+            .flat_map(|notary| notary.github_user)
+            .filter(|username| !username.is_empty())
+            .collect();
+    
+        Ok((rkh_list.rkh, notary_gh_names))
+    }
+    
 }
 
 #[derive(Serialize, Deserialize, Debug)]

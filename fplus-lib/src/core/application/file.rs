@@ -339,24 +339,60 @@ pub struct AllocationRequest {
     pub allocation_amount: String,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct NotaryFile {
+    pub id: u32,
+    pub organization: String,
+    pub name: String,
+    pub election_round: String,
+    pub status: String,
+    pub use_case: String,
+    pub location: String,
+    pub notary_application_link: String,
+    pub website: String,
+    pub email: Vec<String>,
+    pub fil_slack_id: String,
+    pub github_user: Vec<String>,
+    pub ldn_config: NotaryConfig,
+    pub direct_config: NotaryConfig,
+    pub previous_config: PreviousConfig,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NotaryConfig {
+    active_signer: bool,
+    signing_address: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PreviousConfig {
+    signing_address: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidNotaryList {
-    notaries: Vec<String>,
+    pub notaries: Vec<NotaryFile>,
 }
 
 impl ValidNotaryList {
-    pub fn is_valid(&self, notary: &str) -> bool {
-        self.notaries.contains(&notary.to_string())
+    pub fn is_valid(&self, notary_name: &str) -> bool {
+        self.notaries.iter().any(|notary| notary.name == notary_name)
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidRKHList {
-    rkh: Vec<String>,
+    pub rkh: Vec<String>,
 }
 
 impl ValidRKHList {
     pub fn is_valid(&self, rkh: &str) -> bool {
         self.rkh.contains(&rkh.to_string())
     }
+}
+
+#[derive(Serialize)]
+pub struct LDNActorsResponse {
+    pub governance_gh_handles: Vec<String>,
+    pub notary_gh_handles: Vec<String>,
 }
