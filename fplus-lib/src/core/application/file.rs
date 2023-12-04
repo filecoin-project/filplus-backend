@@ -365,7 +365,7 @@ pub struct ValidNotary {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidNotaryList {
-    notaries: Vec<ValidNotary>,
+    pub notaries: Vec<ValidNotary>,
 }
 
 impl ValidNotaryList {
