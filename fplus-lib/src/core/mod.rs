@@ -531,7 +531,6 @@ impl LDNApplication {
             .clone()
             .and_then(|f| base64::decode_notary(&f.replace("\n", "")))
             .and_then(|f| Some(f));
-
         if let Some(notaries) = notaries {
             return Ok(notaries.clone());
         } else {
@@ -681,17 +680,26 @@ impl LDNApplication {
         let gh = GithubWrapper::new();
         let author = match gh.get_last_commit_author(pr_number).await {
             Ok(author) => author,
-            Err(err) => return Err(LDNError::Load(format!("Failed to get last commit author. Reason: {}", err))),
+            Err(err) => {
+                return Err(LDNError::Load(format!(
+                    "Failed to get last commit author. Reason: {}",
+                    err
+                )))
+            }
         };
 
         if author.is_empty() {
             return Ok(false);
         }
-        
 
         let (_, files) = match gh.get_pull_request_files(pr_number).await {
             Ok(files) => files,
-            Err(err) => return Err(LDNError::Load(format!("Failed to get pull request files. Reason: {}", err))),
+            Err(err) => {
+                return Err(LDNError::Load(format!(
+                    "Failed to get pull request files. Reason: {}",
+                    err
+                )))
+            }
         };
 
         if files.len() != 1 {
@@ -700,12 +708,22 @@ impl LDNApplication {
 
         let branch_name = match gh.get_branch_name_from_pr(pr_number).await {
             Ok(branch_name) => branch_name,
-            Err(err) => return Err(LDNError::Load(format!("Failed to get pull request. Reason: {}", err))),
+            Err(err) => {
+                return Err(LDNError::Load(format!(
+                    "Failed to get pull request. Reason: {}",
+                    err
+                )))
+            }
         };
 
         let application = match gh.get_file(&files[0].filename, &branch_name).await {
             Ok(file) => LDNApplication::content_items_to_app_file(file)?,
-            Err(err) => return Err(LDNError::Load(format!("Failed to get file content. Reason: {}", err))),
+            Err(err) => {
+                return Err(LDNError::Load(format!(
+                    "Failed to get file content. Reason: {}",
+                    err
+                )))
+            }
         };
 
         //Check if application is in Submitted state
@@ -725,20 +743,19 @@ impl LDNApplication {
             }
             return Ok(true);
         }
-        
+
         //Check if application is in any other state
         let bot_user = if get_env_var_or_default("FILPLUS_ENV", "dev") == "prod" {
             PROD_BOT_USER
         } else {
             DEV_BOT_USER
-        };  
+        };
 
         if author != bot_user {
             return Ok(false);
         }
 
         return Ok(true);
-        
     }
 
     pub async fn validate_trigger(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
@@ -757,24 +774,22 @@ impl LDNApplication {
                 PROD_BOT_USER
             } else {
                 DEV_BOT_USER
-            };            
+            };
             let res: bool = match app_state {
                 AppState::Submitted => return Ok(false),
                 AppState::ReadyToSign => {
                     if application_file.allocation.0.is_empty() {
                         false;
                     }
-                    let active_allocation = application_file.allocation.0.iter()
-                    .find(|obj| Some(&obj.id) == active_request_id.as_ref());
-                    if active_allocation.is_none() {
-                         false;
-                        }
-                    if  active_allocation.unwrap()
-                        .signers
+                    let active_allocation = application_file
+                        .allocation
                         .0
-                        .len()
-                        > 0
-                    {
+                        .iter()
+                        .find(|obj| Some(&obj.id) == active_request_id.as_ref());
+                    if active_allocation.is_none() {
+                        false;
+                    }
+                    if active_allocation.unwrap().signers.0.len() > 0 {
                         false;
                     }
                     if !validated_at.is_empty()
