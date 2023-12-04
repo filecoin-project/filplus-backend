@@ -365,7 +365,7 @@ pub struct ValidNotary {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidNotaryList {
-    notaries: Vec<ValidNotary>,
+    pub notaries: Vec<ValidNotary>,
 }
 
 impl ValidNotaryList {
@@ -380,11 +380,17 @@ impl ValidNotaryList {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidRKHList {
-    rkh: Vec<String>,
+    pub rkh: Vec<String>,
 }
 
 impl ValidRKHList {
     pub fn is_valid(&self, rkh: &str) -> bool {
         self.rkh.contains(&rkh.to_string())
     }
+}
+
+#[derive(Serialize)]
+pub struct LDNActorsResponse {
+    pub governance_gh_handles: Vec<String>,
+    pub notary_gh_handles: Vec<String>,
 }
