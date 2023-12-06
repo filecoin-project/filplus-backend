@@ -2,8 +2,8 @@ use actix_web::{get, HttpResponse, Responder};
 
 pub mod application;
 pub mod blockchain;
-pub mod rkh;
 pub mod notary;
+pub mod rkh;
 
 /// Return server health status
 #[get("/health")]

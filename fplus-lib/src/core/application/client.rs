@@ -4,9 +4,11 @@ impl Client {
     fn new(i: Client) -> Self {
         Self { ..i }
     }
-
-    fn validate(&self) -> bool {
+    //TODO: Check that none of the values are not default values
+    // Used after finished the parsing
+    pub fn validate(&self) -> bool {
         let Client {
+            applicant,
             name,
             region,
             industry,
@@ -15,7 +17,8 @@ impl Client {
             social_media_type,
             role,
         } = self;
-        name.len() > 0
+        applicant.len() > 0
+            && name.len() > 0
             && region.len() > 0
             && industry.len() > 0
             && website.len() > 0

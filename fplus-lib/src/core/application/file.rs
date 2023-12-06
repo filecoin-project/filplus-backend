@@ -38,7 +38,7 @@ pub struct ApplicationFile {
     #[serde(rename = "Project")]
     pub project: Project,
     #[serde(rename = "Datacap")]
-    pub datacap: Datacap,
+    pub datacap: ApplicationDatacap,
     #[serde(rename = "Lifecycle")]
     pub lifecycle: LifeCycle,
     #[serde(rename = "Allocation Requests")]
@@ -47,53 +47,108 @@ pub struct ApplicationFile {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Client {
-    #[serde(rename = "Name")]
+    #[serde(rename = "DataCap Applicant")]
+    pub applicant: String,
+    #[serde(rename = "Data Owner Name")]
     pub name: String,
-    #[serde(rename = "Region")]
+    #[serde(rename = "Data Owner Country/Region")]
     pub region: String,
-    #[serde(rename = "Industry")]
+    #[serde(rename = "Data Owner Industry")]
     pub industry: String,
     #[serde(rename = "Website")]
     pub website: String,
-    #[serde(rename = "Social Media")]
+    #[serde(rename = "Social Media Handle")]
     pub social_media: String,
     #[serde(rename = "Social Media Type")]
     pub social_media_type: String,
-    #[serde(rename = "Role")]
+    #[serde(rename = "What is your role related to the dataset")]
     pub role: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Datacap {
-    #[serde(rename = "Type")]
-    pub _group: DatacapGroup,
+    #[serde(rename = "Group")]
+    pub group: DatacapGroup,
     #[serde(rename = "Data Type")]
     pub data_type: DataType,
-    #[serde(rename = "Total Requested Amount")]
+    #[serde(rename = "Total amount of DataCap being requested")]
     pub total_requested_amount: String,
-    #[serde(rename = "Single Size Dataset")]
+    #[serde(rename = "Unit for total amount of DataCap being requested")]
+    pub total_requested_amount_unit: String,
+    #[serde(rename = "Expected size of single dataset (one copy)")]
     pub single_size_dataset: String,
-    #[serde(rename = "Replicas")]
+    #[serde(rename = "Unit for expected size of single dataset")]
+    pub single_size_dataset_unit: String,
+    #[serde(rename = "Number of Replicas to Store")]
     pub replicas: u8,
-    #[serde(rename = "Weekly Allocation")]
+    #[serde(rename = "Weekly allocation of DataCap requested")]
     pub weekly_allocation: String,
-    #[serde(rename = "Custom multisig", skip_serializing, default)]
+    #[serde(rename = "Unit for Weekly Allocation of DataCap Requested")]
+    pub weekly_allocation_unit: String,
+    #[serde(rename = "Custom Multisig", skip_serializing, default)]
     pub custom_multisig: String,
     #[serde(rename = "Identifier", skip_serializing, default)]
     pub identifier: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ApplicationDatacap {
+    #[serde(rename = "Group")]
+    pub group: DatacapGroup,
+    #[serde(rename = "Data Type")]
+    pub data_type: DataType,
+    #[serde(rename = "Total amount of DataCap being requested")]
+    pub total_requested_amount: String,
+    #[serde(rename = "Expected size of single dataset (one copy)")]
+    pub single_size_dataset: String,
+    #[serde(rename = "Number of Replicas to Store")]
+    pub replicas: u8,
+    #[serde(rename = "Weekly allocation of DataCap requested")]
+    pub weekly_allocation: String,
+    #[serde(rename = "Custom Multisig", skip_serializing, default)]
+    pub custom_multisig: String,
+    #[serde(rename = "Identifier", skip_serializing, default)]
+    pub identifier: String,
+}
+
+impl From<Datacap> for ApplicationDatacap {
+    fn from(datacap: Datacap) -> Self {
+        ApplicationDatacap {
+            group: datacap.group,
+            data_type: datacap.data_type,
+            total_requested_amount: format!(
+                "{} {}",
+                datacap.total_requested_amount, datacap.total_requested_amount_unit
+            ),
+            single_size_dataset: format!(
+                "{} {}",
+                datacap.single_size_dataset, datacap.single_size_dataset_unit
+            ),
+            replicas: datacap.replicas,
+            weekly_allocation: format!(
+                "{} {}",
+                datacap.weekly_allocation, datacap.weekly_allocation_unit
+            ),
+            custom_multisig: datacap.custom_multisig,
+            identifier: datacap.identifier,
+        }
+    }
+}
+
 impl Default for Datacap {
     fn default() -> Self {
         Self {
-            _group: DatacapGroup::LDN,
+            group: DatacapGroup::LDN,
             data_type: DataType::Slingshot,
-            total_requested_amount: "0".to_string(),
-            single_size_dataset: "0".to_string(),
+            total_requested_amount: String::new(),
+            total_requested_amount_unit: String::new(),
+            single_size_dataset: String::new(),
+            single_size_dataset_unit: String::new(),
             replicas: 0,
-            weekly_allocation: "0".to_string(),
-            custom_multisig: "0".to_string(),
-            identifier: "0".to_string(),
+            weekly_allocation: String::new(),
+            weekly_allocation_unit: String::new(),
+            custom_multisig: String::new(),
+            identifier: String::new(),
         }
     }
 }
@@ -172,13 +227,13 @@ pub enum StorageProviders {
 pub struct Project {
     #[serde(rename = "Project Id")]
     pub project_id: String,
-    #[serde(rename = "Brief history of your project and organization")]
+    #[serde(rename = "Share a brief history of your project and organization")]
     pub history: String,
     #[serde(rename = "Is this project associated with other projects/ecosystem stakeholders?")]
     pub associated_projects: String,
     #[serde(rename = "Describe the data being stored onto Filecoin")]
     pub stored_data_desc: String,
-    #[serde(rename = "Where was the data currently stored in this dataset sourced from} ")]
+    #[serde(rename = "Where was the data currently stored in this dataset sourced from")]
     pub previous_stoarge: String,
     #[serde(rename = "How do you plan to prepare the dataset")]
     pub dataset_prepare: String,

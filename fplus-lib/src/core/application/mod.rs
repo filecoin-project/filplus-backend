@@ -15,7 +15,7 @@ impl file::ApplicationFile {
         id: String,
         client: file::Client,
         project: file::Project,
-        datacap: file::Datacap,
+        datacap: file::ApplicationDatacap,
     ) -> Self {
         let allocation = Allocations::default();
         let lifecycle = LifeCycle::submitted(id.clone(), multisig_address.clone());

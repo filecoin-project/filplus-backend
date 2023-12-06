@@ -36,9 +36,12 @@ pub enum ParsedApplicationDataFields {
     DatacapGroup,
     Type,
     TotalRequestedAmount,
+    TotalRequestedAmountUnit,
     SingleSizeDataset,
+    SingleSizeDatasetUnit,
     Replicas,
     WeeklyAllocation,
+    WeeklyAllocationUnit,
     CustomMultisig,
     Identifier,
     InvalidField,
@@ -48,18 +51,18 @@ impl From<String> for ParsedApplicationDataFields {
     fn from(s: String) -> Self {
         match s.as_str() {
 	  "Version" => ParsedApplicationDataFields::Version,
-	  "On Chain Address" => ParsedApplicationDataFields::Address,
+	  "On-chain address for first allocation" => ParsedApplicationDataFields::Address,
 	  // Client Info
-	  "Name" => ParsedApplicationDataFields::Name,
-	  "Region" => ParsedApplicationDataFields::Region,
-	  "Industry" => ParsedApplicationDataFields::Industry,
+	  "Data Owner Name" => ParsedApplicationDataFields::Name,
+	  "Data Owner Country/Region" => ParsedApplicationDataFields::Region,
+	  "Data Owner Industry" => ParsedApplicationDataFields::Industry,
 	  "Website" => ParsedApplicationDataFields::Website,
-	  "Social Media" => ParsedApplicationDataFields::SocialMedia,
+	  "Social Media Handle" => ParsedApplicationDataFields::SocialMedia,
 	  "Social Media Type" => ParsedApplicationDataFields::SocialMediaType,
-	  "Role" => ParsedApplicationDataFields::Role,
+	  "What is your role related to the dataset" => ParsedApplicationDataFields::Role,
 	  // Project Info
 	  "Project ID" => ParsedApplicationDataFields::ProjectID,
-	  "Brief history of your project and organization" => {
+	  "Share a brief history of your project and organization" => {
 		ParsedApplicationDataFields::ProjectBriefHistory
 	  }
 	  "Is this project associated with other projects/ecosystem stakeholders?" => {
@@ -71,7 +74,7 @@ impl From<String> for ParsedApplicationDataFields {
 	  "Where was the data currently stored in this dataset sourced from"=> {
 		ParsedApplicationDataFields::DataSrc
 	  },
-	  "How do you plan to prepare the dataset" => {
+	  "If you are a data preparer, how will the data be prepared? Please include tooling used and technical details?" => {
 		ParsedApplicationDataFields::DataPrepare
 	  },
 	  "Please share a sample of the data (a link to a file, an image, a table, etc., are good ways to do this." => {
@@ -101,10 +104,13 @@ impl From<String> for ParsedApplicationDataFields {
 	  // Datacap info
 	  "Group" => ParsedApplicationDataFields::DatacapGroup,
 	  "Type" => ParsedApplicationDataFields::Type,
-	  "Total Requested Amount" => ParsedApplicationDataFields::TotalRequestedAmount,
-	  "Single Size Dataset" => ParsedApplicationDataFields::SingleSizeDataset,
-	  "Replicas" => ParsedApplicationDataFields::Replicas,
-	  "Weekly Allocation" => ParsedApplicationDataFields::WeeklyAllocation,
+	  "Total amount of DataCap being requested" => ParsedApplicationDataFields::TotalRequestedAmount,
+	  "Unit for total amount of DataCap being requested" => ParsedApplicationDataFields::TotalRequestedAmountUnit,
+	  "Expected size of single dataset (one copy)" => ParsedApplicationDataFields::SingleSizeDataset,
+	  "Unit for expected size of single dataset" => ParsedApplicationDataFields::SingleSizeDatasetUnit,
+	  "Number of Replicas to Store" => ParsedApplicationDataFields::Replicas,
+	  "Weekly allocation of DataCap requested" => ParsedApplicationDataFields::WeeklyAllocation,
+	  "Unit for Weekly Allocation of DataCap Requested" => ParsedApplicationDataFields::WeeklyAllocationUnit,
 	  "Custom multisig" => ParsedApplicationDataFields::CustomMultisig,
 	  "Identifier" => ParsedApplicationDataFields::Identifier,
 	  // Invalid field
@@ -158,11 +164,10 @@ impl ParsedIssue {
         let id = data
             .0
             .into_iter()
-            .find(|(prop, _)| prop.0 == "On Chain Address")
+            .find(|(prop, _)| prop.0 == "On-chain address for first allocation")
             .unwrap()
             .1
              .0;
-
         Self {
             id,
             version,
@@ -274,7 +279,7 @@ impl From<IssueValidData> for Datacap {
         for (prop, value) in data.0 {
             match prop.0.into() {
                 ParsedApplicationDataFields::DatacapGroup => {
-                    datacap._group = DatacapGroup::from_str(&value.0).unwrap();
+                    datacap.group = DatacapGroup::from_str(&value.0).unwrap();
                 }
                 ParsedApplicationDataFields::Type => {
                     datacap.data_type = DataType::from_str(&value.0).unwrap();
@@ -282,14 +287,23 @@ impl From<IssueValidData> for Datacap {
                 ParsedApplicationDataFields::TotalRequestedAmount => {
                     datacap.total_requested_amount = value.0;
                 }
+                ParsedApplicationDataFields::TotalRequestedAmountUnit => {
+                    datacap.total_requested_amount_unit = value.0;
+                }
                 ParsedApplicationDataFields::SingleSizeDataset => {
                     datacap.single_size_dataset = value.0;
+                }
+                ParsedApplicationDataFields::SingleSizeDatasetUnit => {
+                    datacap.single_size_dataset_unit = value.0;
                 }
                 ParsedApplicationDataFields::Replicas => {
                     datacap.replicas = value.0.parse::<u8>().unwrap();
                 }
                 ParsedApplicationDataFields::WeeklyAllocation => {
                     datacap.weekly_allocation = value.0;
+                }
+                ParsedApplicationDataFields::WeeklyAllocationUnit => {
+                    datacap.weekly_allocation_unit = value.0;
                 }
                 ParsedApplicationDataFields::CustomMultisig => {
                     datacap.custom_multisig = value.0;
@@ -311,7 +325,7 @@ mod tests {
     #[tokio::test]
     async fn test_parser() {
         let gh = GithubWrapper::new();
-        let issue = gh.list_issue(471).await.unwrap();
+        let issue = gh.list_issue(706).await.unwrap();
         let parsed_ldn = super::ParsedIssue::from_issue_body(&issue.body.unwrap());
 
         assert_eq!(parsed_ldn.version, 1);

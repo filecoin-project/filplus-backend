@@ -139,12 +139,10 @@ pub async fn validate_application_flow(
     let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
-        Ok(pr_number) => {
-            match LDNApplication::validate_flow(pr_number, &info.user_handle).await {
-                Ok(result) => HttpResponse::Ok().json(result),
-                Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
-            }
-        }
+        Ok(pr_number) => match LDNApplication::validate_flow(pr_number, &info.user_handle).await {
+            Ok(result) => HttpResponse::Ok().json(result),
+            Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
+        },
         Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
     }
 }
