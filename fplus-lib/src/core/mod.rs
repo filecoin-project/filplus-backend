@@ -76,6 +76,27 @@ pub struct ValidationIssueData {
     pub user_handle: String,
 }
 
+struct DataCapRequestTriggerInfo {
+    client_address: String,
+    total_requested: String,
+    weekly_allocation: String,
+}
+
+struct DataCapAllocationInfo {
+    multisig_address: String,
+    client_address: String,
+    datacap_allocation_requested: String,
+    id: String
+}
+
+struct DataCapRequestSignatureInfo {
+    client_address: String,
+    datacap_allocation_requested: String,
+    id: String,
+    message_cid: String,
+    signing_address: String,
+}
+
 impl LDNApplication {
     pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
@@ -290,11 +311,19 @@ impl LDNApplication {
                         AllocationRequestType::First,
                         app_file.datacap.weekly_allocation.clone(),
                     );
+
                     let app_file = app_file.complete_governance_review(info.actor.clone(), request);
+
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     let app_path = &self.file_name.clone();
                     let app_branch = self.branch_name.clone();
-                    Self::issue_ready_to_sign(app_file.issue_number.clone()).await?;
+                    let data_info = DataCapRequestTriggerInfo {
+                        client_address: app_file.lifecycle.client_on_chain_address.clone(),
+                        total_requested: app_file.datacap.total_requested_amount.clone(),
+                        weekly_allocation: app_file.datacap.weekly_allocation.clone(),
+                    };
+
+                    Self::issue_datacap_request_trigger(app_file.issue_number.clone(), data_info).await?;
                     match LDNPullRequest::add_commit_to(
                         app_path.to_string(),
                         app_branch,
@@ -1053,6 +1082,124 @@ impl LDNApplication {
 
         Ok(true)
     }
+
+    async fn issue_datacap_request_trigger(issue_number: String, data_info: DataCapRequestTriggerInfo) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+
+
+        let comment = format!(
+            "### Datacap Request Trigger
+**Total DataCap requested**
+> {}
+
+**Expected weekly DataCap usage rate**
+> {}
+
+**Client address**
+> {}",
+            data_info.total_requested,
+            data_info.weekly_allocation,
+            data_info.client_address
+        );
+
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            &comment,
+        )
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn issue_datacap_allocation_requested(issue_number: String, data_info: DataCapAllocationInfo) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+
+        let comment = format!(
+            "## DataCap Allocation requested
+
+#### Multisig Notary address
+> {}
+
+#### Client address
+> {}
+
+#### DataCap allocation requested
+> {}
+
+#### Id
+> {}",
+            data_info.multisig_address,
+            data_info.client_address,
+            data_info.datacap_allocation_requested,
+            data_info.id
+        );
+
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            &comment,
+        )
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn issue_datacap_request_signature(issue_number: String, data_info: DataCapRequestSignatureInfo, signature_step: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+
+        let signature_step_capitalized = signature_step.chars().nth(0).unwrap().to_uppercase().to_string() + &signature_step.chars().skip(1).collect::<String>();
+
+        let comment = format!(
+            "## Request {}
+Your Datacap Allocation Request has been {} by the Notary
+#### Message sent to Filecoin Network
+> {}
+#### Address
+> {}
+#### Datacap Allocated
+> {}
+#### Signer Address
+> {}
+#### Id
+> {}
+#### You can check the status of the message here: https://filfox.info/en/message/{}",
+            signature_step_capitalized,
+            signature_step,
+            data_info.message_cid,
+            data_info.client_address,
+            data_info.datacap_allocation_requested,
+            data_info.signing_address,
+            data_info.id,
+            data_info.message_cid
+        );
+
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            &comment,
+        )
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
+
     async fn issue_ready_to_sign(issue_number: String) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
         gh.add_comment_to_issue(
