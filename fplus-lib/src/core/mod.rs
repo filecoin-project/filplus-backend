@@ -671,16 +671,17 @@ impl LDNApplication {
     }
 
     pub async fn validate_flow(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
-        dbg!(
-            "Validating flow for PR number {} with user handle {}",
-            pr_number,
-            actor
-        );
+        log::info!("Starting validate_flow:");
+        log::info!("- Validating flow for PR number {} with user handle {}", pr_number, actor);
 
         let gh = GithubWrapper::new();
         let author = match gh.get_last_commit_author(pr_number).await {
-            Ok(author) => author,
+            Ok(author) => {
+                log::info!("- Last commit author: {}", author);
+                author
+            }
             Err(err) => {
+                log::error!("- Failed to get last commit author. Reason: {}", err);
                 return Err(LDNError::Load(format!(
                     "Failed to get last commit author. Reason: {}",
                     err
@@ -689,12 +690,17 @@ impl LDNApplication {
         };
 
         if author.is_empty() {
+            log::warn!("- Author is empty");
             return Ok(false);
         }
 
         let (_, files) = match gh.get_pull_request_files(pr_number).await {
-            Ok(files) => files,
+            Ok(files) => {
+                log::info!("- Got Pull request files");
+                files
+            }
             Err(err) => {
+                log::error!("- Failed to get pull request files. Reason: {}", err);
                 return Err(LDNError::Load(format!(
                     "Failed to get pull request files. Reason: {}",
                     err
@@ -703,22 +709,31 @@ impl LDNApplication {
         };
 
         if files.len() != 1 {
+            log::warn!("- Number of files in pull request is not equal to 1");
             return Ok(false);
         }
 
         let branch_name = match gh.get_branch_name_from_pr(pr_number).await {
-            Ok(branch_name) => branch_name,
+            Ok(branch_name) => {
+                log::info!("- Branch name: {}", branch_name);
+                branch_name
+            }
             Err(err) => {
+                log::error!("- Failed to get branch name from pull request. Reason: {}", err);
                 return Err(LDNError::Load(format!(
-                    "Failed to get pull request. Reason: {}",
+                    "Failed to get branch name from pull request. Reason: {}",
                     err
                 )))
             }
         };
 
         let application = match gh.get_file(&files[0].filename, &branch_name).await {
-            Ok(file) => LDNApplication::content_items_to_app_file(file)?,
+            Ok(file) => {
+                log::info!("- Got File content");
+                LDNApplication::content_items_to_app_file(file)?
+            }
             Err(err) => {
+                log::error!("- Failed to get file content. Reason: {}", err);
                 return Err(LDNError::Load(format!(
                     "Failed to get file content. Reason: {}",
                     err
@@ -726,25 +741,30 @@ impl LDNApplication {
             }
         };
 
-        //Check if application is in Submitted state
+        // Check if application is in Submitted state
         if application.lifecycle.get_state() == AppState::Submitted {
             if !application.lifecycle.validated_by.is_empty() {
+                log::warn!("- Application has already been validated by: {}", application.lifecycle.validated_by);
                 return Ok(false);
             }
             if !application.lifecycle.validated_at.is_empty() {
+                log::warn!("- Application has already been validated at: {}", application.lifecycle.validated_at);
                 return Ok(false);
             }
             let active_request = application.allocation.active();
             if active_request.is_some() {
+                log::warn!("- Application has an active request");
                 return Ok(false);
             }
-            if application.allocation.0.len() > 0 {
+            if !application.allocation.0.is_empty() {
+                log::warn!("- Application has allocations");
                 return Ok(false);
             }
+            log::info!("- Application is in a valid state!");
             return Ok(true);
         }
 
-        //Check if application is in any other state
+        // Check if application is in any other state
         let bot_user = if get_env_var_or_default("FILPLUS_ENV", "dev") == "prod" {
             PROD_BOT_USER
         } else {
@@ -752,18 +772,18 @@ impl LDNApplication {
         };
 
         if author != bot_user {
+            log::warn!("- Author is not the bot user");
             return Ok(false);
         }
 
+        log::info!("- Application is in a valid state");
         return Ok(true);
     }
 
     pub async fn validate_trigger(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
-        dbg!(
-            "Validating trigger for PR number {} with user handle {}",
-            pr_number,
-            actor
-        );
+        log::info!("Starting validate_trigger:");
+        log::info!("- Validating trigger for PR number {} with user handle {}", pr_number, actor);
+
         if let Ok(application_file) = LDNApplication::single_active(pr_number).await {
             let validated_by = application_file.lifecycle.validated_by.clone();
             let validated_at = application_file.lifecycle.validated_at.clone();
@@ -775,31 +795,45 @@ impl LDNApplication {
             } else {
                 DEV_BOT_USER
             };
+
             let res: bool = match app_state {
-                AppState::Submitted => return Ok(false),
+                AppState::Submitted => {
+                    log::warn!("- Application state is Submitted");
+                    return Ok(false);
+                }
                 AppState::ReadyToSign => {
                     if application_file.allocation.0.is_empty() {
-                        false;
-                    }
-                    let active_allocation = application_file
-                        .allocation
-                        .0
-                        .iter()
-                        .find(|obj| Some(&obj.id) == active_request_id.as_ref());
-                    if active_allocation.is_none() {
-                        false;
-                    }
-                    if active_allocation.unwrap().signers.0.len() > 0 {
-                        false;
-                    }
-                    if !validated_at.is_empty()
-                        && !validated_by.is_empty()
-                        && actor == bot_user
-                        && valid_rkh.is_valid(&validated_by)
-                    {
-                        true
-                    } else {
+                        log::warn!("- No allocations found");
                         false
+                    } else {
+                        let active_allocation = application_file
+                            .allocation
+                            .0
+                            .iter()
+                            .find(|obj| Some(&obj.id) == active_request_id.as_ref());
+
+                        if active_allocation.is_none() {
+                            log::warn!("- Active allocation not found");
+                            false
+                        } else if active_allocation.unwrap().signers.0.len() > 0 {
+                            log::warn!("- Active allocation has signers");
+                            false
+                        } else if validated_at.is_empty() {
+                            log::warn!("- Not ready to sign - validated_at is empty");
+                            false
+                        } else if validated_by.is_empty() {
+                            log::warn!("- Not ready to sign - validated_by is empty");
+                            false
+                        } else if actor != bot_user {
+                            log::warn!("- Not ready to sign - actor is not the bot user");
+                            false
+                        } else if !valid_rkh.is_valid(&validated_by) {
+                            log::warn!("- Not ready to sign - valid_rkh is not valid");
+                            false
+                        } else {
+                            log::info!("- Validated!");
+                            true
+                        }
                     }
                 }
                 AppState::StartSignDatacap => {
@@ -807,8 +841,18 @@ impl LDNApplication {
                         && !validated_by.is_empty()
                         && valid_rkh.is_valid(&validated_by)
                     {
+                        log::info!("- Validated!");
                         true
                     } else {
+                        if validated_at.is_empty() {
+                            log::warn!("- AppState: StartSignDatacap, validation failed: validated_at is empty");
+                        }
+                        if validated_by.is_empty() {
+                            log::warn!("- AppState: StartSignDatacap, validation failed: validated_by is empty");
+                        }
+                        if !valid_rkh.is_valid(&validated_by) {
+                            log::warn!("- AppState: StartSignDatacap, validation failed: valid_rkh is not valid");
+                        }
                         false
                     }
                 }
@@ -817,20 +861,39 @@ impl LDNApplication {
                         && !validated_by.is_empty()
                         && valid_rkh.is_valid(&validated_by)
                     {
+                        log::info!("- Application is granted");
                         true
                     } else {
+                        if validated_at.is_empty() {
+                            log::warn!("- AppState: Granted, validation failed: validated_at is empty");
+                        }
+                        if validated_by.is_empty() {
+                            log::warn!("- AppState: Granted, validation failed: validated_by is empty");
+                        }
+                        if !valid_rkh.is_valid(&validated_by) {
+                            log::warn!("- AppState: Granted, validation failed: valid_rkh is not valid");
+                        }
                         false
                     }
                 }
-                AppState::TotalDatacapReached => true,
-                AppState::Error => return Ok(false),
+                AppState::TotalDatacapReached => {
+                    log::info!("- Application state is TotalDatacapReached");
+                    true
+                }
+                AppState::Error => {
+                    log::warn!("- Application state is Error");
+                    return Ok(false);
+                }
             };
+
             if res {
-                dbg!("Validated");
+                log::info!("Validated!");
                 return Ok(true);
             }
+
             let app_file = application_file.move_back_to_governance_review();
             let ldn_application = LDNApplication::load(app_file.id.clone()).await?;
+
             match LDNPullRequest::add_commit_to(
                 ldn_application.file_name,
                 ldn_application.branch_name.clone(),
@@ -843,44 +906,47 @@ impl LDNApplication {
                 Some(()) => {}
                 None => {}
             };
+
             return Ok(false);
         };
-        dbg!("Failed to fetch Application File");
+
+        log::info!("Failed to fetch Application File");
         Ok(false)
     }
 
     pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
-        dbg!("Validating approval for PR number {}", pr_number);
+        log::info!("Starting validate_approval:");
+        log::info!("Validating approval for PR number {}", pr_number);
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
-                dbg!("Validating approval: App state is {:?}", app_state.as_str());
+                log::info!("- App state is {:?}", app_state.as_str());
                 if app_state < AppState::StartSignDatacap {
-                    dbg!("State is less than StartSignDatacap");
+                    log::warn!("- State is less than StartSignDatacap");
                     return Ok(false);
                 }
                 match app_state {
                     AppState::StartSignDatacap => {
-                        dbg!("State is StartSignDatacap");
+                        log::info!("- State is StartSignDatacap");
                         let active_request = application_file.allocation.active();
                         if active_request.is_none() {
-                            dbg!("No active request");
+                            log::warn!("- No active request");
                             return Ok(false);
                         }
                         let active_request = active_request.unwrap();
                         let signers: application::file::Notaries = active_request.signers.clone();
                         if signers.0.len() != 2 {
-                            dbg!("Not enough signers");
+                            log::warn!("- Not enough signers");
                             return Ok(false);
                         }
                         let signer = signers.0.get(1).unwrap();
                         let signer_address = signer.signing_address.clone();
                         let valid_notaries = Self::fetch_notaries().await?;
                         if valid_notaries.is_valid(&signer_address) {
-                            dbg!("Valid notary");
+                            log::info!("- Validated!");
                             return Ok(true);
                         }
-                        dbg!("Not a valid notary");
+                        log::warn!("- Not validated!");
                         Ok(false)
                     }
                     _ => Ok(true),
@@ -894,36 +960,37 @@ impl LDNApplication {
     }
 
     pub async fn validate_proposal(pr_number: u64) -> Result<bool, LDNError> {
-        dbg!("Validating proposal for PR number {}", pr_number);
+        log::info!("Starting validate_proposal:");
+        log::info!("- Validating proposal for PR number {}", pr_number);
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
-                dbg!("Validating proposal: App state is {:?}", app_state.as_str());
+                log::info!("- App state is {:?}", app_state.as_str());
                 if app_state < AppState::ReadyToSign {
-                    dbg!("State is less than ReadyToSign");
+                    log::warn!("- State is less than ReadyToSign");
                     return Ok(false);
                 }
                 match app_state {
                     AppState::ReadyToSign => {
                         let active_request = application_file.allocation.active();
                         if active_request.is_none() {
-                            dbg!("No active request");
+                            log::warn!("- No active request");
                             return Ok(false);
                         }
                         let active_request = active_request.unwrap();
                         let signers = active_request.signers.clone();
                         if signers.0.len() != 1 {
-                            dbg!("Not enough signers");
+                            log::warn!("- Not enough signers");
                             return Ok(false);
                         }
                         let signer = signers.0.get(0).unwrap();
                         let signer_address = signer.signing_address.clone();
                         let valid_notaries = Self::fetch_notaries().await?;
                         if valid_notaries.is_valid(&signer_address) {
-                            dbg!("Valid notary");
+                            log::info!("- Validated!");
                             return Ok(true);
                         }
-                        dbg!("Not a valid notary");
+                        log::warn!("- Not validated!");
                         Ok(false)
                     }
                     _ => Ok(true),

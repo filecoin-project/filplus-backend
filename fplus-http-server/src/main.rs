@@ -10,8 +10,8 @@ pub(crate) mod router;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
-    let log_level = env::var("RUST_LOG").unwrap_or_else(|_| "debug".to_string());
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("debug"));
+    let log_level = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     info!("Logger initialized at log level: {}", log_level);
 
     HttpServer::new(move || {
