@@ -76,6 +76,27 @@ pub struct ValidationIssueData {
     pub user_handle: String,
 }
 
+struct DataCapRequestTriggerInfo {
+    client_address: String,
+    total_requested: String,
+    weekly_allocation: String,
+}
+
+struct DataCapAllocationInfo {
+    multisig_address: String,
+    client_address: String,
+    datacap_allocation_requested: String,
+    id: String
+}
+
+struct DataCapRequestSignatureInfo {
+    client_address: String,
+    datacap_allocation_requested: String,
+    id: String,
+    message_cid: String,
+    signing_address: String,
+}
+
 impl LDNApplication {
     pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();
@@ -290,11 +311,19 @@ impl LDNApplication {
                         AllocationRequestType::First,
                         app_file.datacap.weekly_allocation.clone(),
                     );
+
                     let app_file = app_file.complete_governance_review(info.actor.clone(), request);
+
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     let app_path = &self.file_name.clone();
                     let app_branch = self.branch_name.clone();
-                    Self::issue_ready_to_sign(app_file.issue_number.clone()).await?;
+                    let data_info = DataCapRequestTriggerInfo {
+                        client_address: app_file.lifecycle.client_on_chain_address.clone(),
+                        total_requested: app_file.datacap.total_requested_amount.clone(),
+                        weekly_allocation: app_file.datacap.weekly_allocation.clone(),
+                    };
+
+                    Self::issue_datacap_request_trigger(app_file.issue_number.clone(), data_info).await?;
                     match LDNPullRequest::add_commit_to(
                         app_path.to_string(),
                         app_branch,
@@ -797,6 +826,23 @@ impl LDNApplication {
                         && actor == bot_user
                         && valid_rkh.is_valid(&validated_by)
                     {
+                        println!("Tatataa: {:?}", active_allocation);
+                        println!("Tatataa: {:?}", application_file);
+
+                        let mut data_info = DataCapAllocationInfo {
+                            client_address: application_file.lifecycle.client_on_chain_address.clone(),
+                            datacap_allocation_requested: "".to_string(),
+                            id: "".to_string(),
+                            multisig_address: application_file.datacap.identifier.clone()
+                        };
+
+                        if let Some(allocation) = active_allocation {
+                            data_info.datacap_allocation_requested = allocation.amount.clone();
+                            data_info.id = allocation.id.clone();
+                        }
+
+                        Self::issue_datacap_allocation_requested(application_file.issue_number.clone(), data_info).await?;
+                        Self::issue_ready_to_sign(application_file.issue_number.clone()).await?;
                         true
                     } else {
                         false
@@ -876,12 +922,44 @@ impl LDNApplication {
                         let signer = signers.0.get(1).unwrap();
                         let signer_address = signer.signing_address.clone();
                         let valid_notaries = Self::fetch_notaries().await?;
-                        if valid_notaries.is_valid(&signer_address) {
-                            dbg!("Valid notary");
-                            return Ok(true);
+                        if !valid_notaries.is_valid(&signer_address) {
+                            dbg!("Not a valid notary");
+                            return Ok(false);
                         }
-                        dbg!("Not a valid notary");
-                        Ok(false)
+
+                        dbg!("Valid notary");
+
+                        let active_request_id = application_file.lifecycle.active_request.clone();
+                        let active_allocation = application_file
+                            .allocation
+                            .0
+                            .iter()
+                            .find(|obj| Some(&obj.id) == active_request_id.as_ref());
+                        if active_allocation.is_none() {
+                            false;
+                        }
+                        if active_allocation.unwrap().signers.0.len() < 1 {
+                            false;
+                        }
+                        let mut data_info = DataCapRequestSignatureInfo {
+                            client_address: application_file.lifecycle.client_on_chain_address.clone(),
+                            datacap_allocation_requested: "".to_string(),
+                            id: "".to_string(),
+                            message_cid: "".to_string(),
+                            signing_address: "".to_string()
+                        };
+
+                        if let Some(allocation) = active_allocation {
+                            data_info.datacap_allocation_requested = allocation.amount.clone();
+                            data_info.id = allocation.id.clone();
+
+                            if let Some(first_notary) = allocation.signers.0.get(1) {
+                                data_info.signing_address = first_notary.signing_address.clone();
+                                data_info.message_cid = first_notary.message_cid.clone();
+                            }
+                        }
+                        Self::issue_datacap_request_signature(application_file.issue_number.clone(), data_info, "approved".to_string()).await?;
+                        return Ok(true)
                     }
                     _ => Ok(true),
                 }
@@ -919,12 +997,44 @@ impl LDNApplication {
                         let signer = signers.0.get(0).unwrap();
                         let signer_address = signer.signing_address.clone();
                         let valid_notaries = Self::fetch_notaries().await?;
-                        if valid_notaries.is_valid(&signer_address) {
-                            dbg!("Valid notary");
-                            return Ok(true);
+                        if !valid_notaries.is_valid(&signer_address) {
+                            dbg!("Not a valid notary");
+                            return Ok(false);
                         }
-                        dbg!("Not a valid notary");
-                        Ok(false)
+
+                        dbg!("Valid notary");
+
+                        let active_request_id = application_file.lifecycle.active_request.clone();
+                        let active_allocation = application_file
+                            .allocation
+                            .0
+                            .iter()
+                            .find(|obj| Some(&obj.id) == active_request_id.as_ref());
+                        if active_allocation.is_none() {
+                            false;
+                        }
+                        if active_allocation.unwrap().signers.0.len() < 1 {
+                            false;
+                        }
+                        let mut data_info = DataCapRequestSignatureInfo {
+                            client_address: application_file.lifecycle.client_on_chain_address.clone(),
+                            datacap_allocation_requested: "".to_string(),
+                            id: "".to_string(),
+                            message_cid: "".to_string(),
+                            signing_address: "".to_string()
+                        };
+
+                        if let Some(allocation) = active_allocation {
+                            data_info.datacap_allocation_requested = allocation.amount.clone();
+                            data_info.id = allocation.id.clone();
+
+                            if let Some(first_notary) = allocation.signers.0.get(0) {
+                                data_info.signing_address = first_notary.signing_address.clone();
+                                data_info.message_cid = first_notary.message_cid.clone();
+                            }
+                        }
+                        Self::issue_datacap_request_signature(application_file.issue_number.clone(), data_info, "proposed".to_string()).await?;
+                        return Ok(true);
                     }
                     _ => Ok(true),
                 }
@@ -963,6 +1073,124 @@ impl LDNApplication {
 
         Ok(true)
     }
+
+    async fn issue_datacap_request_trigger(issue_number: String, data_info: DataCapRequestTriggerInfo) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+
+
+        let comment = format!(
+            "### Datacap Request Trigger
+**Total DataCap requested**
+> {}
+
+**Expected weekly DataCap usage rate**
+> {}
+
+**Client address**
+> {}",
+            data_info.total_requested,
+            data_info.weekly_allocation,
+            data_info.client_address
+        );
+
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            &comment,
+        )
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn issue_datacap_allocation_requested(issue_number: String, data_info: DataCapAllocationInfo) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+
+        let comment = format!(
+            "## DataCap Allocation requested
+
+#### Multisig Notary address
+> {}
+
+#### Client address
+> {}
+
+#### DataCap allocation requested
+> {}
+
+#### Id
+> {}",
+            data_info.multisig_address,
+            data_info.client_address,
+            data_info.datacap_allocation_requested,
+            data_info.id
+        );
+
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            &comment,
+        )
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn issue_datacap_request_signature(issue_number: String, data_info: DataCapRequestSignatureInfo, signature_step: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new();
+
+        let signature_step_capitalized = signature_step.chars().nth(0).unwrap().to_uppercase().to_string() + &signature_step.chars().skip(1).collect::<String>();
+
+        let comment = format!(
+            "## Request {}
+Your Datacap Allocation Request has been {} by the Notary
+#### Message sent to Filecoin Network
+> {}
+#### Address
+> {}
+#### Datacap Allocated
+> {}
+#### Signer Address
+> {}
+#### Id
+> {}
+#### You can check the status of the message here: https://filfox.info/en/message/{}",
+            signature_step_capitalized,
+            signature_step,
+            data_info.message_cid,
+            data_info.client_address,
+            data_info.datacap_allocation_requested,
+            data_info.signing_address,
+            data_info.id,
+            data_info.message_cid
+        );
+
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            &comment,
+        )
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
+
     async fn issue_ready_to_sign(issue_number: String) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
         gh.add_comment_to_issue(
