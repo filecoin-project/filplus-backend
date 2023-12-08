@@ -818,16 +818,21 @@ impl LDNApplication {
                         } else if active_allocation.unwrap().signers.0.len() > 0 {
                             log::warn!("- Active allocation has signers");
                             false
-                        } else if !validated_at.is_empty()
-                            && !validated_by.is_empty()
-                            && actor == bot_user
-                            && valid_rkh.is_valid(&validated_by)
-                        {
+                        } else if validated_at.is_empty() {
+                            log::warn!("- Not ready to sign - validated_at is empty");
+                            false
+                        } else if validated_by.is_empty() {
+                            log::warn!("- Not ready to sign - validated_by is empty");
+                            false
+                        } else if actor != bot_user {
+                            log::warn!("- Not ready to sign - actor is not the bot user");
+                            false
+                        } else if !valid_rkh.is_valid(&validated_by) {
+                            log::warn!("- Not ready to sign - valid_rkh is not valid");
+                            false
+                        } else {
                             log::info!("- Validated!");
                             true
-                        } else {
-                            log::warn!("- Not ready to sign - general error");
-                            false
                         }
                     }
                 }
