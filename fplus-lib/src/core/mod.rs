@@ -23,6 +23,7 @@ use self::application::file::{
     ValidNotaryList, ValidRKHList,
 };
 use rayon::prelude::*;
+use crate::core::application::file::Allocation;
 
 pub mod application;
 
@@ -74,27 +75,6 @@ pub struct ValidationPullRequestData {
 pub struct ValidationIssueData {
     pub issue_number: String,
     pub user_handle: String,
-}
-
-struct DataCapRequestTriggerInfo {
-    client_address: String,
-    total_requested: String,
-    weekly_allocation: String,
-}
-
-struct DataCapAllocationInfo {
-    multisig_address: String,
-    client_address: String,
-    datacap_allocation_requested: String,
-    id: String
-}
-
-struct DataCapRequestSignatureInfo {
-    client_address: String,
-    datacap_allocation_requested: String,
-    id: String,
-    message_cid: String,
-    signing_address: String,
 }
 
 impl LDNApplication {
@@ -317,13 +297,8 @@ impl LDNApplication {
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     let app_path = &self.file_name.clone();
                     let app_branch = self.branch_name.clone();
-                    let data_info = DataCapRequestTriggerInfo {
-                        client_address: app_file.lifecycle.client_on_chain_address.clone(),
-                        total_requested: app_file.datacap.total_requested_amount.clone(),
-                        weekly_allocation: app_file.datacap.weekly_allocation.clone(),
-                    };
 
-                    Self::issue_datacap_request_trigger(app_file.issue_number.clone(), data_info).await?;
+                    Self::issue_datacap_request_trigger(app_file.clone()).await?;
                     match LDNPullRequest::add_commit_to(
                         app_path.to_string(),
                         app_branch,
@@ -1083,9 +1058,14 @@ impl LDNApplication {
         Ok(true)
     }
 
-    async fn issue_datacap_request_trigger(issue_number: String, data_info: DataCapRequestTriggerInfo) -> Result<bool, LDNError> {
+    async fn issue_datacap_request_trigger(application_file: ApplicationFile) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
 
+        let client_address =  application_file.lifecycle.client_on_chain_address.clone();
+        let total_requested =  application_file.datacap.total_requested_amount.clone();
+        let weekly_allocation =  application_file.datacap.weekly_allocation.clone();
+
+        let issue_number = application_file.issue_number.clone();
 
         let comment = format!(
             "### Datacap Request Trigger
@@ -1097,9 +1077,9 @@ impl LDNApplication {
 
 **Client address**
 > {}",
-            data_info.total_requested,
-            data_info.weekly_allocation,
-            data_info.client_address
+            total_requested,
+            weekly_allocation,
+            client_address
         );
 
         gh.add_comment_to_issue(
@@ -1117,8 +1097,18 @@ impl LDNApplication {
         Ok(true)
     }
 
-    async fn issue_datacap_allocation_requested(issue_number: String, data_info: DataCapAllocationInfo) -> Result<bool, LDNError> {
+    async fn issue_datacap_allocation_requested(application_file: ApplicationFile, active_allocation: Option<&Allocation>) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
+
+        let issue_number = application_file.issue_number.clone();
+
+        let mut datacap_allocation_requested = String::new();
+        let mut id = String::new();
+
+        if let Some(allocation) = active_allocation {
+            datacap_allocation_requested = allocation.amount.clone();
+            id = allocation.id.clone();
+        }
 
         let comment = format!(
             "## DataCap Allocation requested
@@ -1134,10 +1124,10 @@ impl LDNApplication {
 
 #### Id
 > {}",
-            data_info.multisig_address,
-            data_info.client_address,
-            data_info.datacap_allocation_requested,
-            data_info.id
+            application_file.datacap.identifier.clone(),
+            application_file.lifecycle.client_on_chain_address.clone(),
+            datacap_allocation_requested,
+            id
         );
 
         gh.add_comment_to_issue(
@@ -1155,10 +1145,27 @@ impl LDNApplication {
         Ok(true)
     }
 
-    async fn issue_datacap_request_signature(issue_number: String, data_info: DataCapRequestSignatureInfo, signature_step: String) -> Result<bool, LDNError> {
+    async fn issue_datacap_request_signature(application_file: ApplicationFile, active_allocation: Option<&Allocation>, signature_step: String) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
 
+        let issue_number = application_file.issue_number.clone();
+
         let signature_step_capitalized = signature_step.chars().nth(0).unwrap().to_uppercase().to_string() + &signature_step.chars().skip(1).collect::<String>();
+
+        let mut datacap_allocation_requested = String::new();
+        let mut id = String::new();
+        let mut signing_address = String::new();
+        let mut message_cid = String::new();
+
+        if let Some(allocation) = active_allocation {
+            datacap_allocation_requested = allocation.amount.clone();
+            id = allocation.id.clone();
+
+            if let Some(first_notary) = allocation.signers.0.get(0) {
+                signing_address = first_notary.signing_address.clone();
+                message_cid = first_notary.message_cid.clone();
+            }
+        }
 
         let comment = format!(
             "## Request {}
@@ -1176,12 +1183,12 @@ Your Datacap Allocation Request has been {} by the Notary
 #### You can check the status of the message here: https://filfox.info/en/message/{}",
             signature_step_capitalized,
             signature_step,
-            data_info.message_cid,
-            data_info.client_address,
-            data_info.datacap_allocation_requested,
-            data_info.signing_address,
-            data_info.id,
-            data_info.message_cid
+            message_cid,
+            application_file.lifecycle.client_on_chain_address.clone(),
+            datacap_allocation_requested,
+            signing_address,
+            id,
+            message_cid
         );
 
         gh.add_comment_to_issue(
