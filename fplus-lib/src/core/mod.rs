@@ -293,13 +293,10 @@ impl LDNApplication {
                         AllocationRequestType::First,
                         app_file.datacap.weekly_allocation.clone(),
                     );
-
                     let app_file = app_file.complete_governance_review(info.actor.clone(), request);
-
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     let app_path = &self.file_name.clone();
                     let app_branch = self.branch_name.clone();
-
                     Self::issue_datacap_request_trigger(app_file.clone()).await?;
                     match LDNPullRequest::add_commit_to(
                         app_path.to_string(),
@@ -976,9 +973,9 @@ impl LDNApplication {
                         if valid_notaries.is_valid(&signer_address) {
                             log::info!("- Validated!");
 
-                            Self::issue_datacap_request_signature(application_file.clone(), active_allocation.clone(), "approved".to_string()).await?;
+                            Self::issue_datacap_request_signature(application_file.clone(), "approved".to_string()).await?;
                             Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::Granted.as_str()]).await?;
-                            Self::issue_granted(app_file.issue_number.clone()).await?;
+                            Self::issue_granted(application_file.issue_number.clone()).await?;
                             
                             return Ok(true);
                         }
@@ -1026,7 +1023,7 @@ impl LDNApplication {
                             log::info!("- Validated!");
 
                             Self::issue_start_sign_dc(application_file.issue_number.clone()).await?;
-                            Self::issue_datacap_request_signature(application_file.clone(), active_allocation.clone(), "proposed".to_string()).await?;
+                            Self::issue_datacap_request_signature(application_file.clone(), "proposed".to_string()).await?;
                             Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::StartSignDatacap.as_str()]).await?;
 
                             return Ok(true);
@@ -1148,7 +1145,11 @@ impl LDNApplication {
         Ok(true)
     }
 
-    async fn issue_datacap_request_signature(application_file: ApplicationFile, active_allocation: Option<&Allocation>, signature_step: String) -> Result<bool, LDNError> {
+    async fn issue_datacap_request_signature(application_file: ApplicationFile, signature_step: String) -> Result<bool, LDNError> {
+        let active_allocation: Option<&Allocation> = application_file.allocation
+            .0
+            .iter()
+            .find(|obj| Some(&obj.id) == application_file.lifecycle.active_request.clone().as_ref());
         let gh = GithubWrapper::new();
 
         let issue_number = application_file.issue_number.clone();
