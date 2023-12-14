@@ -94,12 +94,12 @@ impl Default for Datacap {
         Self {
             _group: DatacapGroup::LDN,
             data_type: DataType::Slingshot,
-            total_requested_amount: "0".to_string(),
-            single_size_dataset: "0".to_string(),
+            total_requested_amount: "".to_string(),
+            single_size_dataset: "".to_string(),
             replicas: 0,
-            weekly_allocation: "0".to_string(),
-            custom_multisig: "0".to_string(),
-            identifier: "0".to_string(),
+            weekly_allocation: "".to_string(),
+            custom_multisig: "".to_string(),
+            identifier: "".to_string(),
         }
     }
 }
