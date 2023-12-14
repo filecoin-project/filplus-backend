@@ -184,7 +184,7 @@ pub struct Project {
     pub associated_projects: String,
     #[serde(rename = "Describe the data being stored onto Filecoin")]
     pub stored_data_desc: String,
-    #[serde(rename = "Where was the data currently stored in this dataset sourced from} ")]
+    #[serde(rename = "Where was the data currently stored in this dataset sourced from")]
     pub previous_stoarge: String,
     #[serde(rename = "How do you plan to prepare the dataset")]
     pub dataset_prepare: String,
