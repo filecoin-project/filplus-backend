@@ -25,6 +25,12 @@ impl FromStr for DatacapGroup {
     }
 }
 
+// DONT CHANGE ME UNLESS YOU HAVE GUN POINTED TO YOUR HEAD
+// INCLUDES ALL THE NESTED OBJECTS, IE `CLIENT`, `PROJECT`, `DATACAP`, `LIFECYCLE`, `ALLOCATION`
+//
+// In occasions where you need to add new question or modify the ISSUE_TEMPLATE
+// you should implemet a new struct, for example `ParsedClient` and then convert
+// `ParsedClient` into `Client`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationFile {
     #[serde(rename = "Version")]

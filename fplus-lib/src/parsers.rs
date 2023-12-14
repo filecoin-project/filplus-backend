@@ -35,9 +35,12 @@ pub enum ParsedApplicationDataFields {
     // Datacap Info
     DatacapGroup,
     Type,
+    UnitTotalRequestedAmount,
     TotalRequestedAmount,
+    UnitSingleSizeDataset,
     SingleSizeDataset,
     Replicas,
+    UnitWeeklyAllocation,
     WeeklyAllocation,
     CustomMultisig,
     Identifier,
@@ -48,18 +51,18 @@ impl From<String> for ParsedApplicationDataFields {
     fn from(s: String) -> Self {
         match s.as_str() {
 	  "Version" => ParsedApplicationDataFields::Version,
-	  "On Chain Address" => ParsedApplicationDataFields::Address,
+	  "On-chain address for first allocation" => ParsedApplicationDataFields::Address,
 	  // Client Info
-	  "Name" => ParsedApplicationDataFields::Name,
-	  "Region" => ParsedApplicationDataFields::Region,
-	  "Industry" => ParsedApplicationDataFields::Industry,
+	  "Data Owner Name" => ParsedApplicationDataFields::Name,
+	  "Data Owner Country/Region" => ParsedApplicationDataFields::Region,
+	  "Data Owner Industry" => ParsedApplicationDataFields::Industry,
 	  "Website" => ParsedApplicationDataFields::Website,
-	  "Social Media" => ParsedApplicationDataFields::SocialMedia,
+	  "Social Media Handle" => ParsedApplicationDataFields::SocialMedia,
 	  "Social Media Type" => ParsedApplicationDataFields::SocialMediaType,
-	  "Role" => ParsedApplicationDataFields::Role,
+	  "What is your role related to the dataset" => ParsedApplicationDataFields::Role,
 	  // Project Info
 	  "Project ID" => ParsedApplicationDataFields::ProjectID,
-	  "Brief history of your project and organization" => {
+          "Share a brief history of your project and organization" => {
 		ParsedApplicationDataFields::ProjectBriefHistory
 	  }
 	  "Is this project associated with other projects/ecosystem stakeholders?" => {
@@ -101,10 +104,13 @@ impl From<String> for ParsedApplicationDataFields {
 	  // Datacap info
 	  "Group" => ParsedApplicationDataFields::DatacapGroup,
 	  "Type" => ParsedApplicationDataFields::Type,
-	  "Total Requested Amount" => ParsedApplicationDataFields::TotalRequestedAmount,
-	  "Single Size Dataset" => ParsedApplicationDataFields::SingleSizeDataset,
-	  "Replicas" => ParsedApplicationDataFields::Replicas,
-	  "Weekly Allocation" => ParsedApplicationDataFields::WeeklyAllocation,
+	  "Unit for total amount of DataCap being requested" => ParsedApplicationDataFields::UnitTotalRequestedAmount,
+	  "Total amount of DataCap being requested" => ParsedApplicationDataFields::TotalRequestedAmount,
+	  "Unit for expected size of single dataset" => ParsedApplicationDataFields::UnitSingleSizeDataset,
+	  "Expected size of single dataset (one copy)" => ParsedApplicationDataFields::SingleSizeDataset,
+	  "Number of replicas to store" => ParsedApplicationDataFields::Replicas,
+	  "Unit for weekly allocation of DataCap requested" => ParsedApplicationDataFields::UnitWeeklyAllocation,
+	  "Weekly allocation of DataCap requested" => ParsedApplicationDataFields::WeeklyAllocation,
 	  "Custom multisig" => ParsedApplicationDataFields::CustomMultisig,
 	  "Identifier" => ParsedApplicationDataFields::Identifier,
 	  // Invalid field
@@ -158,7 +164,7 @@ impl ParsedIssue {
         let id = data
             .0
             .into_iter()
-            .find(|(prop, _)| prop.0 == "On Chain Address")
+            .find(|(prop, _)| prop.0 == "On-chain address for first allocation")
             .unwrap()
             .1
              .0;
@@ -279,17 +285,39 @@ impl From<IssueValidData> for Datacap {
                 ParsedApplicationDataFields::Type => {
                     datacap.data_type = DataType::from_str(&value.0).unwrap();
                 }
+                ParsedApplicationDataFields::UnitTotalRequestedAmount => {
+                    datacap.total_requested_amount =
+                        format!("{}{}", datacap.total_requested_amount, value.0);
+                }
                 ParsedApplicationDataFields::TotalRequestedAmount => {
-                    datacap.total_requested_amount = value.0;
+                    if datacap.total_requested_amount.is_empty() {
+                        datacap.total_requested_amount = value.0.clone();
+                    }
+                    datacap.total_requested_amount =
+                        format!("{}{}", value.0, datacap.total_requested_amount);
+                }
+                ParsedApplicationDataFields::UnitSingleSizeDataset => {
+                    datacap.single_size_dataset =
+                        format!("{}{}", datacap.single_size_dataset, value.0);
                 }
                 ParsedApplicationDataFields::SingleSizeDataset => {
-                    datacap.single_size_dataset = value.0;
+                    if datacap.single_size_dataset.is_empty() {
+                        datacap.single_size_dataset = value.0.clone();
+                    }
+                    datacap.single_size_dataset =
+                        format!("{}{}", value.0, datacap.single_size_dataset);
                 }
                 ParsedApplicationDataFields::Replicas => {
                     datacap.replicas = value.0.parse::<u8>().unwrap();
                 }
+                ParsedApplicationDataFields::UnitWeeklyAllocation => {
+                    datacap.weekly_allocation = format!("{}{}", datacap.weekly_allocation, value.0);
+                }
                 ParsedApplicationDataFields::WeeklyAllocation => {
-                    datacap.weekly_allocation = value.0;
+                    if datacap.weekly_allocation.is_empty() {
+                        datacap.weekly_allocation = value.0.clone();
+                    }
+                    datacap.weekly_allocation = format!("{}{}", value.0, datacap.weekly_allocation);
                 }
                 ParsedApplicationDataFields::CustomMultisig => {
                     datacap.custom_multisig = value.0;
@@ -311,8 +339,9 @@ mod tests {
     #[tokio::test]
     async fn test_parser() {
         let gh = GithubWrapper::new();
-        let issue = gh.list_issue(471).await.unwrap();
+        let issue = gh.list_issue(706).await.unwrap();
         let parsed_ldn = super::ParsedIssue::from_issue_body(&issue.body.unwrap());
+        dbg!(&parsed_ldn);
 
         assert_eq!(parsed_ldn.version, 1);
         assert!(!parsed_ldn.id.is_empty());

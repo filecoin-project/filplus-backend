@@ -672,7 +672,11 @@ impl LDNApplication {
 
     pub async fn validate_flow(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
         log::info!("Starting validate_flow:");
-        log::info!("- Validating flow for PR number {} with user handle {}", pr_number, actor);
+        log::info!(
+            "- Validating flow for PR number {} with user handle {}",
+            pr_number,
+            actor
+        );
 
         let gh = GithubWrapper::new();
         let author = match gh.get_last_commit_author(pr_number).await {
@@ -685,7 +689,7 @@ impl LDNApplication {
                 return Err(LDNError::Load(format!(
                     "Failed to get last commit author. Reason: {}",
                     err
-                )))
+                )));
             }
         };
 
@@ -704,7 +708,7 @@ impl LDNApplication {
                 return Err(LDNError::Load(format!(
                     "Failed to get pull request files. Reason: {}",
                     err
-                )))
+                )));
             }
         };
 
@@ -719,11 +723,14 @@ impl LDNApplication {
                 branch_name
             }
             Err(err) => {
-                log::error!("- Failed to get branch name from pull request. Reason: {}", err);
+                log::error!(
+                    "- Failed to get branch name from pull request. Reason: {}",
+                    err
+                );
                 return Err(LDNError::Load(format!(
                     "Failed to get branch name from pull request. Reason: {}",
                     err
-                )))
+                )));
             }
         };
 
@@ -737,18 +744,24 @@ impl LDNApplication {
                 return Err(LDNError::Load(format!(
                     "Failed to get file content. Reason: {}",
                     err
-                )))
+                )));
             }
         };
 
         // Check if application is in Submitted state
         if application.lifecycle.get_state() == AppState::Submitted {
             if !application.lifecycle.validated_by.is_empty() {
-                log::warn!("- Application has already been validated by: {}", application.lifecycle.validated_by);
+                log::warn!(
+                    "- Application has already been validated by: {}",
+                    application.lifecycle.validated_by
+                );
                 return Ok(false);
             }
             if !application.lifecycle.validated_at.is_empty() {
-                log::warn!("- Application has already been validated at: {}", application.lifecycle.validated_at);
+                log::warn!(
+                    "- Application has already been validated at: {}",
+                    application.lifecycle.validated_at
+                );
                 return Ok(false);
             }
             let active_request = application.allocation.active();
@@ -782,7 +795,11 @@ impl LDNApplication {
 
     pub async fn validate_trigger(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
         log::info!("Starting validate_trigger:");
-        log::info!("- Validating trigger for PR number {} with user handle {}", pr_number, actor);
+        log::info!(
+            "- Validating trigger for PR number {} with user handle {}",
+            pr_number,
+            actor
+        );
 
         if let Ok(application_file) = LDNApplication::single_active(pr_number).await {
             let validated_by = application_file.lifecycle.validated_by.clone();
@@ -865,13 +882,19 @@ impl LDNApplication {
                         true
                     } else {
                         if validated_at.is_empty() {
-                            log::warn!("- AppState: Granted, validation failed: validated_at is empty");
+                            log::warn!(
+                                "- AppState: Granted, validation failed: validated_at is empty"
+                            );
                         }
                         if validated_by.is_empty() {
-                            log::warn!("- AppState: Granted, validation failed: validated_by is empty");
+                            log::warn!(
+                                "- AppState: Granted, validation failed: validated_by is empty"
+                            );
                         }
                         if !valid_rkh.is_valid(&validated_by) {
-                            log::warn!("- AppState: Granted, validation failed: valid_rkh is not valid");
+                            log::warn!(
+                                "- AppState: Granted, validation failed: valid_rkh is not valid"
+                            );
                         }
                         false
                     }
@@ -1155,20 +1178,25 @@ impl LDNApplication {
         .unwrap();
         Ok(true)
     }
-    
+
     pub async fn fetch_rkh_and_notary_gh_users() -> Result<(Vec<String>, Vec<String>), LDNError> {
-        let rkh_list = Self::fetch_rkh().await.map_err(|e| LDNError::Load(format!("Failed to retrieve rkh: {}", e)))?;
-    
-        let notary_list = Self::fetch_notaries().await.map_err(|e| LDNError::Load(format!("Failed to retrieve notaries: {}", e)))?;
-    
-        let notary_gh_names = notary_list.notaries.into_iter()
+        let rkh_list = Self::fetch_rkh()
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve rkh: {}", e)))?;
+
+        let notary_list = Self::fetch_notaries()
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve notaries: {}", e)))?;
+
+        let notary_gh_names = notary_list
+            .notaries
+            .into_iter()
             .flat_map(|notary| notary.github_user)
             .filter(|username| !username.is_empty())
             .collect();
-    
+
         Ok((rkh_list.rkh, notary_gh_names))
     }
-    
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -1347,7 +1375,7 @@ mod tests {
 
         log::info!("Creating a new LDNApplication from issue");
         let ldn_application = match LDNApplication::new_from_issue(CreateApplicationInfo {
-            issue_number: "471".to_string(),
+            issue_number: "706".to_string(),
         })
         .await
         {
