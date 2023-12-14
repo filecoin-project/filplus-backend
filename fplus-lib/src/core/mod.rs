@@ -242,6 +242,7 @@ impl LDNApplication {
                 let file_content = match serde_json::to_string_pretty(&application_file) {
                     Ok(f) => f,
                     Err(e) => {
+                        Self::add_error_label(application_file.issue_number.clone(), "".to_string()).await?;
                         return Err(LDNError::New(format!(
                             "Application issue file is corrupted /// {}",
                             e
@@ -258,6 +259,7 @@ impl LDNApplication {
                 )
                 .await?;
                 Self::issue_waiting_for_gov_review(issue_number.clone()).await?;
+                Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::Submitted.as_str(), "waiting for governance review"]).await?;
                 Ok(LDNApplication {
                     github: gh,
                     application_id,
@@ -352,7 +354,6 @@ impl LDNApplication {
                         app_lifecycle,
                     );
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
-                    Self::issue_start_sign_dc(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
                         self.file_name.to_string(),
                         self.branch_name.clone(),
@@ -401,7 +402,6 @@ impl LDNApplication {
                         app_lifecycle,
                     );
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
-                    Self::issue_granted(app_file.issue_number.clone()).await?;
                     match LDNPullRequest::add_commit_to(
                         self.file_name.to_string(),
                         self.branch_name.clone(),
@@ -475,6 +475,7 @@ impl LDNApplication {
             let ldn_app = LDNApplication::load(application_id.clone()).await?;
             let ContentItems { items } = gh.get_file(&ldn_app.file_name, "main").await.unwrap();
             Self::issue_full_dc(app.issue_number.clone()).await?;
+            Self::update_issue_labels(app.issue_number.clone(), &[AppState::TotalDatacapReached.as_str()]).await?;
             LDNPullRequest::create_refill_pr(
                 app.id.clone(),
                 app.client.name.clone(),
@@ -796,12 +797,19 @@ impl LDNApplication {
                     if active_allocation.unwrap().signers.0.len() > 0 {
                         false;
                     }
-                    if !validated_at.is_empty()
-                        && !validated_by.is_empty()
-                        && actor == bot_user
-                        && valid_rkh.is_valid(&validated_by)
+
+                    let is_validated_at_empty = validated_at.is_empty();
+                    let is_validated_by_empty = validated_by.is_empty();
+                    let is_actor_bot_user = actor == bot_user;
+                    let is_valid_rkh = valid_rkh.is_valid(&validated_by);
+
+                    if !is_validated_at_empty
+                        && !is_validated_by_empty
+                        && is_actor_bot_user
+                        && is_valid_rkh
                     {
                         Self::issue_datacap_allocation_requested(application_file.clone(), active_allocation.clone()).await?;
+                        Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::ReadyToSign.as_str()]).await?;
                         Self::issue_ready_to_sign(application_file.issue_number.clone()).await?;
                         true
                     } else {
@@ -860,13 +868,12 @@ impl LDNApplication {
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
-                dbg!("Validating approval: App state is {:?}", app_state.as_str());
                 if app_state < AppState::StartSignDatacap {
                     dbg!("State is less than StartSignDatacap");
                     return Ok(false);
                 }
                 match app_state {
-                    AppState::StartSignDatacap => {
+                    AppState::Granted => {
                         dbg!("State is StartSignDatacap");
                         let active_request = application_file.allocation.active();
                         if active_request.is_none() {
@@ -883,7 +890,7 @@ impl LDNApplication {
                         let signer_address = signer.signing_address.clone();
                         let valid_notaries = Self::fetch_notaries().await?;
                         if !valid_notaries.is_valid(&signer_address) {
-                            dbg!("Not a valid notary");
+                            dbg!("Not a valid notary", &signer_address);
                             return Ok(false);
                         }
 
@@ -901,8 +908,9 @@ impl LDNApplication {
                         if active_allocation.unwrap().signers.0.len() < 1 {
                             false;
                         }
-
                         Self::issue_datacap_request_signature(application_file.clone(), active_allocation.clone(), "approved".to_string()).await?;
+                        Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::Granted.as_str()]).await?;
+                        Self::issue_granted(app_file.issue_number.clone()).await?;
 
                         return Ok(true)
                     }
@@ -921,13 +929,13 @@ impl LDNApplication {
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
-                dbg!("Validating proposal: App state is {:?}", app_state.as_str());
-                if app_state < AppState::ReadyToSign {
-                    dbg!("State is less than ReadyToSign");
+                dbg!("Validating proposal: App state is {:?}", app_state.as_str(), "(if state is validated = that means submitted)");
+                if app_state < AppState::StartSignDatacap {
+                    dbg!("State is less than StartSignDatacap");
                     return Ok(false);
                 }
                 match app_state {
-                    AppState::ReadyToSign => {
+                    AppState::StartSignDatacap => {
                         let active_request = application_file.allocation.active();
                         if active_request.is_none() {
                             dbg!("No active request");
@@ -947,8 +955,6 @@ impl LDNApplication {
                             return Ok(false);
                         }
 
-                        dbg!("Valid notary");
-
                         let active_request_id = application_file.lifecycle.active_request.clone();
                         let active_allocation = application_file
                             .allocation
@@ -962,7 +968,10 @@ impl LDNApplication {
                             false;
                         }
 
+                        Self::issue_start_sign_dc(application_file.issue_number.clone()).await?;
                         Self::issue_datacap_request_signature(application_file.clone(), active_allocation.clone(), "proposed".to_string()).await?;
+                        
+                        Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::StartSignDatacap.as_str()]).await?;
                         return Ok(true);
                     }
                     _ => Ok(true),
@@ -985,17 +994,6 @@ impl LDNApplication {
         .map_err(|e| {
             return LDNError::New(format!(
                 "Error adding comment to issue {} /// {}",
-                issue_number, e
-            ));
-        })?;
-        gh.replace_issue_labels(
-            issue_number.parse().unwrap(),
-            &["waiting for governance review".to_string()],
-        )
-        .await
-        .map_err(|e| {
-            return LDNError::New(format!(
-                "Error add label to issue {} /// {}",
                 issue_number, e
             ));
         })?;
@@ -1140,14 +1138,15 @@ Your Datacap Allocation Request has been {} by the Notary
             issue_number.parse().unwrap(),
             &comment,
         )
-            .await
-            .map_err(|e| {
-                return LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
-                ));
-            })
-            .unwrap();
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+
         Ok(true)
     }
 
@@ -1157,18 +1156,6 @@ Your Datacap Allocation Request has been {} by the Notary
         gh.add_comment_to_issue(
             issue_number.parse().unwrap(),
             "Application is ready to sign",
-        )
-        .await
-        .map_err(|e| {
-            return LDNError::New(format!(
-                "Error adding comment to issue {} /// {}",
-                issue_number, e
-            ));
-        })
-        .unwrap();
-        gh.replace_issue_labels(
-            issue_number.parse().unwrap(),
-            &["ready to sign".to_string()],
         )
         .await
         .map_err(|e| {
@@ -1194,32 +1181,11 @@ Your Datacap Allocation Request has been {} by the Notary
             ));
         })
         .unwrap();
-        gh.replace_issue_labels(
-            issue_number.parse().unwrap(),
-            &["Start Sign Datacap".to_string()],
-        )
-        .await
-        .map_err(|e| {
-            return LDNError::New(format!(
-                "Error adding comment to issue {} /// {}",
-                issue_number, e
-            ));
-        })
-        .unwrap();
         Ok(true)
     }
     async fn issue_granted(issue_number: String) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Granted")
-            .await
-            .map_err(|e| {
-                return LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
-                ));
-            })
-            .unwrap();
-        gh.replace_issue_labels(issue_number.parse().unwrap(), &["Granted".to_string()])
             .await
             .map_err(|e| {
                 return LDNError::New(format!(
@@ -1263,18 +1229,6 @@ Your Datacap Allocation Request has been {} by the Notary
                 ));
             })
             .unwrap();
-        gh.replace_issue_labels(
-            issue_number.parse().unwrap(),
-            &["Completed".to_string(), "Reached Total Datacap".to_string()],
-        )
-        .await
-        .map_err(|e| {
-            return LDNError::New(format!(
-                "Error adding comment to issue {} /// {}",
-                issue_number, e
-            ));
-        })
-        .unwrap();
         Ok(true)
     }
     
@@ -1289,6 +1243,39 @@ Your Datacap Allocation Request has been {} by the Notary
             .collect();
     
         Ok((rkh_list.rkh, notary_gh_names))
+    }
+
+    async fn add_error_label(issue_number: String, comment: String) -> Result<(), LDNError> {
+        let gh = GithubWrapper::new();
+        let num: u64 = issue_number.parse().expect("Not a valid integer");
+        gh.add_error_label(num, comment).await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding labels t to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+        
+        Ok(())
+    }
+
+    async fn update_issue_labels(issue_number: String, new_labels: &[&str]) -> Result<(), LDNError> {
+        let gh = GithubWrapper::new();
+        let num: u64 = issue_number.parse().expect("Not a valid integer");
+        gh.update_issue_labels(
+            num, 
+            new_labels
+        ).await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding labels t to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+
+        Ok(())
     }
     
 }
