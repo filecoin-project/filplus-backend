@@ -292,9 +292,10 @@ impl From<IssueValidData> for Datacap {
                 ParsedApplicationDataFields::TotalRequestedAmount => {
                     if datacap.total_requested_amount.is_empty() {
                         datacap.total_requested_amount = value.0.clone();
+                    } else {
+                        datacap.total_requested_amount =
+                            format!("{}{}", value.0, datacap.total_requested_amount);
                     }
-                    datacap.total_requested_amount =
-                        format!("{}{}", value.0, datacap.total_requested_amount);
                 }
                 ParsedApplicationDataFields::UnitSingleSizeDataset => {
                     datacap.single_size_dataset =
@@ -303,9 +304,10 @@ impl From<IssueValidData> for Datacap {
                 ParsedApplicationDataFields::SingleSizeDataset => {
                     if datacap.single_size_dataset.is_empty() {
                         datacap.single_size_dataset = value.0.clone();
+                    } else {
+                        datacap.single_size_dataset =
+                            format!("{}{}", value.0, datacap.single_size_dataset);
                     }
-                    datacap.single_size_dataset =
-                        format!("{}{}", value.0, datacap.single_size_dataset);
                 }
                 ParsedApplicationDataFields::Replicas => {
                     datacap.replicas = value.0.parse::<u8>().unwrap();
@@ -316,8 +318,10 @@ impl From<IssueValidData> for Datacap {
                 ParsedApplicationDataFields::WeeklyAllocation => {
                     if datacap.weekly_allocation.is_empty() {
                         datacap.weekly_allocation = value.0.clone();
+                    } else {
+                        datacap.weekly_allocation =
+                            format!("{}{}", value.0, datacap.weekly_allocation);
                     }
-                    datacap.weekly_allocation = format!("{}{}", value.0, datacap.weekly_allocation);
                 }
                 ParsedApplicationDataFields::CustomMultisig => {
                     datacap.custom_multisig = value.0;
