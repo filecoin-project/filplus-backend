@@ -74,13 +74,13 @@ impl From<String> for ParsedApplicationDataFields {
 	  "Where was the data currently stored in this dataset sourced from"=> {
 		ParsedApplicationDataFields::DataSrc
 	  },
-	  "How do you plan to prepare the dataset" => {
+	  "If you are a data preparer, how will the data be prepared? Please include tooling used and technical details?" => {
 		ParsedApplicationDataFields::DataPrepare
 	  },
-	  "Please share a sample of the data (a link to a file, an image, a table, etc., are good ways to do this." => {
+	  "Please share a sample of the data" => {
 		ParsedApplicationDataFields::DataSampleLink
 	  },
-	  "Confirm that this is a public dataset that can be retrieved by anyone on the network (i.e., no specific permissions or access rights are required to view the data)" => {
+	  "Confirm that this is a public dataset that can be retrieved by anyone on the Network" => {
 		ParsedApplicationDataFields::ConfirmPublicDataset
 	  },
 	  "What is the expected retrieval frequency for this data" => {
@@ -95,10 +95,10 @@ impl From<String> for ParsedApplicationDataFields {
 	  "How will you be distributing your data to storage providers" => {
 		ParsedApplicationDataFields::DataDistribution
 	  },
-	  "Please list the provider IDs and location of the storage providers you will be working with. Note that it is a requirement to list a minimum of 5 unique provider IDs, and that your client address will be verified against this list in the future" => {
+	  "Please list the provider IDs and location of the storage providers you will be working with." => {
 		ParsedApplicationDataFields::ProviderIDs
 	  },
-      "Can you confirm that you will follow the Fil+ guideline (Data owner should engage at least 4 SPs and no single SP ID should receive >30% of a client's allocated DataCap)" => {
+      "Can you confirm that you will follow the Fil+ guideline" => {
 		ParsedApplicationDataFields::FilplusGuideline
 	  },
 	  // Datacap info
