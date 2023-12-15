@@ -944,36 +944,30 @@ impl LDNApplication {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
                 log::info!("- App state is {:?}", app_state.as_str());
-                if app_state < AppState::StartSignDatacap {
-                    log::warn!("- State is less than StartSignDatacap");
+                if app_state != AppState::Granted {
+                    log::warn!("- State is not Granted");
                     return Ok(false);
                 }
-                match app_state {
-                    AppState::StartSignDatacap => {
-                        log::info!("- State is StartSignDatacap");
-                        let active_request = application_file.allocation.active();
-                        if active_request.is_none() {
-                            log::warn!("- No active request");
-                            return Ok(false);
-                        }
-                        let active_request = active_request.unwrap();
-                        let signers: application::file::Notaries = active_request.signers.clone();
-                        if signers.0.len() != 2 {
-                            log::warn!("- Not enough signers");
-                            return Ok(false);
-                        }
-                        let signer = signers.0.get(1).unwrap();
-                        let signer_address = signer.signing_address.clone();
-                        let valid_notaries = Self::fetch_notaries().await?;
-                        if valid_notaries.is_valid(&signer_address) {
-                            log::info!("- Validated!");
-                            return Ok(true);
-                        }
-                        log::warn!("- Not validated!");
-                        Ok(false)
-                    }
-                    _ => Ok(true),
+                let active_request = application_file.allocation.active();
+                if active_request.is_none() {
+                    log::warn!("- No active request");
+                    return Ok(false);
                 }
+                let active_request = active_request.unwrap();
+                let signers: application::file::Notaries = active_request.signers.clone();
+                if signers.0.len() != 2 {
+                    log::warn!("- Not enough signers");
+                    return Ok(false);
+                }
+                let signer = signers.0.get(1).unwrap();
+                let signer_address = signer.signing_address.clone();
+                let valid_notaries = Self::fetch_notaries().await?;
+                if valid_notaries.is_valid(&signer_address) {
+                    log::info!("- Validated!");
+                    return Ok(true);
+                }
+                log::warn!("- Not validated!");
+                Ok(false)
             }
             Err(e) => Err(LDNError::Load(format!(
                 "PR number {} not found: {}",
@@ -989,35 +983,30 @@ impl LDNApplication {
             Ok(application_file) => {
                 let app_state: AppState = application_file.lifecycle.get_state();
                 log::info!("- App state is {:?}", app_state.as_str());
-                if app_state < AppState::ReadyToSign {
-                    log::warn!("- State is less than ReadyToSign");
+                if app_state != AppState::StartSignDatacap {
+                    log::warn!("- State is not StartSignDatacap");
                     return Ok(false);
                 }
-                match app_state {
-                    AppState::ReadyToSign => {
-                        let active_request = application_file.allocation.active();
-                        if active_request.is_none() {
-                            log::warn!("- No active request");
-                            return Ok(false);
-                        }
-                        let active_request = active_request.unwrap();
-                        let signers = active_request.signers.clone();
-                        if signers.0.len() != 1 {
-                            log::warn!("- Not enough signers");
-                            return Ok(false);
-                        }
-                        let signer = signers.0.get(0).unwrap();
-                        let signer_address = signer.signing_address.clone();
-                        let valid_notaries = Self::fetch_notaries().await?;
-                        if valid_notaries.is_valid(&signer_address) {
-                            log::info!("- Validated!");
-                            return Ok(true);
-                        }
-                        log::warn!("- Not validated!");
-                        Ok(false)
-                    }
-                    _ => Ok(true),
+                let active_request = application_file.allocation.active();
+                if active_request.is_none() {
+                    log::warn!("- No active request");
+                    return Ok(false);
                 }
+                let active_request = active_request.unwrap();
+                let signers = active_request.signers.clone();
+                if signers.0.len() != 1 {
+                    log::warn!("- Not enough signers");
+                    return Ok(false);
+                }
+                let signer = signers.0.get(0).unwrap();
+                let signer_address = signer.signing_address.clone();
+                let valid_notaries = Self::fetch_notaries().await?;
+                if valid_notaries.is_valid(&signer_address) {
+                    log::info!("- Validated!");
+                    return Ok(true);
+                }
+                log::warn!("- Not validated!");
+                Ok(false)
             }
             Err(e) => Err(LDNError::Load(format!(
                 "PR number {} not found: {}",
@@ -1053,6 +1042,7 @@ impl LDNApplication {
 
         Ok(true)
     }
+    
     async fn issue_ready_to_sign(issue_number: String) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
         gh.add_comment_to_issue(
@@ -1081,6 +1071,7 @@ impl LDNApplication {
         .unwrap();
         Ok(true)
     }
+
     async fn issue_start_sign_dc(issue_number: String) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new();
         gh.add_comment_to_issue(
