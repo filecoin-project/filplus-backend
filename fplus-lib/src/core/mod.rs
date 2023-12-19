@@ -854,6 +854,26 @@ impl LDNApplication {
                     }
                 }
                 AppState::StartSignDatacap => {
+                    let active_request = match application_file.allocation.find_one(active_request_id.unwrap().clone()) {
+                        Some(request) => request,
+                        None => {
+                            log::warn!("- No active request");
+                            return Ok(false);
+                        }
+                    };
+                    let signers: application::file::Notaries = active_request.signers.clone();
+                    if signers.0.len() != 2 {
+                        log::warn!("- Not enough signers");
+                        return Ok(false);
+                    }
+                    let signer = signers.0.get(0).unwrap();
+                    let signer_address = signer.signing_address.clone();
+                    let valid_notaries = Self::fetch_notaries().await?;
+                    if valid_notaries.is_valid(&signer_address) {
+                        log::info!("- Validated!");
+                        return Ok(true);
+                    }
+
                     if !validated_at.is_empty()
                         && !validated_by.is_empty()
                         && valid_rkh.is_valid(&validated_by)
@@ -882,19 +902,13 @@ impl LDNApplication {
                         true
                     } else {
                         if validated_at.is_empty() {
-                            log::warn!(
-                                "- AppState: Granted, validation failed: validated_at is empty"
-                            );
+                            log::warn!("- AppState: Granted, validation failed: validated_at is empty");
                         }
                         if validated_by.is_empty() {
-                            log::warn!(
-                                "- AppState: Granted, validation failed: validated_by is empty"
-                            );
+                            log::warn!("- AppState: Granted, validation failed: validated_by is empty");
                         }
                         if !valid_rkh.is_valid(&validated_by) {
-                            log::warn!(
-                                "- AppState: Granted, validation failed: valid_rkh is not valid"
-                            );
+                            log::warn!("- AppState: Granted, validation failed: valid_rkh is not valid");
                         }
                         false
                     }
