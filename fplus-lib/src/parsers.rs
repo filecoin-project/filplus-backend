@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
+use log::info;
 use markdown::{mdast::Node, to_mdast, ParseOptions};
 use serde::{Deserialize, Serialize};
 
-use crate::core::application::file::{Client, DataType, Datacap, DatacapGroup, Project};
+use crate::{core::application::file::{Client, DataType, Datacap, DatacapGroup, Project}, error};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ParsedApplicationDataFields {
@@ -289,12 +290,12 @@ impl From<IssueValidData> for Datacap {
                     datacap.total_requested_amount =
                         format!("{}{}", datacap.total_requested_amount, value.0);
                 }
-                ParsedApplicationDataFields::TotalRequestedAmount => {
-                    if datacap.total_requested_amount.is_empty() {
-                        datacap.total_requested_amount = value.0.clone();
+                  // Modified TotalRequestedAmount case
+                  ParsedApplicationDataFields::TotalRequestedAmount => {
+                    if let Ok(num) = value.0.parse::<f64>() {
+                        datacap.total_requested_amount = format!("{}{}", num, datacap.total_requested_amount);
                     } else {
-                        datacap.total_requested_amount =
-                            format!("{}{}", value.0, datacap.total_requested_amount);
+                        log::error!("Failed to parse TotalRequestedAmount: {}", value.0)
                     }
                 }
                 ParsedApplicationDataFields::UnitSingleSizeDataset => {
@@ -302,11 +303,10 @@ impl From<IssueValidData> for Datacap {
                         format!("{}{}", datacap.single_size_dataset, value.0);
                 }
                 ParsedApplicationDataFields::SingleSizeDataset => {
-                    if datacap.single_size_dataset.is_empty() {
-                        datacap.single_size_dataset = value.0.clone();
+                    if let Ok(num) = value.0.parse::<f64>() {
+                        datacap.single_size_dataset = num.to_string();
                     } else {
-                        datacap.single_size_dataset =
-                            format!("{}{}", value.0, datacap.single_size_dataset);
+                       log::error!("Failed to parse SingleSizeDataset: {}", value.0)
                     }
                 }
                 ParsedApplicationDataFields::Replicas => {
@@ -316,11 +316,10 @@ impl From<IssueValidData> for Datacap {
                     datacap.weekly_allocation = format!("{}{}", datacap.weekly_allocation, value.0);
                 }
                 ParsedApplicationDataFields::WeeklyAllocation => {
-                    if datacap.weekly_allocation.is_empty() {
-                        datacap.weekly_allocation = value.0.clone();
+                    if let Ok(num) = value.0.parse::<f64>() {
+                        datacap.weekly_allocation = num.to_string();
                     } else {
-                        datacap.weekly_allocation =
-                            format!("{}{}", value.0, datacap.weekly_allocation);
+                       log::error!("Failed to parse WeeklyAllocation: {}", value.0)
                     }
                 }
                 ParsedApplicationDataFields::CustomMultisig => {
@@ -332,6 +331,8 @@ impl From<IssueValidData> for Datacap {
                 _ => {}
             }
         }
+        log::info!("Datacap: {:?}", datacap);
+
         datacap
     }
 }
