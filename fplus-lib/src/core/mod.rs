@@ -956,12 +956,20 @@ impl LDNApplication {
                 match app_state {
                     AppState::Granted => {
                         dbg!("State is StartSignDatacap");
-                        let active_request = application_file.allocation.active();
-                        if active_request.is_none() {
-                            log::warn!("- No active request");
-                            return Ok(false);
-                        }
-                        let active_request = active_request.unwrap();
+                        let active_request_id = match application_file.clone().lifecycle.get_active_allocation_id() {
+                            Some(id) => id,
+                            None => {
+                                log::warn!("- No active request");
+                                return Ok(false);
+                            }
+                        };
+                        let active_request = match application_file.allocation.find_one(active_request_id) {
+                            Some(request) => request,
+                            None => {
+                                log::warn!("- No active request");
+                                return Ok(false);
+                            }
+                        };
                         let signers: application::file::Notaries = active_request.signers.clone();
                         if signers.0.len() != 2 {
                             log::warn!("- Not enough signers");
