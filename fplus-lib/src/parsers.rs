@@ -290,12 +290,13 @@ impl From<IssueValidData> for Datacap {
                     datacap.total_requested_amount =
                         format!("{}{}", datacap.total_requested_amount, value.0);
                 }
-                  // Modified TotalRequestedAmount case
-                  ParsedApplicationDataFields::TotalRequestedAmount => {
-                    if let Ok(num) = value.0.parse::<f64>() {
-                        datacap.total_requested_amount = format!("{}{}", num, datacap.total_requested_amount);
-                    } else {
-                        log::error!("Failed to parse TotalRequestedAmount: {}", value.0)
+                ParsedApplicationDataFields::TotalRequestedAmount => {
+                    match value.0.parse::<f64>() {
+                        Ok(num) => datacap.total_requested_amount = format!("{}{}", num, datacap.total_requested_amount),
+                        Err(_) => {
+                            log::debug!("Failed to parse TotalRequestedAmount: {}", value.0);
+                            datacap.total_requested_amount = "0".to_string();
+                        }
                     }
                 }
                 ParsedApplicationDataFields::UnitSingleSizeDataset => {
@@ -303,10 +304,12 @@ impl From<IssueValidData> for Datacap {
                         format!("{}{}", datacap.single_size_dataset, value.0);
                 }
                 ParsedApplicationDataFields::SingleSizeDataset => {
-                    if let Ok(num) = value.0.parse::<f64>() {
-                        datacap.single_size_dataset = num.to_string();
-                    } else {
-                       log::error!("Failed to parse SingleSizeDataset: {}", value.0)
+                    match value.0.parse::<f64>() {
+                        Ok(num) => datacap.single_size_dataset = num.to_string(),
+                        Err(_) => {
+                            log::debug!("Failed to parse SingleSizeDataset: {}", value.0);
+                            datacap.single_size_dataset = "0".to_string();
+                        }
                     }
                 }
                 ParsedApplicationDataFields::Replicas => {
@@ -316,10 +319,12 @@ impl From<IssueValidData> for Datacap {
                     datacap.weekly_allocation = format!("{}{}", datacap.weekly_allocation, value.0);
                 }
                 ParsedApplicationDataFields::WeeklyAllocation => {
-                    if let Ok(num) = value.0.parse::<f64>() {
-                        datacap.weekly_allocation = num.to_string();
-                    } else {
-                       log::error!("Failed to parse WeeklyAllocation: {}", value.0)
+                    match value.0.parse::<f64>() {
+                        Ok(num) => datacap.weekly_allocation = num.to_string(),
+                        Err(_) => {
+                            log::debug!("Failed to parse WeeklyAllocation: {}", value.0);
+                            datacap.weekly_allocation = "0".to_string();
+                        }
                     }
                 }
                 ParsedApplicationDataFields::CustomMultisig => {
