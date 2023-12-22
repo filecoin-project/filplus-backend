@@ -804,6 +804,10 @@ impl LDNApplication {
         );
 
         if let Ok(application_file) = LDNApplication::single_active(pr_number).await {
+            if application_file.lifecycle.get_active_status() == false {
+                log::info!("No trigger to validate. Application lifecycle is inactive so the Total DC was reached.");
+                return Ok(true);
+            }
             let validated_by = application_file.lifecycle.validated_by.clone();
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
@@ -947,7 +951,12 @@ impl LDNApplication {
         log::info!("Validating approval for PR number {}", pr_number);
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
+                if application_file.lifecycle.get_active_status() == false {
+                    log::info!("No approval to validate. Application lifecycle is inactive so the Total DC was reached.");
+                    return Ok(true);
+                }
                 let app_state: AppState = application_file.lifecycle.get_state();
+
                 log::info!("- App state is {:?}", app_state.as_str());
                 if app_state < AppState::Granted {
                     log::warn!("- State is less than Granted");
@@ -1001,6 +1010,10 @@ impl LDNApplication {
         log::info!("- Validating proposal for PR number {}", pr_number);
         match LDNApplication::single_active(pr_number).await {
             Ok(application_file) => {
+                if application_file.lifecycle.get_active_status() == false {
+                    log::info!("No proposal to validate. Application lifecycle is inactive so the Total DC was reached.");
+                    return Ok(true);
+                }
                 let app_state: AppState = application_file.lifecycle.get_state();
                 log::info!("- App state is {:?}", app_state.as_str());
                 if app_state < AppState::StartSignDatacap {

@@ -64,6 +64,11 @@ impl LifeCycle {
         res
     }
 
+    pub fn get_active_status(&self) -> bool {
+        let res = self.is_active.clone();
+        res
+    }
+
     pub fn start_refill_request(&self, request_id: String) -> Self {
         LifeCycle {
             state: AppState::ReadyToSign,
