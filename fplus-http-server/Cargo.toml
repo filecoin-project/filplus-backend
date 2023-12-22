@@ -1,7 +1,7 @@
 [package]
 name = "fplus-http-server"
 authors = ["jbesraa", "kokal33", "clriesco"]
-version = "1.0.12"
+version = "1.0.15"
 description = "FPlus main http module"
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -20,7 +20,7 @@ actix-cors = "0.6.4"
 reqwest = { version = "0.11.18", features = ["json"] }
 futures = "0.3.28"
 dotenv = "0.15.0"
-fplus-lib = { path = "../fplus-lib", version = "1.0.12" }
+fplus-lib = { path = "../fplus-lib", version = "1.0.15" }
 anyhow = "1.0.75"
 async-trait = "0.1.73"
 uuidv4 = "1.0.0"
