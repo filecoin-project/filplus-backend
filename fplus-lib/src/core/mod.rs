@@ -963,6 +963,7 @@ impl LDNApplication {
                     return Ok(false);
                 } else if app_state == AppState::Granted {
                     let active_request_id = match application_file.clone().lifecycle.get_active_allocation_id() {
+
                         Some(id) => id,
                         None => {
                             log::warn!("- No active request");
@@ -991,6 +992,7 @@ impl LDNApplication {
                         Self::issue_granted(application_file.issue_number.clone()).await?;
                         return Ok(true);
                     }
+
                     log::warn!("- Not validated!");
                     Ok(false)
                 } else {
@@ -1038,6 +1040,7 @@ impl LDNApplication {
                         Self::issue_start_sign_dc(application_file.issue_number.clone()).await?;
                         Self::issue_datacap_request_signature(application_file.clone(), "proposed".to_string()).await?;
                         Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::StartSignDatacap.as_str()]).await?;
+
                         log::info!("- Validated!");
                         return Ok(true);
                     }
@@ -1164,6 +1167,7 @@ impl LDNApplication {
             .0
             .iter()
             .find(|obj| Some(&obj.id) == application_file.lifecycle.active_request.clone().as_ref());
+
         let gh = GithubWrapper::new();
 
         let issue_number = application_file.issue_number.clone();
