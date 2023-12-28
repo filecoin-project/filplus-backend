@@ -76,6 +76,6 @@ jobs:
         # Deploy to Lightsail Container Service
         aws lightsail create-container-service-deployment \
           --service-name fp-core-prod \
-          --region us-east-2 \
+          --region us-east-1 \
           --containers file://containers.json \
           --public-endpoint file://public-endpoint.json
