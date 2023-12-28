@@ -5,12 +5,12 @@ use super::file::{AppState, LifeCycle};
 impl AppState {
     pub fn as_str(&self) -> &str {
         match *self {
-            AppState::Submitted => "Submitted",
-            AppState::ReadyToSign => "Ready to Sign Datacap",
-            AppState::StartSignDatacap => "Start Sign Datacap",
-            AppState::Granted => "Granted",
-            AppState::TotalDatacapReached => "Total Datacap Reached",
-            AppState::Error => "Error",
+            AppState::Submitted => "validated",
+            AppState::ReadyToSign => "ready to sign",
+            AppState::StartSignDatacap => "start sign datacap",
+            AppState::Granted => "granted",
+            AppState::TotalDatacapReached => "total datacap reached",
+            AppState::Error => "error",
         }
     }
 }
@@ -61,6 +61,11 @@ impl LifeCycle {
 
     pub fn get_state(&self) -> AppState {
         let res = self.state.clone();
+        res
+    }
+
+    pub fn get_active_status(&self) -> bool {
+        let res = self.is_active.clone();
         res
     }
 

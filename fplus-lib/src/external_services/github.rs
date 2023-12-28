@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::config::get_env_var_or_default;
+use crate::core::application::file::AppState;
 
 const GITHUB_API_URL: &str = "https://api.github.com";
 
@@ -188,6 +189,57 @@ impl GithubWrapper {
             .await?;
         Ok(iid)
     }
+
+    // the comment param is in case we want to add an 'error' comment as well to the issue later on, I can remove it if not necessary
+    pub async fn add_error_label(
+        &self,
+        number: u64,
+        _comment: String
+    ) -> Result<(), OctocrabError> {
+        self
+            .inner
+            .issues(&self.owner, &self.repo)
+            .add_labels(number, &[AppState::Error.as_str().to_string()])
+            .await?;
+        
+        Ok(())
+    }
+
+    pub async fn update_issue_labels(
+        &self,
+        number: u64,
+        new_labels: &[&str],
+    ) -> Result<(), OctocrabError> {
+        let search_labels = vec![
+            "waiting for governance review",
+            AppState::Submitted.as_str(),
+            AppState::ReadyToSign.as_str(),
+            AppState::StartSignDatacap.as_str(),
+            AppState::Granted.as_str(),
+            AppState::TotalDatacapReached.as_str(),
+        ];
+    
+        let issue = self.list_issue(number).await?;
+    
+        let labels_to_keep: Vec<String> = issue
+            .labels
+            .iter()
+            .filter(|label| !search_labels.contains(&label.name.as_str()))
+            .map(|label| label.name.clone())
+            .collect();
+    
+        self.replace_issue_labels(number, &labels_to_keep).await?;
+    
+        let new_labels: Vec<String> = new_labels.iter().map(|&s| s.to_string()).collect();
+        self
+            .inner
+            .issues(&self.owner, &self.repo)
+            .add_labels(number, &new_labels)
+            .await?;
+    
+        Ok(())
+    }
+    
 
     pub async fn list_pull_requests(&self) -> Result<Vec<PullRequest>, OctocrabError> {
         let iid = self
