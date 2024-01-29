@@ -27,9 +27,6 @@ use crate::core::application::file::Allocation;
 
 pub mod application;
 
-const DEV_BOT_USER: &str = "filplus-github-bot-read-write[bot]";
-const PROD_BOT_USER: &str = "filplus-falcon[bot]";
-
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
     pub issue_number: String,
@@ -778,14 +775,7 @@ impl LDNApplication {
             log::info!("- Application is in a valid state!");
             return Ok(true);
         }
-
-        // Check if application is in any other state
-        let bot_user = if get_env_var_or_default("FILPLUS_ENV", "dev") == "prod" {
-            PROD_BOT_USER
-        } else {
-            DEV_BOT_USER
-        };
-
+        let bot_user = get_env_var_or_default("BOT_USER", "filplus-github-bot-read-write[bot]");
         if author != bot_user {
             log::warn!("- Author is not the bot user");
             return Ok(false);
@@ -813,11 +803,7 @@ impl LDNApplication {
             let app_state = application_file.lifecycle.get_state();
             let active_request_id = application_file.lifecycle.active_request.clone();
             let valid_rkh = Self::fetch_rkh().await?;
-            let bot_user = if get_env_var_or_default("FILPLUS_ENV", "dev") == "prod" {
-                PROD_BOT_USER
-            } else {
-                DEV_BOT_USER
-            };
+            let bot_user = get_env_var_or_default("BOT_USER", "filplus-github-bot-read-write[bot]");
 
             let res: bool = match app_state {
                 AppState::Submitted => {
