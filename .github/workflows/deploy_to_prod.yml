@@ -54,7 +54,8 @@ jobs:
               "GITHUB_APP_ID": "${{secrets.GH_APP_ID}}",
               "GITHUB_INSTALLATION_ID": "${{secrets.GH_INSTALLATION_ID}}",
               "FILPLUS_ENV": "prod",
-              "RUST_LOG": "debug"
+              "RUST_LOG": "debug",
+              "BOT_USER": "${{secrets.BOT_USER}}"
             }
           }
         }' > containers.json
