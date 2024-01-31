@@ -20,7 +20,7 @@ use crate::{
 
 use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, NotaryInput,
-    ValidNotaryList, ValidRKHList,
+    ValidNotaryList, ValidGovTeamList,
 };
 use rayon::prelude::*;
 use crate::core::application::file::Allocation;
@@ -537,23 +537,23 @@ impl LDNApplication {
         }
     }
 
-    pub async fn fetch_rkh() -> Result<ValidRKHList, LDNError> {
+    pub async fn fetch_gov() -> Result<ValidGovTeamList, LDNError> {
         let gh = GithubWrapper::new();
-        let rkh = gh
-            .get_file("data/rkh.json", "main")
+        let gov_team = gh
+            .get_file("data/govteam.json", "main")
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve rkh /// {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve gov team /// {}", e)))?;
 
-        let rkh = &rkh.items[0]
+        let gov_team = &gov_team.items[0]
             .content
             .clone()
-            .and_then(|f| base64::decode_rkh(&f.replace("\n", "")))
+            .and_then(|f| base64::decode_gov_team(&f.replace("\n", "")))
             .and_then(|f| Some(f));
 
-        if let Some(rkh) = rkh {
-            return Ok(rkh.clone());
+        if let Some(gov_team) = gov_team {
+            return Ok(gov_team.clone());
         } else {
-            return Err(LDNError::Load(format!("Failed to retrieve notaries ///")));
+            return Err(LDNError::Load(format!("Failed to retrieve gov team ///")));
         }
     }
 
@@ -802,7 +802,7 @@ impl LDNApplication {
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
             let active_request_id = application_file.lifecycle.active_request.clone();
-            let valid_rkh = Self::fetch_rkh().await?;
+            let valid_gov_team = Self::fetch_gov().await?;
             let bot_user = get_env_var_or_default("BOT_USER", "filplus-github-bot-read-write[bot]");
 
             let res: bool = match app_state {
@@ -836,8 +836,8 @@ impl LDNApplication {
                         } else if actor != bot_user {
                             log::warn!("- Not ready to sign - actor is not the bot user");
                             false
-                        } else if !valid_rkh.is_valid(&validated_by) {
-                            log::warn!("- Not ready to sign - valid_rkh is not valid");
+                        } else if !valid_gov_team.is_valid(&validated_by) {
+                            log::warn!("- Not ready to sign - valid_gov_team is not valid");
                             false
                         } else {
                             log::info!("- Validated!");
@@ -851,7 +851,7 @@ impl LDNApplication {
                 AppState::StartSignDatacap => {
                     if !validated_at.is_empty()
                         && !validated_by.is_empty()
-                        && valid_rkh.is_valid(&validated_by)
+                        && valid_gov_team.is_valid(&validated_by)
                     {
                         log::info!("- Validated!");
                         true
@@ -862,8 +862,8 @@ impl LDNApplication {
                         if validated_by.is_empty() {
                             log::warn!("- AppState: StartSignDatacap, validation failed: validated_by is empty");
                         }
-                        if !valid_rkh.is_valid(&validated_by) {
-                            log::warn!("- AppState: StartSignDatacap, validation failed: valid_rkh is not valid");
+                        if !valid_gov_team.is_valid(&validated_by) {
+                            log::warn!("- AppState: StartSignDatacap, validation failed: valid_gov_team is not valid");
                         }
                         false
                     }
@@ -871,7 +871,7 @@ impl LDNApplication {
                 AppState::Granted => {
                     if !validated_at.is_empty()
                         && !validated_by.is_empty()
-                        && valid_rkh.is_valid(&validated_by)
+                        && valid_gov_team.is_valid(&validated_by)
                     {
                         log::info!("- Application is granted");
                         true
@@ -886,9 +886,9 @@ impl LDNApplication {
                                 "- AppState: Granted, validation failed: validated_by is empty"
                             );
                         }
-                        if !valid_rkh.is_valid(&validated_by) {
+                        if !valid_gov_team.is_valid(&validated_by) {
                             log::warn!(
-                                "- AppState: Granted, validation failed: valid_rkh is not valid"
+                                "- AppState: Granted, validation failed: valid_gov_team is not valid"
                             );
                         }
                         false
@@ -1298,10 +1298,10 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(true)
     }
 
-    pub async fn fetch_rkh_and_notary_gh_users() -> Result<(Vec<String>, Vec<String>), LDNError> {
-        let rkh_list = Self::fetch_rkh()
+    pub async fn fetch_gov_and_notary_gh_users() -> Result<(Vec<String>, Vec<String>), LDNError> {
+        let gov_team_list = Self::fetch_gov()
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve rkh: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve gov team: {}", e)))?;
 
         let notary_list = Self::fetch_notaries()
             .await
@@ -1314,7 +1314,7 @@ Your Datacap Allocation Request has been {} by the Notary
             .filter(|username| !username.is_empty())
             .collect();
 
-        Ok((rkh_list.rkh, notary_gh_names))
+        Ok((gov_team_list.gov_team, notary_gh_names))
     }
 
     async fn add_error_label(issue_number: String, comment: String) -> Result<(), LDNError> {
