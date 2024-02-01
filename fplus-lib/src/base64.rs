@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use base64;
 
-use crate::core::application::file::{ApplicationFile, ValidNotaryList, ValidRKHList};
+use crate::core::application::file::{ApplicationFile, ValidNotaryList, ValidGovTeamList};
 
 pub fn decode(i: &str) -> Option<ApplicationFile> {
     let mut binding = Cursor::new(i);
@@ -24,12 +24,12 @@ pub fn decode_notary(i: &str) -> Option<ValidNotaryList> {
     Some(notaries)
 }
 
-pub fn decode_rkh(i: &str) -> Option<ValidRKHList> {
+pub fn decode_gov_team(i: &str) -> Option<ValidGovTeamList> {
     let mut binding = Cursor::new(i);
     let decoder = base64::read::DecoderReader::new(&mut binding, base64::STANDARD);
-    let rkh: ValidRKHList = match serde_json::from_reader(decoder) {
+    let gov_team: ValidGovTeamList = match serde_json::from_reader(decoder) {
         Ok(f) => f,
         Err(_) => return None,
     };
-    Some(rkh)
+    Some(gov_team)
 }

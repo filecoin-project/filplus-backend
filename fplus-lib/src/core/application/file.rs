@@ -385,13 +385,13 @@ impl ValidNotaryList {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ValidRKHList {
-    pub rkh: Vec<String>,
+pub struct ValidGovTeamList {
+    pub gov_team: Vec<String>,
 }
 
-impl ValidRKHList {
-    pub fn is_valid(&self, rkh: &str) -> bool {
-        self.rkh.contains(&rkh.to_string())
+impl ValidGovTeamList {
+    pub fn is_valid(&self, member: &str) -> bool {
+        self.gov_team.contains(&member.to_string())
     }
 }
 

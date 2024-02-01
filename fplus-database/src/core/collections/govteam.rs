@@ -6,16 +6,16 @@ use std::sync::Mutex;
 
 use crate::core::common::get_collection;
 
-const COLLECTION_NAME: &str = "rkh";
+const COLLECTION_NAME: &str = "govteam";
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RootKeyHolder {
+pub struct GovTeamMember {
     pub github_handle: String,
 }
 
-pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<RootKeyHolder>> {
-    let rkh_collection: Collection<RootKeyHolder> = get_collection(state, COLLECTION_NAME).await?;
-    let mut cursor = rkh_collection.find(None, None).await?;
+pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<GovTeamMember>> {
+    let govteam_collection: Collection<GovTeamMember> = get_collection(state, COLLECTION_NAME).await?;
+    let mut cursor = govteam_collection.find(None, None).await?;
     let mut ret = vec![];
     while let Ok(result) = cursor.advance().await {
         if result {
@@ -33,8 +33,8 @@ pub async fn find(state: web::Data<Mutex<Client>>) -> Result<Vec<RootKeyHolder>>
     Ok(ret)
 }
 
-pub async fn insert(state: web::Data<Mutex<Client>>, rkh: RootKeyHolder) -> Result<()> {
-    let rkh_collection: Collection<RootKeyHolder> = get_collection(state, COLLECTION_NAME).await?;
-    rkh_collection.insert_one(rkh, None).await?;
+pub async fn insert(state: web::Data<Mutex<Client>>, govteam: GovTeamMember) -> Result<()> {
+    let govteam_collection: Collection<GovTeamMember> = get_collection(state, COLLECTION_NAME).await?;
+    govteam_collection.insert_one(govteam, None).await?;
     Ok(())
 }

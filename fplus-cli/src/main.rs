@@ -14,7 +14,7 @@ fn cli() -> Command {
             Command::new("validate-trigger")
                 .about("Validates triggering an application")
                 .arg(arg!(<PR_NUMBER> "Pull Request Number"))
-                .arg(arg!(<RKH_GITHUB_HANDLE> "Github handle of Root Key Holder"))
+                .arg(arg!(<GOV_GITHUB_HANDLE> "Github handle of Gov Team Member"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -41,10 +41,10 @@ async fn main() -> std::io::Result<()> {
             let pull_request_number = sub_matches
                 .get_one::<String>("PR_NUMBER")
                 .expect("required");
-            let rkh_gh_handle = sub_matches
-                .get_one::<String>("RKH_GITHUB_HANDLE")
+            let gov_gh_handle = sub_matches
+                .get_one::<String>("GOV_GITHUB_HANDLE")
                 .expect("required");
-            validate_trigger(rkh_gh_handle.to_string(), pull_request_number.to_string()).await;
+            validate_trigger(gov_gh_handle.to_string(), pull_request_number.to_string()).await;
         }
         Some(("validate-proposal", sub_matches)) => {
             let pull_request_number = sub_matches

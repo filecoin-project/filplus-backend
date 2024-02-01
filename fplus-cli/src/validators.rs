@@ -1,6 +1,6 @@
 pub async fn validate_trigger(github_handle: String, pull_request_number: String) -> bool {
     true
-    // if validate_rkh_holder(&github_handle).await {
+    // if validate_gov_team_member(&github_handle).await {
     //     println!(
     //         "Validated Root Key Holder {} for application {}",
     //         &github_handle, pull_request_number
@@ -37,18 +37,18 @@ pub async fn validate_approval(github_handle: String, pull_request_number: Strin
     // }
 }
 
-async fn validate_rkh_holder(github_handle: &str) -> bool {
+async fn validate_gov_team_member(github_handle: &str) -> bool {
     true
     // let db_connection: web::Data<Mutex<mongodb::Client>> = web::Data::new(Mutex::new(
     //     fplus_database::core::setup::setup().await.unwrap(),
     // ));
-    // let rkh_holders = fplus_database::core::collections::rkh::find(db_connection)
+    // let gov_team_members = fplus_database::core::collections::govteam::find(db_connection)
     //     .await
     //     .unwrap();
-    // let rkh_holders: Option<fplus_database::core::collections::rkh::RootKeyHolder> = rkh_holders
+    // let gov_team_members: Option<fplus_database::core::collections::govteam::GovTeamMember> = gov_team_members
     //     .into_iter()
-    //     .find(|rkh| &rkh.github_handle == github_handle);
-    // if rkh_holders.is_none() {
+    //     .find(|gov| &gov.github_handle == github_handle);
+    // if gov_team_members.is_none() {
     //     false
     // } else {
     //     true
