@@ -1,4 +1,5 @@
 pub mod models;
+pub mod database;
 pub mod config;
 
 use sea_orm::DatabaseConnection;
@@ -13,16 +14,19 @@ pub async fn setup() -> Result<DatabaseConnection, sea_orm::DbErr> {
     sea_orm::Database::connect(&database_url).await
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::models::users;
-    use crate::models::blockchain;
-
+    
     use super::*;
     use sea_orm::entity::*;
     use tokio;
 
+    /**
+     * Test the establish_connection function
+     * 
+     * # Returns
+     * @return () - The result of the test
+     */
     #[tokio::test]
     async fn test_establish_connection_with_env_url() {
         init();
@@ -30,107 +34,101 @@ mod tests {
         assert!(connection_result.is_ok());
     }
 
+    /**
+     * Test the create_allocator function
+     * 
+     * # Returns
+     * @return () - The result of the test
+     */
     #[tokio::test]
-    async fn test_user_create_and_fetch() {
+    async fn test_create_allocator() {
         init();
-        let db = setup().await.expect("Failed to setup database");
+        let conn = setup().await.expect("Failed to connect to the database");
 
-        let user = users::ActiveModel {
-            onchain_address: ActiveValue::set("0x124".to_owned()),
-            github_handle: ActiveValue::set(Some("github_user".to_owned())),
-            user_type: ActiveValue::set(Some(0)),
-            created: ActiveValue::set(Some(chrono::Utc::now().naive_utc())),
+        let new_allocator = models::allocators::ActiveModel {
+            owner: Set("test_owner".to_string()),
+            repo: Set("test_repo".to_string()),
+            installation_id: Set(Some(123)),
+            multisig_address: Set(Some("0x1234567890".to_string())),
+            verifiers_gh_handles: Set(Some("test_verifier_1, test_verifier_2".to_string())),
             ..Default::default()
         };
 
-        let insert_result = user.insert(&db).await;
-        assert!(insert_result.is_ok(), "Failed to insert user");
-
-        let select_result = users::Entity::find_by_id("0x124").one(&db).await;
-        assert!(select_result.is_ok(), "Failed to select user");
-        let selected_user = select_result.unwrap().unwrap();
-        assert_eq!(selected_user.onchain_address, "0x124");
-        assert_eq!(selected_user.github_handle, Some("github_user".to_owned()));
-
-        let delete_result = selected_user.delete(&db).await;
-        assert!(delete_result.is_ok(), "Failed to delete user");
-        
+        let result = database::create_allocator(&conn, new_allocator).await;
+        assert!(result.is_ok());
     }
 
+    /**
+     * Test the get_allocators function
+     * 
+     * # Returns
+     * @return () - The result of the test
+     */
     #[tokio::test]
-    async fn test_user_update() {
+    async fn test_get_allocators() {
         init();
-        let db = setup().await.expect("Failed to setup database");
+        let conn = setup().await.expect("Failed to connect to the database");
 
-        let user = users::ActiveModel {
-            onchain_address: ActiveValue::set("0x123".to_owned()),
-            github_handle: ActiveValue::set(Some("github_user".to_owned())),
-            user_type: ActiveValue::set(Some(0)),
-            created: ActiveValue::set(Some(chrono::Utc::now().naive_utc())),
-            ..Default::default()
-        };
-
-        let insert_result = user.insert(&db).await;
-        assert!(insert_result.is_ok(), "Failed to insert user (for update)");
-
-        let select_result = users::Entity::find_by_id("0x123").one(&db).await;
-        assert!(select_result.is_ok(), "Failed to select user (for update)");
-
-        let mut selected_user: users::ActiveModel = select_result.unwrap().unwrap().into();
-        selected_user.github_handle = ActiveValue::set(Some("new_github_user".to_owned()));
-        let update_result = selected_user.save(&db).await;
-        assert!(update_result.is_ok(), "Failed to update user (for update)");
-
-        let select_result = users::Entity::find().one(&db).await;
-        assert!(select_result.is_ok(), "Failed to select user (for update)");
-        let selected_user = select_result.unwrap().unwrap();
-        assert_eq!(selected_user.github_handle, Some("new_github_user".to_owned()));
-
-        let delete_result = selected_user.delete(&db).await;
-        assert!(delete_result.is_ok(), "Failed to delete user (for update)");
-
+        let result = database::get_allocators(&conn).await;
+        assert!(result.is_ok());
     }
 
+    /**
+     * Test the update_allocator function
+     * 
+     * # Returns
+     * @return () - The result of the test
+     */
     #[tokio::test]
-    async fn test_relation_user_blockchain() {
+    async fn test_update_allocator() {
         init();
-        let db = setup().await.expect("Failed to setup database");
+        let conn = setup().await.expect("Failed to connect to the database");
 
-        let user = users::ActiveModel {
-            onchain_address: ActiveValue::set("0x123".to_owned()),
-            github_handle: ActiveValue::set(Some("github_user".to_owned())),
-            user_type: ActiveValue::set(Some(0)),
-            created: ActiveValue::set(Some(chrono::Utc::now().naive_utc())),
+        let allocator = database::get_allocator(&conn, "test_owner", "test_repo").await.expect("Failed to get allocator").expect("No allocator found");
+
+        let updated_allocator = models::allocators::ActiveModel {
+            id: Set(allocator.id),
+            multisig_address: Set(Some("0x123456789".to_string())),
+            verifiers_gh_handles: Set(Some("test_verifier_1, test_verifier_2, test_verifier_3".to_string())),
             ..Default::default()
         };
 
-        let user_onchain_address = user.onchain_address.clone(); 
-        let insert_result = user.insert(&db).await;
-        assert!(insert_result.is_ok(), "Failed to insert user (for relation)");
-
-        let blockchain_item = blockchain::ActiveModel {
-            application_onchain_address: ActiveValue::set(Some("0x123".to_owned())),
-            datacap_amount: ActiveValue::set(Some("100".to_owned())),
-            user_onchain_address: ActiveValue::set(Some(user_onchain_address.unwrap())),
-            r#type: ActiveValue::set(Some(0)),
-            successful: ActiveValue::set(Some(true)),
-            refill: ActiveValue::set(Some(false)),
-            created: ActiveValue::set(Some(chrono::Utc::now().naive_utc())),
-            ..Default::default()
-        };
-
-        let insert_result = blockchain_item.insert(&db).await;
-        assert!(insert_result.is_ok(), "Failed to insert blockchain (for relation)");
-        
-        let blockchain_item = blockchain::Entity::find_by_id(insert_result.unwrap().id).one(&db).await.unwrap().unwrap();
-        // Get users related to this blockchain item
-        let select_result = blockchain_item.try_into_model().unwrap().find_related(users::Entity).all(&db).await;
-        assert!(select_result.is_ok(), "Failed to select related users (for relation)");
-        let related_users = select_result.unwrap();
-        assert_eq!(related_users.len(), 1);
-
+        let result = database::update_allocator(&conn, &allocator.owner, &allocator.repo, updated_allocator).await;
+        assert!(result.is_ok());
     }
 
+    /**
+     * Test the get_allocator function
+     * 
+     * # Returns
+     * @return () - The result of the test
+     */
+    #[tokio::test]
+    async fn test_get_allocator() {
+        init();
+        let conn = setup().await.expect("Failed to connect to the database");
 
+        let allocator = database::get_allocators(&conn).await.expect("Failed to get allocators").pop().expect("No allocators found");
+
+        let result = database::get_allocator(&conn, &allocator.owner, &allocator.repo).await;
+        assert!(result.is_ok());
+    }
+
+    /**
+     * Test the delete_allocator function
+     * 
+     * # Returns
+     * @return () - The result of the test
+     */
+    #[tokio::test]
+    async fn test_delete_allocator() {
+        init();
+        let conn = setup().await.expect("Failed to connect to the database");
+
+        let allocator = database::get_allocators(&conn).await.expect("Failed to get allocators").pop().expect("No allocators found");
+
+        let result = database::delete_allocator(&conn, &allocator.owner, &allocator.repo).await;
+        assert!(result.is_ok());
+    }
 
 }
