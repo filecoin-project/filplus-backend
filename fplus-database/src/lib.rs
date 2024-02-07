@@ -5,10 +5,22 @@ pub mod config;
 use sea_orm::DatabaseConnection;
 use crate::config::get_env_var_or_default;
 
+/**
+ * Initialize the database (Just for testing purposes, not used in the actual application, as dotenv is called in the main function of the application)
+ * 
+ * # Returns
+ * @return () - The result of the operation
+ */
 pub fn init() {
     dotenv::dotenv().ok();
 }
 
+/**
+ * Establish a connection to the database
+ *  
+ * # Returns
+ * @return Result<DatabaseConnection, sea_orm::DbErr> - The result of the operation
+ */
 pub async fn setup() -> Result<DatabaseConnection, sea_orm::DbErr> {
     let database_url = get_env_var_or_default("DB_URL", "");
     sea_orm::Database::connect(&database_url).await
