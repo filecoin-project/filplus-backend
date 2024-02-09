@@ -88,16 +88,26 @@ mod tests {
     async fn test_create_allocator() {
         setup_test_environment().await;
 
-        let new_allocator = models::allocators::ActiveModel {
-            owner: Set("test_owner".to_string()),
-            repo: Set("test_repo".to_string()),
-            installation_id: Set(Some(123)),
-            multisig_address: Set(Some("0x1234567890".to_string())),
-            verifiers_gh_handles: Set(Some("test_verifier_1, test_verifier_2".to_string())),
-            ..Default::default()
-        };
+        let owner = "test_owner".to_string();
+        let repo = "test_repo".to_string();
 
-        let result = database::create_allocator(new_allocator).await;
+        let existing_allocator = database::get_allocator(&owner, &repo).await.unwrap();
+        if let Some(_) = existing_allocator {
+            let result = database::delete_allocator(&owner, &repo).await;
+            return assert!(result.is_ok());
+        }
+        
+        let installation_id = Some(1234);
+        let multisig_address = Some("0x1234567890".to_string());
+        let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
+
+        let result = database::create_allocator(
+            owner,
+            repo,
+            installation_id,
+            multisig_address,
+            verifiers_gh_handles
+        ).await;
         assert!(result.is_ok());
     }
 
@@ -125,16 +135,40 @@ mod tests {
     async fn test_update_allocator() {
         setup_test_environment().await;
 
-        let allocator = database::get_allocator("test_owner", "test_repo").await.expect("Failed to get allocator").expect("No allocator found");
+        let allocator = database::get_allocator("test_owner", "test_repo")
+            .await
+            .expect("Allocator not found");
+        if allocator.is_none() {
+            let owner = "test_owner".to_string();
+            let repo = "test_repo".to_string();
+            let installation_id = Some(1234);
+            let multisig_address = Some
+            ("0x1234567890".to_string());
+            let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
 
-        let updated_allocator = models::allocators::ActiveModel {
-            id: Set(allocator.id),
-            multisig_address: Set(Some("0x123456789".to_string())),
-            verifiers_gh_handles: Set(Some("test_verifier_1, test_verifier_2, test_verifier_3".to_string())),
-            ..Default::default()
-        };
+            let result = database::create_allocator(
+                owner.clone(),
+                repo.clone(),
+                installation_id,
+                multisig_address,
+                verifiers_gh_handles
+            ).await;
+            assert!(result.is_ok());
+        }
 
-        let result = database::update_allocator(&allocator.owner, &allocator.repo, updated_allocator).await;
+        let owner = "test_owner".to_string();
+        let repo = "test_repo".to_string();
+        let installation_id = Some(1234);
+        let multisig_address = Some("0x0987654321".to_string());
+        let verifiers_gh_handles = Some("test_verifier_3, test_verifier_4".to_string());
+
+        let result = database::update_allocator(
+            &owner,
+            &repo,
+            installation_id,
+            multisig_address,
+            verifiers_gh_handles
+        ).await;
         assert!(result.is_ok());
     }
 
@@ -164,10 +198,32 @@ mod tests {
     async fn test_delete_allocator() {
         setup_test_environment().await;
 
-        let allocator = database::get_allocators().await.expect("Failed to get allocators").pop().expect("No allocators found");
+        let owner = "test_owner".to_string();
+        let repo = "test_repo".to_string();
 
-        let result = database::delete_allocator(&allocator.owner, &allocator.repo).await;
+        let existing_allocator = database::get_allocator(&owner, &repo).await.unwrap();
+        if let Some(_) = existing_allocator {
+            let result = database::delete_allocator(&owner, &repo).await;
+            return assert!(result.is_ok());
+        }
+
+        let installation_id = Some(1234);
+        let multisig_address = Some("0x1234567890".to_string());
+        let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
+
+        let result = database::create_allocator(
+            owner.clone(),
+            repo.clone(),
+            installation_id,
+            multisig_address,
+            verifiers_gh_handles
+        ).await;
+
         assert!(result.is_ok());
+
+        let result = database::delete_allocator(&owner, &repo).await;
+        assert!(result.is_ok());
+        
     }
 
 }

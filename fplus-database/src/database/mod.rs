@@ -1,4 +1,4 @@
-use sea_orm::{entity::*, query::*};
+use sea_orm::{entity::*, query::*, DbErr};
 use crate::models::allocators::{Column, ActiveModel, Entity as Allocator, Model as AllocatorModel};
 use crate::get_database_connection;
 
@@ -19,22 +19,36 @@ pub async fn get_allocators() ->Result<Vec<AllocatorModel>, sea_orm::DbErr> {
  * # Arguments
  * @param owner: &str - The owner of the repository
  * @param repo: &str - The repository name
+ * @param installation_id: Option<i64> - The installation ID
+ * @param multisig_address: Option<String> - The multisig address
+ * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
  * 
  * # Returns
- * @return Result<(), sea_orm::DbErr> - The result of the operation
+ * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
  */
 pub async fn update_allocator(
     owner: &str,
     repo: &str,
-    allocator_fields: ActiveModel,
-) -> Result<(), sea_orm::DbErr> {
+    installation_id: Option<i64>,
+    multisig_address: Option<String>,
+    verifiers_gh_handles: Option<String>,
+) -> Result<AllocatorModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    Allocator::update(allocator_fields)
-        .filter(Column::Owner.eq(owner))
-        .filter(Column::Repo.eq(repo))
-        .exec(&conn)
-        .await?;
-    Ok(())
+
+    let existing_allocator = get_allocator(owner, repo).await?;
+    if let Some(allocator_model) = existing_allocator {
+        let mut allocator_active_model = allocator_model.into_active_model();
+
+        allocator_active_model.installation_id = Set(installation_id);
+        allocator_active_model.multisig_address = Set(multisig_address);
+        allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
+
+        let updated_model = allocator_active_model.update(&conn).await?;
+
+        Ok(updated_model)
+    } else {
+        Err(DbErr::Custom(format!("Allocator not found").into()))
+    }
 }
 
 /**
@@ -63,16 +77,39 @@ pub async fn get_allocator(
  * Create an allocator in the database
  * 
  * # Arguments
- * @param allocator_fields: ActiveModel - The fields of the allocator to create
+ * @param owner: String - The owner of the repository
+ * @param repo: String - The repository name
+ * @param installation_id: Option<i64> - The installation ID
+ * @param multisig_address: Option<String> - The multisig address
+ * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
  * 
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
  */
 pub async fn create_allocator(
-    allocator_fields: ActiveModel,
+    owner: String,
+    repo: String,
+    installation_id: Option<i64>,
+    multisig_address: Option<String>,
+    verifiers_gh_handles: Option<String>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
-    let conn = get_database_connection().await?;
-    allocator_fields.insert(&conn).await
+
+    let existing_allocator = get_allocator(&owner, &repo).await?;
+    match existing_allocator {
+        Some(_) => return Err(DbErr::Custom(format!("Allocator already exists").into())),
+        None => (),
+    };
+    let new_allocator = ActiveModel {
+        owner: Set(owner),
+        repo: Set(repo),
+        installation_id: Set(installation_id),
+        multisig_address: Set(multisig_address),
+        verifiers_gh_handles: Set(verifiers_gh_handles),
+        ..Default::default()
+    };
+
+    let conn = get_database_connection().await.expect("Failed to get DB connection");
+    new_allocator.insert(&conn).await
 }
 
 /**
@@ -93,7 +130,7 @@ pub async fn delete_allocator(
     let allocator = get_allocator(owner, repo).await?;
     let allocator = match allocator {
         Some(allocator) => allocator,
-        None => return Ok(()),
+        None => return Err(DbErr::Custom(format!("Allocator not found").into())),
     };
     allocator.delete(&conn).await?;
     Ok(())
