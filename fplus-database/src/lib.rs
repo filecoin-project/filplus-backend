@@ -2,8 +2,15 @@ pub mod models;
 pub mod database;
 pub mod config;
 
-use sea_orm::DatabaseConnection;
+use sea_orm::{Database, DatabaseConnection, DbErr};
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
 use crate::config::get_env_var_or_default;
+
+/**
+ * The global database connection
+ */
+static DB_CONN: Lazy<Mutex<Option<DatabaseConnection>>> = Lazy::new(|| Mutex::new(None));
 
 /**
  * Initialize the database (Just for testing purposes, not used in the actual application, as dotenv is called in the main function of the application)
@@ -21,17 +28,42 @@ pub fn init() {
  * # Returns
  * @return Result<DatabaseConnection, sea_orm::DbErr> - The result of the operation
  */
-pub async fn setup() -> Result<DatabaseConnection, sea_orm::DbErr> {
+pub async fn setup() -> Result<(), DbErr> {
     let database_url = get_env_var_or_default("DB_URL", "");
-    sea_orm::Database::connect(&database_url).await
+    let db_conn = Database::connect(&database_url).await?;
+    let mut db_conn_global = DB_CONN.lock().unwrap();
+    *db_conn_global = Some(db_conn);
+    Ok(())
 }
 
+/**
+ * Get a reference to the established database connection
+ * 
+ * # Returns
+ * @return Result<DatabaseConnection, &'static str> - The database connection or an error message
+ */
+pub async fn get_database_connection() -> Result<DatabaseConnection, DbErr> {
+    let db_conn = DB_CONN.lock().unwrap();
+    if let Some(ref conn) = *db_conn {
+        Ok(conn.clone())
+    } else {
+        Err(DbErr::Custom("Database connection is not established".into()))
+    }
+}
 #[cfg(test)]
 mod tests {
     
     use super::*;
     use sea_orm::entity::*;
     use tokio;
+
+    /**
+     * Sets up the initial test environment (database connection and env variables)
+     */
+    async fn setup_test_environment() {
+        init();
+        setup().await.expect("Failed to setup database connection.");
+    }
 
     /**
      * Test the establish_connection function
@@ -54,8 +86,7 @@ mod tests {
      */
     #[tokio::test]
     async fn test_create_allocator() {
-        init();
-        let conn = setup().await.expect("Failed to connect to the database");
+        setup_test_environment().await;
 
         let new_allocator = models::allocators::ActiveModel {
             owner: Set("test_owner".to_string()),
@@ -66,7 +97,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = database::create_allocator(&conn, new_allocator).await;
+        let result = database::create_allocator(new_allocator).await;
         assert!(result.is_ok());
     }
 
@@ -78,10 +109,9 @@ mod tests {
      */
     #[tokio::test]
     async fn test_get_allocators() {
-        init();
-        let conn = setup().await.expect("Failed to connect to the database");
-
-        let result = database::get_allocators(&conn).await;
+        setup_test_environment().await;
+        
+        let result = database::get_allocators().await;
         assert!(result.is_ok());
     }
 
@@ -93,10 +123,9 @@ mod tests {
      */
     #[tokio::test]
     async fn test_update_allocator() {
-        init();
-        let conn = setup().await.expect("Failed to connect to the database");
+        setup_test_environment().await;
 
-        let allocator = database::get_allocator(&conn, "test_owner", "test_repo").await.expect("Failed to get allocator").expect("No allocator found");
+        let allocator = database::get_allocator("test_owner", "test_repo").await.expect("Failed to get allocator").expect("No allocator found");
 
         let updated_allocator = models::allocators::ActiveModel {
             id: Set(allocator.id),
@@ -105,7 +134,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = database::update_allocator(&conn, &allocator.owner, &allocator.repo, updated_allocator).await;
+        let result = database::update_allocator(&allocator.owner, &allocator.repo, updated_allocator).await;
         assert!(result.is_ok());
     }
 
@@ -117,12 +146,11 @@ mod tests {
      */
     #[tokio::test]
     async fn test_get_allocator() {
-        init();
-        let conn = setup().await.expect("Failed to connect to the database");
+        setup_test_environment().await;
 
-        let allocator = database::get_allocators(&conn).await.expect("Failed to get allocators").pop().expect("No allocators found");
+        let allocator = database::get_allocators().await.expect("Failed to get allocators").pop().expect("No allocators found");
 
-        let result = database::get_allocator(&conn, &allocator.owner, &allocator.repo).await;
+        let result = database::get_allocator(&allocator.owner, &allocator.repo).await;
         assert!(result.is_ok());
     }
 
@@ -134,12 +162,11 @@ mod tests {
      */
     #[tokio::test]
     async fn test_delete_allocator() {
-        init();
-        let conn = setup().await.expect("Failed to connect to the database");
+        setup_test_environment().await;
 
-        let allocator = database::get_allocators(&conn).await.expect("Failed to get allocators").pop().expect("No allocators found");
+        let allocator = database::get_allocators().await.expect("Failed to get allocators").pop().expect("No allocators found");
 
-        let result = database::delete_allocator(&conn, &allocator.owner, &allocator.repo).await;
+        let result = database::delete_allocator(&allocator.owner, &allocator.repo).await;
         assert!(result.is_ok());
     }
 

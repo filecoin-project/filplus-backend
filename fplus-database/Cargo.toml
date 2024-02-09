@@ -1,7 +1,7 @@
 [package]
 name = "fplus-database"
 authors = ["clriesco", "kokal33", "alexmcon"]
-version = "0.1.3"
+version = "1.0.19"
 edition = "2021"
 description = "FPlus main database module"
 license = "MIT OR Apache-2.0"
@@ -18,3 +18,7 @@ anyhow = "1.0.75"
 tokio = { version = "1", features = ["full"] }
 log = "0.4.20"
 chrono = "0.4.26"
+once_cell = "1.8"
+serde = { version =  "1.0.164", features = ["derive", "std",
+"serde_derive", "alloc", "rc"] } 
+
