@@ -20,11 +20,11 @@ use crate::{
 
 use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, NotaryInput,
-    ValidNotaryList, ValidGovTeamList,
+    ValidVerifierList,
 };
 use rayon::prelude::*;
 use crate::core::application::file::Allocation;
-
+use fplus_database::database;
 pub mod application;
 
 #[derive(Deserialize)]
@@ -518,43 +518,21 @@ impl LDNApplication {
         }
     }
 
-    pub async fn fetch_notaries() -> Result<ValidNotaryList, LDNError> {
-        let gh = GithubWrapper::new();
-        let notaries = gh
-            .get_file("data/notaries.json", "main")
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve notaries /// {}", e)))?;
-
-        let notaries = &notaries.items[0]
-            .content
-            .clone()
-            .and_then(|f| base64::decode_notary(&f.replace("\n", "")))
-            .and_then(|f| Some(f));
-        if let Some(notaries) = notaries {
-            return Ok(notaries.clone());
-        } else {
-            return Err(LDNError::Load(format!("Failed to retrieve notaries ///")));
+    pub async fn fetch_verifiers() -> Result<ValidVerifierList, LDNError> {
+        let allocators = database::get_allocators().await.map_err(|e| LDNError::Load(format!("Failed to retrieve allocators /// {}", e)))?;
+    
+        let mut gov_team_handles = Vec::new();
+        for allocator in allocators {
+            if let Some(handles) = allocator.verifiers_gh_handles {
+                gov_team_handles.extend(handles.split(',').map(String::from));
+            }
         }
-    }
-
-    pub async fn fetch_gov() -> Result<ValidGovTeamList, LDNError> {
-        let gh = GithubWrapper::new();
-        let gov_team = gh
-            .get_file("data/govteam.json", "main")
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve gov team /// {}", e)))?;
-
-        let gov_team = &gov_team.items[0]
-            .content
-            .clone()
-            .and_then(|f| base64::decode_gov_team(&f.replace("\n", "")))
-            .and_then(|f| Some(f));
-
-        if let Some(gov_team) = gov_team {
-            return Ok(gov_team.clone());
-        } else {
-            return Err(LDNError::Load(format!("Failed to retrieve gov team ///")));
+    
+        if gov_team_handles.is_empty() {
+            return Err(LDNError::Load("No governance team found".into()));
         }
+    
+        Ok(ValidVerifierList { gov_team: gov_team_handles })
     }
 
     async fn single_merged(application_id: String) -> Result<(Content, ApplicationFile), LDNError> {
@@ -802,7 +780,7 @@ impl LDNApplication {
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
             let active_request_id = application_file.lifecycle.active_request.clone();
-            let valid_gov_team = Self::fetch_gov().await?;
+            let valid_gov_team = Self::fetch_verifiers().await?;
             let bot_user = get_env_var_or_default("BOT_USER", "filplus-github-bot-read-write[bot]");
 
             let res: bool = match app_state {
@@ -970,8 +948,8 @@ impl LDNApplication {
                     }
                     let signer = signers.0.get(1).unwrap();
                     let signer_address = signer.signing_address.clone();
-                    let valid_notaries = Self::fetch_notaries().await?;
-                    if valid_notaries.is_valid(&signer_address) {
+                    let valid_verifiers = Self::fetch_verifiers().await?;
+                    if valid_verifiers.is_valid(&signer_address) {
                         log::info!("- Validated!");
                         Self::issue_datacap_request_signature(application_file.clone(), "approved".to_string()).await?;
                         Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::Granted.as_str()]).await?;
@@ -1021,8 +999,8 @@ impl LDNApplication {
                     }
                     let signer = signers.0.get(0).unwrap();
                     let signer_address = signer.signing_address.clone();
-                    let valid_notaries = Self::fetch_notaries().await?;
-                    if valid_notaries.is_valid(&signer_address) {
+                    let valid_verifiers = Self::fetch_verifiers().await?;
+                    if valid_verifiers.is_valid(&signer_address) {
                         Self::issue_start_sign_dc(application_file.issue_number.clone()).await?;
                         Self::issue_datacap_request_signature(application_file.clone(), "proposed".to_string()).await?;
                         Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::StartSignDatacap.as_str()]).await?;
@@ -1296,25 +1274,6 @@ Your Datacap Allocation Request has been {} by the Notary
             })
             .unwrap();
         Ok(true)
-    }
-
-    pub async fn fetch_gov_and_notary_gh_users() -> Result<(Vec<String>, Vec<String>), LDNError> {
-        let gov_team_list = Self::fetch_gov()
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve gov team: {}", e)))?;
-
-        let notary_list = Self::fetch_notaries()
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve notaries: {}", e)))?;
-
-        let notary_gh_names = notary_list
-            .notaries
-            .into_iter()
-            .flat_map(|notary| notary.github_user)
-            .filter(|username| !username.is_empty())
-            .collect();
-
-        Ok((gov_team_list.gov_team, notary_gh_names))
     }
 
     async fn add_error_label(issue_number: String, comment: String) -> Result<(), LDNError> {

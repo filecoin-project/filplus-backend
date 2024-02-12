@@ -3,7 +3,6 @@ use actix_web::{get, HttpResponse, Responder};
 pub mod application;
 pub mod blockchain;
 pub mod govteam;
-pub mod notary;
 pub mod allocator;
 
 /// Return server health status

@@ -3,7 +3,7 @@ use fplus_lib::core::LDNApplication;
 
 #[get("/gov-team-members")]
 pub async fn gov_team_members() -> actix_web::Result<impl Responder> {
-    match LDNApplication::fetch_gov().await {
+    match LDNApplication::fetch_verifiers().await {
         Ok(notaries) => {
             Ok(HttpResponse::Ok().json(notaries))
         }
