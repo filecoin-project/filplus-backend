@@ -90,17 +90,17 @@ impl GithubWrapper {
     pub fn new() -> Self {
         let owner = get_env_var_or_default("GITHUB_OWNER", "filecoin-project");
         let repo = get_env_var_or_default("GITHUB_REPO", "filplus-tooling-backend-test");
-        let app_id = get_env_var_or_default("GITHUB_APP_ID", "373258")
+        let app_id = get_env_var_or_default("GITHUB_APP_ID", "826129")
             .parse::<u64>()
             .unwrap_or_else(|_| {
                 log::error!("Failed to parse GITHUB_APP_ID, using default");
-                373258
+                826129
             });
-        let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID", "40514592")
+        let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID", "47207972")
             .parse::<u64>()
             .unwrap_or_else(|_| {
                 log::error!("Failed to parse GITHUB_INSTALLATION_ID, using default");
-                40514592
+                47207972
             });
         let gh_private_key = std::env::var("GH_PRIVATE_KEY").unwrap_or_else(|_| {
             log::warn!(
