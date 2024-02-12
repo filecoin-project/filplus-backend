@@ -2,8 +2,4 @@
 
 pub mod prelude;
 
-pub mod applications;
-pub mod blockchain;
-pub mod clients;
-pub mod datacap;
-pub mod users;
+pub mod allocators;

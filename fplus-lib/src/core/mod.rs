@@ -74,6 +74,22 @@ pub struct ValidationIssueData {
     pub user_handle: String,
 }
 
+#[derive(Deserialize)]
+pub struct Allocator {
+    pub owner: String,
+    pub repo: String,
+    pub installation_id: Option<i64>,
+    pub multisig_address: Option<String>,
+    pub verifiers_gh_handles: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct AllocatorUpdateInfo {
+    pub installation_id: Option<i64>,
+    pub multisig_address: Option<String>,
+    pub verifiers_gh_handles: Option<String>,
+}
+
 impl LDNApplication {
     pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new();

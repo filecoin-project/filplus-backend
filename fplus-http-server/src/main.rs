@@ -4,6 +4,7 @@ use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
 use env_logger;
 use log::info;
+use fplus_database;
 
 pub(crate) mod router;
 
@@ -14,6 +15,9 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     info!("Logger initialized at log level: {}", log_level);
 
+    if let Err(e) = fplus_database::setup().await {
+        panic!("Failed to setup database connection: {}", e);
+    }
     HttpServer::new(move || {
         let cors = actix_cors::Cors::default()
             .allow_any_origin()
@@ -41,6 +45,11 @@ async fn main() -> std::io::Result<()> {
             .service(router::notary::notaries)
             .service(router::notary::ldn_actors)
             .service(router::govteam::gov_team_members)
+            .service(router::allocator::allocators)
+            .service(router::allocator::create)
+            .service(router::allocator::update)
+            .service(router::allocator::allocator)
+            .service(router::allocator::delete)
     })
     .bind(("0.0.0.0", 8080))?
     .run()
