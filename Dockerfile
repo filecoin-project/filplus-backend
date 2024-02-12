@@ -1,4 +1,4 @@
-FROM rust:1.71 AS builder
+FROM rust:1.72 AS builder
 COPY ./fplus-lib /fplus-lib
 COPY ./fplus-http-server/Cargo.toml /fplus-http-server/Cargo.toml
 COPY ./fplus-http-server/src /fplus-http-server/src
