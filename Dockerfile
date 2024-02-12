@@ -2,6 +2,7 @@ FROM rust:1.71 AS builder
 COPY ./fplus-lib /fplus-lib
 COPY ./fplus-http-server/Cargo.toml /fplus-http-server/Cargo.toml
 COPY ./fplus-http-server/src /fplus-http-server/src
+COPY ./fplus-database/Cargo.toml /fplus-database/Cargo.toml
 COPY ./fplus-database/src /fplus-database/src
 WORKDIR /fplus-http-server
 RUN cargo build --release
