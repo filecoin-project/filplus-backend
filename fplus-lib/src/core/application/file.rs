@@ -345,51 +345,12 @@ pub struct AllocationRequest {
     pub allocation_amount: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct NotaryConfig {
-    pub active_signer: bool,
-    pub signing_address: String,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ValidNotary {
-    pub id: i32,
-    pub organization: String,
-    pub name: String,
-    pub election_round: String,
-    pub status: String,
-    pub use_case: String,
-    pub location: String,
-    pub notary_application_link: String,
-    pub website: String,
-    pub email: Vec<String>,
-    pub fil_slack_id: String,
-    pub github_user: Vec<String>,
-    pub ldn_config: NotaryConfig,
-    pub direct_config: NotaryConfig,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ValidNotaryList {
-    pub notaries: Vec<ValidNotary>,
-}
-
-impl ValidNotaryList {
-    pub fn is_valid(&self, notary: &str) -> bool {
-        self.notaries
-            .iter()
-            .filter(|n| n.ldn_config.signing_address == notary)
-            .count()
-            > 0
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ValidGovTeamList {
+pub struct ValidVerifierList {
     pub gov_team: Vec<String>,
 }
 
-impl ValidGovTeamList {
+impl ValidVerifierList {
     pub fn is_valid(&self, member: &str) -> bool {
         self.gov_team.contains(&member.to_string())
     }

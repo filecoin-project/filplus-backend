@@ -1,7 +1,7 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
     CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
-    LDNApplication, RefillInfo, ValidationPullRequestData,
+    LDNApplication, RefillInfo, DcReachedInfo, ValidationPullRequestData, GithubQueryParams, ApplicationQueryParams
 };
 
 #[post("/application")]
@@ -17,9 +17,11 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
     }
 }
 
-#[get("/application/{id}")]
-pub async fn single(id: web::Path<String>) -> impl Responder {
-    let app = match LDNApplication::load(id.into_inner()).await {
+#[get("/application")]
+pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder {
+    let ApplicationQueryParams { id, owner, repo } = query.into_inner();
+
+    let app = match LDNApplication::load(id, owner, repo).await {
         Ok(app) => app,
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
@@ -35,7 +37,9 @@ pub async fn trigger(
     id: web::Path<String>,
     info: web::Json<CompleteGovernanceReviewInfo>,
 ) -> impl Responder {
-    let ldn_application = match LDNApplication::load(id.into_inner()).await {
+
+    let CompleteGovernanceReviewInfo { actor, owner, repo } = info.into_inner();
+    let ldn_application = match LDNApplication::load(id.into_inner(), owner.clone(), repo.clone()).await {
         Ok(app) => app,
         Err(e) => {
             return HttpResponse::BadRequest().body(e.to_string());
@@ -43,7 +47,7 @@ pub async fn trigger(
     };
     dbg!(&ldn_application);
     match ldn_application
-        .complete_governance_review(info.into_inner())
+        .complete_governance_review(actor, owner, repo)
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -59,14 +63,20 @@ pub async fn propose(
     id: web::Path<String>,
     info: web::Json<CompleteNewApplicationProposalInfo>,
 ) -> impl Responder {
-    let ldn_application = match LDNApplication::load(id.into_inner()).await {
+    let CompleteNewApplicationProposalInfo {
+        signer,
+        request_id, 
+        owner, 
+        repo
+    } = info.into_inner();
+    let ldn_application = match LDNApplication::load(id.into_inner(), owner.clone(), repo.clone()).await {
         Ok(app) => app,
         Err(e) => {
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
     match ldn_application
-        .complete_new_application_proposal(info.into_inner())
+        .complete_new_application_proposal(signer, request_id, owner, repo)
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -81,7 +91,13 @@ pub async fn approve(
     id: web::Path<String>,
     info: web::Json<CompleteNewApplicationProposalInfo>,
 ) -> impl Responder {
-    let ldn_application = match LDNApplication::load(id.into_inner()).await {
+    let CompleteNewApplicationProposalInfo {
+        signer,
+        request_id, 
+        owner, 
+        repo
+    } = info.into_inner();
+    let ldn_application = match LDNApplication::load(id.into_inner(), owner.clone(), repo.clone()).await {
         Ok(app) => app,
         Err(e) => {
             return HttpResponse::BadRequest().body(e.to_string());
@@ -89,7 +105,7 @@ pub async fn approve(
     };
     dbg!(&ldn_application);
     match ldn_application
-        .complete_new_application_approval(info.into_inner())
+        .complete_new_application_approval(signer, request_id, owner, repo)
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -98,8 +114,9 @@ pub async fn approve(
 }
 
 #[get("/application/active")]
-pub async fn active() -> impl Responder {
-    let apps = match LDNApplication::active(None).await {
+pub async fn active(query: web::Query<GithubQueryParams>) -> impl Responder {
+    let GithubQueryParams { owner, repo } = query.into_inner();
+    let apps = match LDNApplication::active(owner, repo, None).await {
         Ok(app) => app,
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
@@ -107,8 +124,9 @@ pub async fn active() -> impl Responder {
 }
 
 #[get("/application/merged")]
-pub async fn merged() -> actix_web::Result<impl Responder> {
-    match LDNApplication::merged().await {
+pub async fn merged(query: web::Query<GithubQueryParams>) -> actix_web::Result<impl Responder> {
+    let GithubQueryParams { owner, repo } = query.into_inner();
+    match LDNApplication::merged(owner, repo).await {
         Ok(apps) => Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap())),
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().body(e.to_string()));
@@ -125,8 +143,9 @@ pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Respo
 }
 
 #[post("/application/{id}/totaldcreached")]
-pub async fn total_dc_reached(id: web::Path<String>) -> actix_web::Result<impl Responder> {
-    match LDNApplication::total_dc_reached(id.into_inner()).await {
+pub async fn total_dc_reached(id: web::Path<String>, data: web::Json<DcReachedInfo>) -> actix_web::Result<impl Responder> {
+    let DcReachedInfo {owner, repo} = data.into_inner();
+    match LDNApplication::total_dc_reached(id.into_inner(), owner, repo).await {
         Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
         Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
     }
@@ -136,11 +155,11 @@ pub async fn total_dc_reached(id: web::Path<String>) -> actix_web::Result<impl R
 pub async fn validate_application_flow(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
-
+    let ValidationPullRequestData { pr_number, user_handle, owner, repo } = info.into_inner();
+    let pr_number = pr_number.trim_matches('"').parse::<u64>();
     match pr_number {
         Ok(pr_number) => {
-            match LDNApplication::validate_flow(pr_number, &info.user_handle).await {
+            match LDNApplication::validate_flow(pr_number, &user_handle, owner, repo).await {
                 Ok(result) => HttpResponse::Ok().json(result),
                 Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
             }
@@ -153,11 +172,12 @@ pub async fn validate_application_flow(
 pub async fn validate_application_trigger(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
+    let ValidationPullRequestData { pr_number, user_handle, owner, repo } = info.into_inner();
+    let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
         Ok(pr_number) => {
-            match LDNApplication::validate_trigger(pr_number, &info.user_handle).await {
+            match LDNApplication::validate_trigger(pr_number, &user_handle, owner, repo).await {
                 Ok(result) => HttpResponse::Ok().json(result),
                 Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
             }
@@ -170,10 +190,11 @@ pub async fn validate_application_trigger(
 pub async fn validate_application_proposal(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
+    let ValidationPullRequestData { pr_number, user_handle, owner, repo } = info.into_inner();
+    let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
-        Ok(pr_number) => match LDNApplication::validate_proposal(pr_number).await {
+        Ok(pr_number) => match LDNApplication::validate_proposal(pr_number, owner, repo).await {
             Ok(result) => HttpResponse::Ok().json(result),
             Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
         },
@@ -185,10 +206,11 @@ pub async fn validate_application_proposal(
 pub async fn validate_application_approval(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let pr_number = info.pr_number.trim_matches('"').parse::<u64>();
+    let ValidationPullRequestData { pr_number, user_handle, owner, repo } = info.into_inner();
+    let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
-        Ok(pr_number) => match LDNApplication::validate_approval(pr_number).await {
+        Ok(pr_number) => match LDNApplication::validate_approval(pr_number, owner, repo).await {
             Ok(result) => HttpResponse::Ok().json(result),
             Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
         },

@@ -87,9 +87,7 @@ struct Author {
 }
 
 impl GithubWrapper {
-    pub fn new() -> Self {
-        let owner = get_env_var_or_default("GITHUB_OWNER", "filecoin-project");
-        let repo = get_env_var_or_default("GITHUB_REPO", "filplus-tooling-backend-test");
+    pub fn new(owner: String, repo: String) -> Self {
         let app_id = get_env_var_or_default("GITHUB_APP_ID", "826129")
             .parse::<u64>()
             .unwrap_or_else(|_| {

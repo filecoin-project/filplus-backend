@@ -17,10 +17,11 @@ use crate::{
     },
     parsers::ParsedIssue,
 };
+use fplus_database::database;
 
 use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, NotaryInput,
-    ValidNotaryList, ValidGovTeamList,
+    ValidVerifierList,
 };
 use rayon::prelude::*;
 use crate::core::application::file::Allocation;
@@ -30,6 +31,8 @@ pub mod application;
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
     pub issue_number: String,
+    pub owner: String,
+    pub repo: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -37,8 +40,10 @@ pub struct NotaryList(pub Vec<String>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CompleteNewApplicationProposalInfo {
-    signer: NotaryInput,
-    request_id: String,
+    pub signer: NotaryInput,
+    pub request_id: String,
+    pub owner: String,
+    pub repo: String
 }
 
 #[derive(Debug)]
@@ -52,7 +57,9 @@ pub struct LDNApplication {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompleteGovernanceReviewInfo {
-    actor: String,
+    pub actor: String,
+    pub owner: String, 
+    pub repo: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -60,12 +67,22 @@ pub struct RefillInfo {
     pub id: String,
     pub amount: String,
     pub amount_type: String,
+    pub owner: String,
+    pub repo: String,
+}
+
+#[derive(Deserialize)]
+pub struct DcReachedInfo {
+    pub owner: String,
+    pub repo: String
 }
 
 #[derive(Deserialize)]
 pub struct ValidationPullRequestData {
     pub pr_number: String,
     pub user_handle: String,
+    pub owner: String,
+    pub repo: String
 }
 
 #[derive(Deserialize)]
@@ -90,9 +107,23 @@ pub struct AllocatorUpdateInfo {
     pub verifiers_gh_handles: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct GithubQueryParams {
+    pub owner: String,
+    pub repo: String,
+}
+
+#[derive(Deserialize)]
+pub struct ApplicationQueryParams {
+    pub id: String,
+    pub owner: String,
+    pub repo: String,
+}
+
 impl LDNApplication {
-    pub async fn single_active(pr_number: u64) -> Result<ApplicationFile, LDNError> {
-        let gh: GithubWrapper = GithubWrapper::new();
+
+    pub async fn single_active(pr_number: u64, owner: String, repo: String) -> Result<ApplicationFile, LDNError> {
+        let gh: GithubWrapper = GithubWrapper::new(owner, repo);
         let (_, pull_request) = gh.get_pull_request_files(pr_number).await.unwrap();
         let pull_request = pull_request.get(0).unwrap();
         let pull_request: Response = reqwest::Client::new()
@@ -117,8 +148,10 @@ impl LDNApplication {
 
     async fn load_pr_files(
         pr: PullRequest,
+        owner: String,
+        repo: String
     ) -> Result<Option<(String, String, ApplicationFile, PullRequest)>, LDNError> {
-        let gh = GithubWrapper::new();
+        let gh = GithubWrapper::new(owner, repo);
         let files = match gh.get_pull_request_files(pr.number).await {
             Ok(files) => files,
             Err(_) => return Ok(None),
@@ -152,13 +185,13 @@ impl LDNApplication {
         )))
     }
 
-    pub async fn load(application_id: String) -> Result<Self, LDNError> {
-        let gh: GithubWrapper = GithubWrapper::new();
+    pub async fn load(application_id: String, owner: String, repo: String) -> Result<Self, LDNError> {
+        let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
         let pull_requests = gh.list_pull_requests().await.unwrap();
         let pull_requests = future::try_join_all(
             pull_requests
                 .into_iter()
-                .map(|pr: PullRequest| (LDNApplication::load_pr_files(pr)))
+                .map(|pr: PullRequest| (LDNApplication::load_pr_files(pr, owner.clone(), repo.clone())))
                 .collect::<Vec<_>>(),
         )
         .await?;
@@ -188,7 +221,7 @@ impl LDNApplication {
             }
         }
 
-        let app = Self::single_merged(application_id).await?;
+        let app = Self::single_merged(application_id, owner.clone(), repo.clone()).await?;
         return Ok(Self {
             github: gh,
             application_id: app.1.id.clone(),
@@ -198,14 +231,14 @@ impl LDNApplication {
         });
     }
 
-    pub async fn active(filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
-        let gh: GithubWrapper = GithubWrapper::new();
+    pub async fn active(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
+        let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
         let mut apps: Vec<ApplicationFile> = Vec::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
         let pull_requests = future::try_join_all(
             pull_requests
                 .into_iter()
-                .map(|pr: PullRequest| LDNApplication::load_pr_files(pr))
+                .map(|pr: PullRequest| LDNApplication::load_pr_files(pr, owner.clone(), repo.clone()))
                 .collect::<Vec<_>>(),
         )
         .await
@@ -228,8 +261,12 @@ impl LDNApplication {
     /// Create New Application
     pub async fn new_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNError> {
         let issue_number = info.issue_number;
-        let gh: GithubWrapper = GithubWrapper::new();
-        let (parsed_ldn, _) = LDNApplication::parse_application_issue(issue_number.clone()).await?;
+        let gh: GithubWrapper = GithubWrapper::new(info.owner.clone(), info.repo.clone());
+        let (parsed_ldn, _) = LDNApplication::parse_application_issue(
+            issue_number.clone(), 
+            info.owner.clone(), 
+            info.repo.clone()
+        ).await?;
         let application_id = parsed_ldn.id.clone();
         let file_name = LDNPullRequest::application_path(&application_id);
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
@@ -255,7 +292,12 @@ impl LDNApplication {
                 let file_content = match serde_json::to_string_pretty(&application_file) {
                     Ok(f) => f,
                     Err(e) => {
-                        Self::add_error_label(application_file.issue_number.clone(), "".to_string()).await?;
+                        Self::add_error_label(
+                            application_file.issue_number.clone(), 
+                            "".to_string(),
+                            info.owner.clone(),
+                            info.repo.clone()
+                        ).await?;
                         return Err(LDNError::New(format!(
                             "Application issue file is corrupted /// {}",
                             e
@@ -269,10 +311,17 @@ impl LDNApplication {
                     branch_name.clone(),
                     LDNPullRequest::application_path(&app_id),
                     file_content.clone(),
+                    info.owner.clone(), 
+                    info.repo.clone()
                 )
                 .await?;
-                Self::issue_waiting_for_gov_review(issue_number.clone()).await?;
-                Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::Submitted.as_str(), "waiting for governance review"]).await?;
+                Self::issue_waiting_for_gov_review(issue_number.clone(), info.owner.clone(), info.repo.clone()).await?;
+                Self::update_issue_labels(
+                    application_file.issue_number.clone(), 
+                    &[AppState::Submitted.as_str(), "waiting for governance review"],
+                    info.owner.clone(), 
+                    info.repo.clone()
+                ).await?;
                 Ok(LDNApplication {
                     github: gh,
                     application_id,
@@ -293,7 +342,9 @@ impl LDNApplication {
     /// Move application from Governance Review to Proposal
     pub async fn complete_governance_review(
         &self,
-        info: CompleteGovernanceReviewInfo,
+        actor: String,
+        owner: String,
+        repo: String,
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
@@ -301,22 +352,28 @@ impl LDNApplication {
                     let app_file: ApplicationFile = self.file().await?;
                     let uuid = uuidv4::uuid::v4();
                     let request = AllocationRequest::new(
-                        info.actor.clone(),
+                        actor.clone(),
                         uuid,
                         AllocationRequestType::First,
                         app_file.datacap.weekly_allocation.clone(),
                     );
-                    let app_file = app_file.complete_governance_review(info.actor.clone(), request);
+                    let app_file = app_file.complete_governance_review(actor.clone(), request);
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     let app_path = &self.file_name.clone();
                     let app_branch = self.branch_name.clone();
-                    Self::issue_datacap_request_trigger(app_file.clone()).await?;
+                    Self::issue_datacap_request_trigger(
+                        app_file.clone(),
+                        owner.clone(),
+                        repo.clone()
+                    ).await?;
                     match LDNPullRequest::add_commit_to(
                         app_path.to_string(),
                         app_branch,
-                        LDNPullRequest::application_move_to_proposal_commit(&info.actor),
+                        LDNPullRequest::application_move_to_proposal_commit(&actor),
                         file_content,
                         self.file_sha.clone(),
+                        owner, 
+                        repo
                     )
                     .await
                     {
@@ -344,9 +401,11 @@ impl LDNApplication {
     /// Move application from Proposal to Approved
     pub async fn complete_new_application_proposal(
         &self,
-        info: CompleteNewApplicationProposalInfo,
+        signer: NotaryInput,
+        request_id: String,
+        owner: String, 
+        repo: String
     ) -> Result<ApplicationFile, LDNError> {
-        let CompleteNewApplicationProposalInfo { signer, request_id } = info;
         match self.app_state().await {
             Ok(s) => match s {
                 AppState::ReadyToSign => {
@@ -372,6 +431,8 @@ impl LDNApplication {
                         ),
                         file_content,
                         self.file_sha.clone(),
+                        owner,
+                        repo
                     )
                     .await
                     {
@@ -398,9 +459,11 @@ impl LDNApplication {
 
     pub async fn complete_new_application_approval(
         &self,
-        info: CompleteNewApplicationProposalInfo,
+        signer: NotaryInput,
+        request_id: String,
+        owner: String,
+        repo: String
     ) -> Result<ApplicationFile, LDNError> {
-        let CompleteNewApplicationProposalInfo { signer, request_id } = info;
         match self.app_state().await {
             Ok(s) => match s {
                 AppState::StartSignDatacap => {
@@ -420,6 +483,8 @@ impl LDNApplication {
                         ),
                         file_content,
                         self.file_sha.clone(),
+                        owner,
+                        repo
                     )
                     .await
                     {
@@ -446,8 +511,10 @@ impl LDNApplication {
 
     async fn parse_application_issue(
         issue_number: String,
+        owner: String,
+        repo: String,
     ) -> Result<(ParsedIssue, String), LDNError> {
-        let gh: GithubWrapper = GithubWrapper::new();
+        let gh: GithubWrapper = GithubWrapper::new(owner, repo);
         let issue = gh
             .list_issue(issue_number.parse().unwrap())
             .await
@@ -474,18 +541,23 @@ impl LDNApplication {
     }
 
     /// Return Application state
-    pub async fn total_dc_reached(application_id: String) -> Result<bool, LDNError> {
-        let merged = Self::merged().await?;
+    pub async fn total_dc_reached(application_id: String, owner: String, repo: String) -> Result<bool, LDNError> {
+        let merged = Self::merged(owner.clone(), repo.clone()).await?;
         let app = merged
             .par_iter()
             .find_first(|(_, app)| app.id == application_id);
         if app.is_some() && app.unwrap().1.lifecycle.get_state() == AppState::Granted {
             let app = app.unwrap().1.reached_total_datacap();
-            let gh: GithubWrapper = GithubWrapper::new();
-            let ldn_app = LDNApplication::load(application_id.clone()).await?;
+            let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
+            let ldn_app = LDNApplication::load(application_id.clone(), owner.clone(), repo.clone()).await?;
             let ContentItems { items } = gh.get_file(&ldn_app.file_name, "main").await.unwrap();
-            Self::issue_full_dc(app.issue_number.clone()).await?;
-            Self::update_issue_labels(app.issue_number.clone(), &[AppState::TotalDatacapReached.as_str()]).await?;
+            Self::issue_full_dc(app.issue_number.clone(), owner.clone(), repo.clone()).await?;
+            Self::update_issue_labels(
+                app.issue_number.clone(), 
+                &[AppState::TotalDatacapReached.as_str()],
+                owner.clone(),
+                repo.clone()
+            ).await?;
             LDNPullRequest::create_refill_pr(
                 app.id.clone(),
                 app.client.name.clone(),
@@ -493,6 +565,8 @@ impl LDNApplication {
                 ldn_app.file_name.clone(),
                 format!("{}-total-dc-reached", app.id),
                 items[0].sha.clone(),
+                owner,
+                repo
             )
             .await?;
             Ok(true)
@@ -534,47 +608,29 @@ impl LDNApplication {
         }
     }
 
-    pub async fn fetch_notaries() -> Result<ValidNotaryList, LDNError> {
-        let gh = GithubWrapper::new();
-        let notaries = gh
-            .get_file("data/notaries.json", "main")
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve notaries /// {}", e)))?;
+    pub async fn fetch_verifiers(owner: String, repo: String) -> Result<ValidVerifierList, LDNError> {
+        let allocator = database::get_allocator(&owner, &repo).await.map_err(|e| LDNError::Load(format!("Failed to retrieve allocators /// {}", e)))?;
+    
+        let mut gov_team_handles = Vec::new();
 
-        let notaries = &notaries.items[0]
-            .content
-            .clone()
-            .and_then(|f| base64::decode_notary(&f.replace("\n", "")))
-            .and_then(|f| Some(f));
-        if let Some(notaries) = notaries {
-            return Ok(notaries.clone());
-        } else {
-            return Err(LDNError::Load(format!("Failed to retrieve notaries ///")));
+        let allocator = match allocator {
+            Some(a) => a,
+            None => return Err(LDNError::Load("No allocator found".into())),
+        };
+
+        if let Some(handles) = allocator.verifiers_gh_handles {
+            gov_team_handles.extend(handles.split(',').map(String::from));
         }
+    
+        if gov_team_handles.is_empty() {
+            return Err(LDNError::Load("No governance team found".into()));
+        }
+    
+        Ok(ValidVerifierList { gov_team: gov_team_handles })
     }
 
-    pub async fn fetch_gov() -> Result<ValidGovTeamList, LDNError> {
-        let gh = GithubWrapper::new();
-        let gov_team = gh
-            .get_file("data/govteam.json", "main")
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve gov team /// {}", e)))?;
-
-        let gov_team = &gov_team.items[0]
-            .content
-            .clone()
-            .and_then(|f| base64::decode_gov_team(&f.replace("\n", "")))
-            .and_then(|f| Some(f));
-
-        if let Some(gov_team) = gov_team {
-            return Ok(gov_team.clone());
-        } else {
-            return Err(LDNError::Load(format!("Failed to retrieve gov team ///")));
-        }
-    }
-
-    async fn single_merged(application_id: String) -> Result<(Content, ApplicationFile), LDNError> {
-        Ok(LDNApplication::merged()
+    async fn single_merged(application_id: String, owner: String, repo: String) -> Result<(Content, ApplicationFile), LDNError> {
+        Ok(LDNApplication::merged(owner, repo)
             .await?
             .into_iter()
             .find(|(_, app)| app.id == application_id)
@@ -617,8 +673,8 @@ impl LDNApplication {
         Ok(Some((item, app)))
     }
 
-    pub async fn merged() -> Result<Vec<(Content, ApplicationFile)>, LDNError> {
-        let gh = GithubWrapper::new();
+    pub async fn merged(owner: String, repo: String) -> Result<Vec<(Content, ApplicationFile)>, LDNError> {
+        let gh = GithubWrapper::new(owner.clone(), repo.clone());
         let applications_path = "applications";
         let mut all_files = gh.get_files(applications_path).await.map_err(|e| {
             LDNError::Load(format!(
@@ -645,7 +701,7 @@ impl LDNApplication {
         })?;
 
         let mut apps: Vec<(Content, ApplicationFile)> = vec![];
-        let active: Vec<ApplicationFile> = Self::active(None).await?;
+        let active: Vec<ApplicationFile> = Self::active(owner.clone(), repo.clone(), None).await?;
         for app in all_files {
             if app.is_some() {
                 let app = app.unwrap();
@@ -658,7 +714,7 @@ impl LDNApplication {
     }
 
     pub async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
-        let apps = LDNApplication::merged().await?;
+        let apps = LDNApplication::merged(refill_info.owner.clone(), refill_info.repo.clone()).await?;
         if let Some((content, mut app)) = apps.into_iter().find(|(_, app)| app.id == refill_info.id)
         {
             let uuid = uuidv4::uuid::v4();
@@ -670,7 +726,7 @@ impl LDNApplication {
                 format!("{}{}", refill_info.amount, refill_info.amount_type),
             );
             let app_file = app.start_refill_request(new_request);
-            Self::issue_refill(app.issue_number.clone()).await?;
+            Self::issue_refill(app.issue_number.clone(), refill_info.owner.clone(), refill_info.repo.clone()).await?;
             LDNPullRequest::create_refill_pr(
                 app.id.clone(),
                 app.client.name.clone(),
@@ -678,6 +734,8 @@ impl LDNApplication {
                 content.path.clone(), // filename
                 request_id.clone(),
                 content.sha,
+                refill_info.owner,
+                refill_info.repo
             )
             .await?;
             return Ok(true);
@@ -685,7 +743,7 @@ impl LDNApplication {
         Err(LDNError::Load("Failed to get application file".to_string()))
     }
 
-    pub async fn validate_flow(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
+    pub async fn validate_flow(pr_number: u64, actor: &str, owner: String, repo: String) -> Result<bool, LDNError> {
         log::info!("Starting validate_flow:");
         log::info!(
             "- Validating flow for PR number {} with user handle {}",
@@ -693,7 +751,7 @@ impl LDNApplication {
             actor
         );
 
-        let gh = GithubWrapper::new();
+        let gh = GithubWrapper::new(owner, repo);
         let author = match gh.get_last_commit_author(pr_number).await {
             Ok(author) => {
                 log::info!("- Last commit author: {}", author);
@@ -791,7 +849,7 @@ impl LDNApplication {
             log::info!("- Application is in a valid state!");
             return Ok(true);
         }
-        let bot_user = get_env_var_or_default("BOT_USER", "filplus-github-bot-read-write[bot]");
+        let bot_user = get_env_var_or_default("BOT_USER", "filplus-allocators-staging-bot[bot]");
         if author != bot_user {
             log::warn!("- Author is not the bot user");
             return Ok(false);
@@ -801,7 +859,7 @@ impl LDNApplication {
         return Ok(true);
     }
 
-    pub async fn validate_trigger(pr_number: u64, actor: &str) -> Result<bool, LDNError> {
+    pub async fn validate_trigger(pr_number: u64, actor: &str, owner: String, repo: String) -> Result<bool, LDNError> {
         log::info!("Starting validate_trigger:");
         log::info!(
             "- Validating trigger for PR number {} with user handle {}",
@@ -809,7 +867,7 @@ impl LDNApplication {
             actor
         );
 
-        if let Ok(application_file) = LDNApplication::single_active(pr_number).await {
+        if let Ok(application_file) = LDNApplication::single_active(pr_number, owner.clone(), repo.clone()).await {
             if application_file.lifecycle.get_active_status() == false {
                 log::info!("No trigger to validate. Application lifecycle is inactive so the Total DC was reached.");
                 return Ok(true);
@@ -818,8 +876,8 @@ impl LDNApplication {
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
             let active_request_id = application_file.lifecycle.active_request.clone();
-            let valid_gov_team = Self::fetch_gov().await?;
-            let bot_user = get_env_var_or_default("BOT_USER", "filplus-github-bot-read-write[bot]");
+            let valid_gov_team = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
+            let bot_user = get_env_var_or_default("BOT_USER", "filplus-allocators-staging-bot[bot]");
 
             let res: bool = match app_state {
                 AppState::Submitted => {
@@ -857,9 +915,23 @@ impl LDNApplication {
                             false
                         } else {
                             log::info!("- Validated!");
-                            Self::issue_datacap_allocation_requested(application_file.clone(), active_allocation.clone()).await?;
-                            Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::ReadyToSign.as_str()]).await?;
-                            Self::issue_ready_to_sign(application_file.issue_number.clone()).await?;
+                            Self::issue_datacap_allocation_requested(
+                                application_file.clone(), 
+                                active_allocation.clone(),
+                                owner.clone(), 
+                                repo.clone()
+                            ).await?;
+                            Self::update_issue_labels(
+                                application_file.issue_number.clone(), 
+                                &[AppState::ReadyToSign.as_str()],
+                                owner.clone(), 
+                                repo.clone()
+                            ).await?;
+                            Self::issue_ready_to_sign(
+                                application_file.issue_number.clone(),
+                                owner.clone(), 
+                                repo.clone()
+                            ).await?;
                             true
                         }
                     }
@@ -926,14 +998,16 @@ impl LDNApplication {
             }
 
             let app_file = application_file.move_back_to_governance_review();
-            let ldn_application = LDNApplication::load(app_file.id.clone()).await?;
+            let ldn_application = LDNApplication::load(app_file.id.clone(), owner.clone(), repo.clone()).await?;
 
             match LDNPullRequest::add_commit_to(
                 ldn_application.file_name,
                 ldn_application.branch_name.clone(),
                 format!("Move application back to governance review"),
                 serde_json::to_string_pretty(&app_file).unwrap(),
-                ldn_application.file_sha.clone(),
+                ldn_application.file_sha.clone(), 
+                owner, 
+                repo
             )
             .await
             {
@@ -948,10 +1022,10 @@ impl LDNApplication {
         Ok(false)
     }
 
-    pub async fn validate_approval(pr_number: u64) -> Result<bool, LDNError> {
+    pub async fn validate_approval(pr_number: u64, owner: String, repo: String) -> Result<bool, LDNError> {
         log::info!("Starting validate_approval:");
         log::info!("Validating approval for PR number {}", pr_number);
-        match LDNApplication::single_active(pr_number).await {
+        match LDNApplication::single_active(pr_number, owner.clone(), repo.clone()).await {
             Ok(application_file) => {
                 if application_file.lifecycle.get_active_status() == false {
                     log::info!("No approval to validate. Application lifecycle is inactive so the Total DC was reached.");
@@ -986,12 +1060,26 @@ impl LDNApplication {
                     }
                     let signer = signers.0.get(1).unwrap();
                     let signer_address = signer.signing_address.clone();
-                    let valid_notaries = Self::fetch_notaries().await?;
-                    if valid_notaries.is_valid(&signer_address) {
+                    let valid_verifiers = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
+                    if valid_verifiers.is_valid(&signer_address) {
                         log::info!("- Validated!");
-                        Self::issue_datacap_request_signature(application_file.clone(), "approved".to_string()).await?;
-                        Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::Granted.as_str()]).await?;
-                        Self::issue_granted(application_file.issue_number.clone()).await?;
+                        Self::issue_datacap_request_signature(
+                            application_file.clone(), 
+                            "approved".to_string(),
+                            owner.clone(), 
+                            repo.clone()
+                        ).await?;
+                        Self::update_issue_labels(
+                            application_file.issue_number.clone(), 
+                            &[AppState::Granted.as_str()],
+                            owner.clone(), 
+                            repo.clone()
+                        ).await?;
+                        Self::issue_granted(
+                            application_file.issue_number.clone(),
+                            owner.clone(), 
+                            repo.clone()
+                        ).await?;
                         return Ok(true);
                     }
 
@@ -1009,10 +1097,10 @@ impl LDNApplication {
         }
     }
 
-    pub async fn validate_proposal(pr_number: u64) -> Result<bool, LDNError> {
+    pub async fn validate_proposal(pr_number: u64, owner: String, repo: String) -> Result<bool, LDNError> {
         log::info!("Starting validate_proposal:");
         log::info!("- Validating proposal for PR number {}", pr_number);
-        match LDNApplication::single_active(pr_number).await {
+        match LDNApplication::single_active(pr_number, owner.clone(), repo.clone()).await {
             Ok(application_file) => {
                 if application_file.lifecycle.get_active_status() == false {
                     log::info!("No proposal to validate. Application lifecycle is inactive so the Total DC was reached.");
@@ -1037,11 +1125,25 @@ impl LDNApplication {
                     }
                     let signer = signers.0.get(0).unwrap();
                     let signer_address = signer.signing_address.clone();
-                    let valid_notaries = Self::fetch_notaries().await?;
-                    if valid_notaries.is_valid(&signer_address) {
-                        Self::issue_start_sign_dc(application_file.issue_number.clone()).await?;
-                        Self::issue_datacap_request_signature(application_file.clone(), "proposed".to_string()).await?;
-                        Self::update_issue_labels(application_file.issue_number.clone(), &[AppState::StartSignDatacap.as_str()]).await?;
+                    let valid_verifiers = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
+                    if valid_verifiers.is_valid(&signer_address) {
+                        Self::issue_start_sign_dc(
+                            application_file.issue_number.clone(),
+                            owner.clone(), 
+                            repo.clone()
+                        ).await?;
+                        Self::issue_datacap_request_signature(
+                            application_file.clone(), 
+                            "proposed".to_string(),
+                            owner.clone(), 
+                            repo.clone()
+                        ).await?;
+                        Self::update_issue_labels(
+                            application_file.issue_number.clone(), 
+                            &[AppState::StartSignDatacap.as_str()],
+                            owner.clone(), 
+                            repo.clone()
+                        ).await?;
 
                         log::info!("- Validated!");
                         return Ok(true);
@@ -1060,8 +1162,8 @@ impl LDNApplication {
         }
     }
 
-    async fn issue_waiting_for_gov_review(issue_number: String) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
+    async fn issue_waiting_for_gov_review(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
         gh.add_comment_to_issue(
             issue_number.parse().unwrap(),
             "Application is waiting for governance review",
@@ -1077,8 +1179,8 @@ impl LDNApplication {
         Ok(true)
     }
 
-    async fn issue_datacap_request_trigger(application_file: ApplicationFile) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
+    async fn issue_datacap_request_trigger(application_file: ApplicationFile, owner: String, repo: String) -> Result<bool, LDNError> {
+        let gh: GithubWrapper = GithubWrapper::new(owner, repo);
 
         let client_address =  application_file.lifecycle.client_on_chain_address.clone();
         let total_requested =  application_file.datacap.total_requested_amount.clone();
@@ -1116,8 +1218,12 @@ impl LDNApplication {
         Ok(true)
     }
 
-    async fn issue_datacap_allocation_requested(application_file: ApplicationFile, active_allocation: Option<&Allocation>) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
+    async fn issue_datacap_allocation_requested(
+        application_file: ApplicationFile, 
+        active_allocation: Option<&Allocation>, 
+        owner: String, repo: String
+    ) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
 
         let issue_number = application_file.issue_number.clone();
 
@@ -1164,13 +1270,18 @@ impl LDNApplication {
         Ok(true)
     }
 
-    async fn issue_datacap_request_signature(application_file: ApplicationFile, signature_step: String) -> Result<bool, LDNError> {
+    async fn issue_datacap_request_signature(
+        application_file: ApplicationFile, 
+        signature_step: String,
+        owner: String,
+        repo: String
+    ) -> Result<bool, LDNError> {
         let active_allocation: Option<&Allocation> = application_file.allocation
             .0
             .iter()
             .find(|obj| Some(&obj.id) == application_file.lifecycle.active_request.clone().as_ref());
 
-        let gh = GithubWrapper::new();
+        let gh = GithubWrapper::new(owner, repo);
 
         let issue_number = application_file.issue_number.clone();
 
@@ -1232,8 +1343,12 @@ Your Datacap Allocation Request has been {} by the Notary
     }
 
 
-    async fn issue_ready_to_sign(issue_number: String) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
+    async fn issue_ready_to_sign(
+        issue_number: String,
+        owner: String,
+        repo: String
+    ) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
         gh.add_comment_to_issue(
             issue_number.parse().unwrap(),
             "Application is ready to sign",
@@ -1249,8 +1364,8 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(true)
     }
 
-    async fn issue_start_sign_dc(issue_number: String) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
+    async fn issue_start_sign_dc(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
         gh.add_comment_to_issue(
             issue_number.parse().unwrap(),
             "Application is in the process of signing datacap",
@@ -1265,8 +1380,8 @@ Your Datacap Allocation Request has been {} by the Notary
         .unwrap();
         Ok(true)
     }
-    async fn issue_granted(issue_number: String) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
+    async fn issue_granted(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Granted")
             .await
             .map_err(|e| {
@@ -1278,8 +1393,8 @@ Your Datacap Allocation Request has been {} by the Notary
             .unwrap();
         Ok(true)
     }
-    async fn issue_refill(issue_number: String) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
+    async fn issue_refill(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is in Refill")
             .await
             .map_err(|e| {
@@ -1300,8 +1415,8 @@ Your Datacap Allocation Request has been {} by the Notary
             .unwrap();
         Ok(true)
     }
-    async fn issue_full_dc(issue_number: String) -> Result<bool, LDNError> {
-        let gh = GithubWrapper::new();
+    async fn issue_full_dc(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Completed")
             .await
             .map_err(|e| {
@@ -1314,27 +1429,8 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(true)
     }
 
-    pub async fn fetch_gov_and_notary_gh_users() -> Result<(Vec<String>, Vec<String>), LDNError> {
-        let gov_team_list = Self::fetch_gov()
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve gov team: {}", e)))?;
-
-        let notary_list = Self::fetch_notaries()
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve notaries: {}", e)))?;
-
-        let notary_gh_names = notary_list
-            .notaries
-            .into_iter()
-            .flat_map(|notary| notary.github_user)
-            .filter(|username| !username.is_empty())
-            .collect();
-
-        Ok((gov_team_list.gov_team, notary_gh_names))
-    }
-
-    async fn add_error_label(issue_number: String, comment: String) -> Result<(), LDNError> {
-        let gh = GithubWrapper::new();
+    async fn add_error_label(issue_number: String, comment: String, owner: String, repo: String) -> Result<(), LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
         let num: u64 = issue_number.parse().expect("Not a valid integer");
         gh.add_error_label(num, comment).await
         .map_err(|e| {
@@ -1348,8 +1444,8 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(())
     }
 
-    async fn update_issue_labels(issue_number: String, new_labels: &[&str]) -> Result<(), LDNError> {
-        let gh = GithubWrapper::new();
+    async fn update_issue_labels(issue_number: String, new_labels: &[&str], owner: String, repo: String) -> Result<(), LDNError> {
+        let gh = GithubWrapper::new(owner, repo);
         let num: u64 = issue_number.parse().expect("Not a valid integer");
         gh.update_issue_labels(
             num, 
@@ -1383,9 +1479,11 @@ impl LDNPullRequest {
         app_branch_name: String,
         file_name: String,
         file_content: String,
+        owner: String,
+        repo: String
     ) -> Result<String, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
-        let gh: GithubWrapper = GithubWrapper::new();
+        let gh: GithubWrapper = GithubWrapper::new(owner, repo);
         let head_hash = gh.get_main_branch_sha().await.unwrap();
         let create_ref_request = gh
             .build_create_ref_request(app_branch_name.clone(), head_hash)
@@ -1424,9 +1522,11 @@ impl LDNPullRequest {
         file_name: String,
         branch_name: String,
         file_sha: String,
+        owner: String,
+        repo: String
     ) -> Result<u64, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
-        let gh: GithubWrapper = GithubWrapper::new();
+        let gh: GithubWrapper = GithubWrapper::new(owner, repo);
         let head_hash = gh.get_main_branch_sha().await.unwrap();
         let create_ref_request = gh
             .build_create_ref_request(branch_name.clone(), head_hash)
@@ -1466,8 +1566,10 @@ impl LDNPullRequest {
         commit_message: String,
         new_content: String,
         file_sha: String,
+        owner: String,
+        repo: String
     ) -> Option<()> {
-        let gh: GithubWrapper = GithubWrapper::new();
+        let gh: GithubWrapper = GithubWrapper::new(owner, repo);
         match gh
             .update_file_content(
                 &path,
@@ -1533,6 +1635,9 @@ mod tests {
     use env_logger::{Builder, Env};
     use tokio::time::{sleep, Duration};
 
+    static OWNER: &str = "filecoin-project";
+    static REPO: &str = "filplus-tooling-backend-test";
+
     #[tokio::test]
     async fn end_to_end() {
         // Set logging
@@ -1540,11 +1645,13 @@ mod tests {
         log::info!("Starting end-to-end test");
 
         // Test Creating an application
-        let gh: GithubWrapper = GithubWrapper::new();
+        let gh: GithubWrapper = GithubWrapper::new(OWNER.to_string(), REPO.to_string());
 
         log::info!("Creating a new LDNApplication from issue");
         let ldn_application = match LDNApplication::new_from_issue(CreateApplicationInfo {
             issue_number: "706".to_string(),
+            owner: OWNER.to_string(),
+            repo: REPO.to_string()
         })
         .await
         {
@@ -1591,7 +1698,7 @@ mod tests {
         // Test Triggering an application
         log::info!("Loading application for triggering");
         let ldn_application_before_trigger =
-            match LDNApplication::load(application_id.clone()).await {
+            match LDNApplication::load(application_id.clone(), OWNER.to_string(), REPO.to_string()).await {
                 Ok(app) => app,
                 Err(e) => {
                     log::error!("Failed to load application for triggering: {}", e);
@@ -1601,16 +1708,21 @@ mod tests {
 
         log::info!("Completing governance review");
         if let Err(e) = ldn_application_before_trigger
-            .complete_governance_review(CompleteGovernanceReviewInfo {
-                actor: "actor_address".to_string(),
-            })
+            .complete_governance_review(
+                "actor_address".to_string(),
+                OWNER.to_string(),
+                REPO.to_string())
             .await
         {
-            log::error!("Failed to complete governance review: {}", e);
+            log::error!("Failed o complete governance review: {}", e);
             return;
         }
 
-        let ldn_application_after_trigger = match LDNApplication::load(application_id.clone()).await
+        let ldn_application_after_trigger = match LDNApplication::load(
+            application_id.clone(), 
+            OWNER.to_string(), 
+            REPO.to_string()
+        ).await
         {
             Ok(app) => app,
             Err(e) => {
