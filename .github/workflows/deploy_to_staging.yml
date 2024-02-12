@@ -17,6 +17,7 @@ jobs:
     - name: Run tests
       env: 
         GH_PRIVATE_KEY: ${{ secrets.GH_STAGING_PRIVATE_KEY }}
+        DB_URL: ${{secrets.STAGING_DB_URL}}
       run: cargo test -- --nocapture
 
   deploy_to_staging:
@@ -63,7 +64,8 @@ jobs:
               "8080": "HTTP"
             },
             "environment": { 
-              "GH_PRIVATE_KEY": "${{secrets.GH_STAGING_PRIVATE_KEY}}"
+                "GH_PRIVATE_KEY": "${{secrets.GH_STAGING_PRIVATE_KEY}}",
+                "DB_URL": "${{secrets.STAGING_DB_URL}}"
             }
           }
         }' > containers.json
