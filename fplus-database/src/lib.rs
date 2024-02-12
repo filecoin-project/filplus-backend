@@ -54,8 +54,8 @@ pub async fn get_database_connection() -> Result<DatabaseConnection, DbErr> {
 mod tests {
     
     use super::*;
-    use sea_orm::entity::*;
     use tokio;
+    use serial_test::serial;
 
     /**
      * Sets up the initial test environment (database connection and env variables)
@@ -72,6 +72,7 @@ mod tests {
      * @return () - The result of the test
      */
     #[tokio::test]
+    #[serial]
     async fn test_establish_connection_with_env_url() {
         init();
         let connection_result = setup().await;
@@ -85,6 +86,7 @@ mod tests {
      * @return () - The result of the test
      */
     #[tokio::test]
+    #[serial]
     async fn test_create_allocator() {
         setup_test_environment().await;
 
@@ -118,6 +120,7 @@ mod tests {
      * @return () - The result of the test
      */
     #[tokio::test]
+    #[serial]
     async fn test_get_allocators() {
         setup_test_environment().await;
         
@@ -132,6 +135,7 @@ mod tests {
      * @return () - The result of the test
      */
     #[tokio::test]
+    #[serial]
     async fn test_update_allocator() {
         setup_test_environment().await;
 
@@ -179,6 +183,7 @@ mod tests {
      * @return () - The result of the test
      */
     #[tokio::test]
+    #[serial]
     async fn test_get_allocator() {
         setup_test_environment().await;
 
@@ -195,6 +200,7 @@ mod tests {
      * @return () - The result of the test
      */
     #[tokio::test]
+    #[serial]
     async fn test_delete_allocator() {
         setup_test_environment().await;
 
