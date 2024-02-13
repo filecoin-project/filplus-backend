@@ -20,7 +20,7 @@ use crate::{
 use fplus_database::database;
 
 use self::application::file::{
-    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, NotaryInput,
+    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, VerifierInput,
     ValidVerifierList,
 };
 use rayon::prelude::*;
@@ -40,7 +40,7 @@ pub struct NotaryList(pub Vec<String>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CompleteNewApplicationProposalInfo {
-    pub signer: NotaryInput,
+    pub signer: VerifierInput,
     pub request_id: String,
     pub owner: String,
     pub repo: String
@@ -401,7 +401,7 @@ impl LDNApplication {
     /// Move application from Proposal to Approved
     pub async fn complete_new_application_proposal(
         &self,
-        signer: NotaryInput,
+        signer: VerifierInput,
         request_id: String,
         owner: String, 
         repo: String
@@ -459,7 +459,7 @@ impl LDNApplication {
 
     pub async fn complete_new_application_approval(
         &self,
-        signer: NotaryInput,
+        signer: VerifierInput,
         request_id: String,
         owner: String,
         repo: String

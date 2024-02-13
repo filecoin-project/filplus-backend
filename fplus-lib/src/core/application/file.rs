@@ -306,15 +306,15 @@ pub struct Allocation {
 pub struct Notaries(pub Vec<Notary>);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct NotaryInput {
+pub struct VerifierInput {
     pub github_username: String,
     pub signing_address: String,
     pub created_at: String,
     pub message_cid: String,
 }
 
-impl From<NotaryInput> for Notary {
-    fn from(input: NotaryInput) -> Self {
+impl From<VerifierInput> for Notary {
+    fn from(input: VerifierInput) -> Self {
         Self {
             github_username: input.github_username,
             signing_address: input.signing_address,

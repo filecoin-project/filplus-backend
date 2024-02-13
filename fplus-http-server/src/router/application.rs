@@ -190,7 +190,7 @@ pub async fn validate_application_trigger(
 pub async fn validate_application_proposal(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let ValidationPullRequestData { pr_number, user_handle, owner, repo } = info.into_inner();
+    let ValidationPullRequestData { pr_number, user_handle: _, owner, repo } = info.into_inner();
     let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
@@ -206,7 +206,7 @@ pub async fn validate_application_proposal(
 pub async fn validate_application_approval(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let ValidationPullRequestData { pr_number, user_handle, owner, repo } = info.into_inner();
+    let ValidationPullRequestData { pr_number, user_handle: _, owner, repo } = info.into_inner();
     let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
