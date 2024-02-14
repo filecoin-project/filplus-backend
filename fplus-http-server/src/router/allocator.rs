@@ -30,8 +30,8 @@ pub async fn allocators() -> impl Responder {
  * @return HttpResponse - The result of the operation
  */
 #[post("/allocator")]
-pub async fn create(info: web::Json<Allocator>) -> impl Responder {
-    match database::create_allocator(
+pub async fn create_or_update(info: web::Json<Allocator>) -> impl Responder {
+    match database::create_or_update_allocator(
         info.owner.clone(),
         info.repo.clone(),
         info.installation_id,

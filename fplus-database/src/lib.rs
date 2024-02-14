@@ -103,7 +103,7 @@ mod tests {
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
 
-        let result = database::create_allocator(
+        let result = database::create_or_update_allocator(
             owner,
             repo,
             installation_id,
@@ -150,7 +150,7 @@ mod tests {
             ("0x1234567890".to_string());
             let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
 
-            let result = database::create_allocator(
+            let result = database::create_or_update_allocator(
                 owner.clone(),
                 repo.clone(),
                 installation_id,
@@ -217,7 +217,7 @@ mod tests {
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
 
-        let result = database::create_allocator(
+        let result = database::create_or_update_allocator(
             owner.clone(),
             repo.clone(),
             installation_id,
