@@ -42,7 +42,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::validate_application_approval)
             .service(router::blockchain::address_allowance)
             .service(router::blockchain::verified_clients)
-            .service(router::govteam::gov_team_members)
+            .service(router::verifier::verifiers)
             .service(router::allocator::allocators)
             .service(router::allocator::create_or_update)
             .service(router::allocator::allocator)

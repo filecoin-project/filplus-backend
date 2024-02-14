@@ -14,14 +14,14 @@ fn cli() -> Command {
             Command::new("validate-trigger")
                 .about("Validates triggering an application")
                 .arg(arg!(<PR_NUMBER> "Pull Request Number"))
-                .arg(arg!(<GOV_GITHUB_HANDLE> "Github handle of Gov Team Member"))
+                .arg(arg!(<VERIFIER_GITHUB_HANDLE> "Github handle of Verifier"))
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("validate-proposal")
                 .about("Validates proposing an application")
                 .arg(arg!(<PR_NUMBER> "Pull Request Number"))
-                .arg(arg!(<Notary_GITHUB_HANDLE> "Github handle of Notary"))
+                .arg(arg!(<VERIFIER_GITHUB_HANDLE> "Github handle of Verifier"))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -41,20 +41,20 @@ async fn main() -> std::io::Result<()> {
             let pull_request_number = sub_matches
                 .get_one::<String>("PR_NUMBER")
                 .expect("required");
-            let gov_gh_handle = sub_matches
-                .get_one::<String>("GOV_GITHUB_HANDLE")
+            let verifier_gh_handle = sub_matches
+                .get_one::<String>("VERIFIER_GITHUB_HANDLE")
                 .expect("required");
-            validate_trigger(gov_gh_handle.to_string(), pull_request_number.to_string()).await;
+            validate_trigger(verifier_gh_handle.to_string(), pull_request_number.to_string()).await;
         }
         Some(("validate-proposal", sub_matches)) => {
             let pull_request_number = sub_matches
                 .get_one::<String>("PR_NUMBER")
                 .expect("required");
-            let notary_gh_handle = sub_matches
-                .get_one::<String>("NOTARY_GITHUB_HANDLE")
+            let verifier_gh_handle = sub_matches
+                .get_one::<String>("VERIFIER_GITHUB_HANDLE")
                 .expect("required");
             validate_proposal(
-                notary_gh_handle.to_string(),
+                verifier_gh_handle.to_string(),
                 pull_request_number.to_string(),
             )
             .await;
@@ -63,11 +63,11 @@ async fn main() -> std::io::Result<()> {
             let pull_request_number = sub_matches
                 .get_one::<String>("PR_NUMBER")
                 .expect("required");
-            let notary_gh_handle = sub_matches
-                .get_one::<String>("NOTARY_GITHUB_HANDLE")
+            let verifier_gh_handle = sub_matches
+                .get_one::<String>("VERIFIER_GITHUB_HANDLE")
                 .expect("required");
             validate_approval(
-                notary_gh_handle.to_string(),
+                verifier_gh_handle.to_string(),
                 pull_request_number.to_string(),
             )
             .await;
