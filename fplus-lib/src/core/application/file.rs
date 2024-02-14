@@ -299,11 +299,11 @@ pub struct Allocation {
     #[serde(rename = "Allocation Amount")]
     pub amount: String,
     #[serde(rename = "Signers")]
-    pub signers: Notaries,
+    pub signers: Verifiers,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Notaries(pub Vec<Notary>);
+pub struct Verifiers(pub Vec<Verifier>);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VerifierInput {
@@ -313,7 +313,7 @@ pub struct VerifierInput {
     pub message_cid: String,
 }
 
-impl From<VerifierInput> for Notary {
+impl From<VerifierInput> for Verifier {
     fn from(input: VerifierInput) -> Self {
         Self {
             github_username: input.github_username,
@@ -325,7 +325,7 @@ impl From<VerifierInput> for Notary {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Notary {
+pub struct Verifier {
     #[serde(rename = "Github Username")]
     pub github_username: String,
     #[serde(rename = "Signing Address")]
@@ -347,17 +347,16 @@ pub struct AllocationRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValidVerifierList {
-    pub gov_team: Vec<String>,
+    pub verifiers: Vec<String>,
 }
 
 impl ValidVerifierList {
     pub fn is_valid(&self, member: &str) -> bool {
-        self.gov_team.contains(&member.to_string())
+        self.verifiers.contains(&member.to_string())
     }
 }
 
 #[derive(Serialize)]
 pub struct LDNActorsResponse {
-    pub governance_gh_handles: Vec<String>,
-    pub notary_gh_handles: Vec<String>,
+    pub verifier_gh_handles: Vec<String>,
 }
