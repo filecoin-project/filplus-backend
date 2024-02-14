@@ -619,7 +619,7 @@ impl LDNApplication {
         };
 
         if let Some(handles) = allocator.verifiers_gh_handles {
-            verifiers_handles.extend(handles.split(',').map(String::from));
+            verifiers_handles.extend(handles.split(',').map(|s| s.trim().to_string()));
         }
     
         if verifiers_handles.is_empty() {
@@ -1059,9 +1059,9 @@ impl LDNApplication {
                         return Ok(false);
                     }
                     let signer = signers.0.get(1).unwrap();
-                    let signer_address = signer.signing_address.clone();
+                    let signer_gh_handle = signer.github_username.clone();
                     let valid_verifiers = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
-                    if valid_verifiers.is_valid(&signer_address) {
+                    if valid_verifiers.is_valid(&signer_gh_handle) {
                         log::info!("- Validated!");
                         Self::issue_datacap_request_signature(
                             application_file.clone(), 
@@ -1124,9 +1124,9 @@ impl LDNApplication {
                         return Ok(false);
                     }
                     let signer = signers.0.get(0).unwrap();
-                    let signer_address = signer.signing_address.clone();
+                    let signer_gh_handle = signer.github_username.clone();
                     let valid_verifiers = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
-                    if valid_verifiers.is_valid(&signer_address) {
+                    if valid_verifiers.is_valid(&signer_gh_handle) {
                         Self::issue_start_sign_dc(
                             application_file.issue_number.clone(),
                             owner.clone(), 
