@@ -1,10 +1,9 @@
 use std::str::FromStr;
 
-use log::info;
 use markdown::{mdast::Node, to_mdast, ParseOptions};
 use serde::{Deserialize, Serialize};
 
-use crate::{core::application::file::{Client, DataType, Datacap, DatacapGroup, Project}, error};
+use crate::core::application::file::{Client, DataType, Datacap, DatacapGroup, Project};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ParsedApplicationDataFields {
@@ -346,9 +345,12 @@ impl From<IssueValidData> for Datacap {
 mod tests {
     use crate::external_services::github::GithubWrapper;
 
+    static OWNER: &str = "filecoin-project";
+    static REPO: &str = "filplus-tooling-backend-test";
+
     #[tokio::test]
     async fn test_parser() {
-        let gh = GithubWrapper::new();
+        let gh = GithubWrapper::new(OWNER.to_string(), REPO.to_string());
         let issue = gh.list_issue(706).await.unwrap();
         let parsed_ldn = super::ParsedIssue::from_issue_body(&issue.body.unwrap());
         dbg!(&parsed_ldn);
