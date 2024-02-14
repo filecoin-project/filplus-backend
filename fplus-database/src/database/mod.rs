@@ -74,7 +74,7 @@ pub async fn get_allocator(
 }
 
 /**
- * Create an allocator in the database
+ * Creates or updates an allocator in the database
  * 
  * # Arguments
  * @param owner: String - The owner of the repository
@@ -86,7 +86,7 @@ pub async fn get_allocator(
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn create_allocator(
+pub async fn create_or_update_allocator(
     owner: String,
     repo: String,
     installation_id: Option<i64>,
@@ -95,21 +95,30 @@ pub async fn create_allocator(
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
 
     let existing_allocator = get_allocator(&owner, &repo).await?;
-    match existing_allocator {
-        Some(_) => return Err(DbErr::Custom(format!("Allocator already exists").into())),
-        None => (),
-    };
-    let new_allocator = ActiveModel {
-        owner: Set(owner),
-        repo: Set(repo),
-        installation_id: Set(installation_id),
-        multisig_address: Set(multisig_address),
-        verifiers_gh_handles: Set(verifiers_gh_handles),
-        ..Default::default()
-    };
+    if let Some(allocator_model) = existing_allocator {
+        let conn = get_database_connection().await?;
+        let mut allocator_active_model = allocator_model.into_active_model();
 
-    let conn = get_database_connection().await.expect("Failed to get DB connection");
-    new_allocator.insert(&conn).await
+        allocator_active_model.installation_id = Set(installation_id);
+        allocator_active_model.multisig_address = Set(multisig_address);
+        allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
+
+        let updated_model = allocator_active_model.update(&conn).await?;
+
+        Ok(updated_model)
+    } else {
+        let new_allocator = ActiveModel {
+            owner: Set(owner),
+            repo: Set(repo),
+            installation_id: Set(installation_id),
+            multisig_address: Set(multisig_address),
+            verifiers_gh_handles: Set(verifiers_gh_handles),
+            ..Default::default()
+        };
+    
+        let conn = get_database_connection().await.expect("Failed to get DB connection");
+        new_allocator.insert(&conn).await
+    }
 }
 
 /**
