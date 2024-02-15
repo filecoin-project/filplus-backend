@@ -37,6 +37,8 @@ pub async fn create_or_update(info: web::Json<Allocator>) -> impl Responder {
         info.installation_id,
         info.multisig_address.clone(),
         info.verifiers_gh_handles.clone(),
+        info.node_address.clone(),
+        info.node_token.clone(),
     ).await {
         Ok(allocator_model) => HttpResponse::Ok().json(allocator_model),
         Err(e) => {
@@ -70,6 +72,8 @@ pub async fn update(
         info.installation_id,
         info.multisig_address.clone(),
         info.verifiers_gh_handles.clone(),
+        info.node_address.clone(),
+        info.node_token.clone(),
     ).await {
         Ok(allocator_model) => HttpResponse::Ok().json(allocator_model),
         Err(e) => {
