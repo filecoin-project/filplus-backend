@@ -98,8 +98,6 @@ pub struct Allocator {
     pub installation_id: Option<i64>,
     pub multisig_address: Option<String>,
     pub verifiers_gh_handles: Option<String>,
-    pub node_address: Option<String>,
-    pub node_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -107,8 +105,6 @@ pub struct AllocatorUpdateInfo {
     pub installation_id: Option<i64>,
     pub multisig_address: Option<String>,
     pub verifiers_gh_handles: Option<String>,
-    pub node_address: Option<String>,
-    pub node_token: Option<String>,
 }
 
 #[derive(Deserialize)]
