@@ -1,6 +1,6 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
 use fplus_database::database;
-use fplus_lib::core::{Allocator, AllocatorUpdateInfo};
+use fplus_lib::core::{allocator::{extract_owner_repo, process_allocator_file}, Allocator, AllocatorUpdateInfo, ChangedAllocator};
 
 /**
  * Get all allocators
@@ -19,6 +19,58 @@ pub async fn allocators() -> impl Responder {
         },
     }
 }
+/**
+ * Creates new Allocator in the db from a JSON file in the repository
+ * 
+ * # Arguments
+ * @param files: web::Json<ChangedAllocators> - The list of changed JSON file names
+ * 
+ * # Returns
+ * @return HttpResponse - The result of the operation
+ */
+#[post("/allocator/create")]
+pub async fn notify_changed_json(file: web::Json<ChangedAllocator>) -> actix_web::Result<impl Responder> {
+    let file_name = &file.file_changed;
+    
+    let (extracted_owner, extracted_repo) = match extract_owner_repo(file_name) {
+        Ok((owner, repo)) => (owner, repo.trim_end_matches(".json")),
+        Err(_) => return Ok(HttpResponse::BadRequest().body(format!("Invalid file name format: {}", file_name))),
+    };
+
+    let branch = "main";
+    let path = format!("active/{}/{}.json", extracted_owner, extracted_repo);
+
+    match process_allocator_file(extracted_owner, extracted_repo, branch, &path).await {
+        Ok(model) => {
+            if model.multisig_address.is_empty() {
+                return Ok(HttpResponse::BadRequest().body("Missing or invalid multisig_address"));
+            }
+            let verifiers_gh_handles = if model.verifiers.is_empty() {
+                None
+            } else {
+                Some(model.verifiers.join(", ")) // Join verifiers in a string if exists
+            };
+
+            match database::create_or_update_allocator(
+                extracted_owner.to_string(),
+                extracted_repo.to_string(),
+                Some(model.installation_id as i64), 
+                Some(model.multisig_address),      
+                verifiers_gh_handles,
+            ).await {
+                Ok(allocator_model) => Ok(HttpResponse::Ok().json(allocator_model)),
+                Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+            }
+        },
+        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+    }
+}
+
+
+
+
+
+
 
 /**
  * Create a new allocator
