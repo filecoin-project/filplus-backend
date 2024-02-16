@@ -22,8 +22,6 @@ pub async fn get_allocators() ->Result<Vec<AllocatorModel>, sea_orm::DbErr> {
  * @param installation_id: Option<i64> - The installation ID
  * @param multisig_address: Option<String> - The multisig address
  * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
- * @param node_address: Option<String> - The node address
- * @param node_token: Option<String> - The node token
  * 
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
@@ -34,8 +32,6 @@ pub async fn update_allocator(
     installation_id: Option<i64>,
     multisig_address: Option<String>,
     verifiers_gh_handles: Option<String>,
-    node_address: Option<String>,
-    node_token: Option<String>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
@@ -46,8 +42,6 @@ pub async fn update_allocator(
         allocator_active_model.installation_id = Set(installation_id);
         allocator_active_model.multisig_address = Set(multisig_address);
         allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
-        allocator_active_model.node_address = Set(node_address);
-        allocator_active_model.node_token = Set(node_token);
 
         let updated_model = allocator_active_model.update(&conn).await?;
 
@@ -88,8 +82,6 @@ pub async fn get_allocator(
  * @param installation_id: Option<i64> - The installation ID
  * @param multisig_address: Option<String> - The multisig address
  * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
- * @param node_address: Option<String> - The node address
- * @param node_token: Option<String> - The node token
  * 
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
@@ -100,8 +92,6 @@ pub async fn create_or_update_allocator(
     installation_id: Option<i64>,
     multisig_address: Option<String>,
     verifiers_gh_handles: Option<String>,
-    node_address: Option<String>,
-    node_token: Option<String>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
 
     let existing_allocator = get_allocator(&owner, &repo).await?;
@@ -112,8 +102,6 @@ pub async fn create_or_update_allocator(
         allocator_active_model.installation_id = Set(installation_id);
         allocator_active_model.multisig_address = Set(multisig_address);
         allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
-        allocator_active_model.node_address = Set(node_address);
-        allocator_active_model.node_token = Set(node_token);
 
         let updated_model = allocator_active_model.update(&conn).await?;
 
@@ -125,8 +113,6 @@ pub async fn create_or_update_allocator(
             installation_id: Set(installation_id),
             multisig_address: Set(multisig_address),
             verifiers_gh_handles: Set(verifiers_gh_handles),
-            node_address: Set(node_address),
-            node_token: Set(node_token),
             ..Default::default()
         };
     

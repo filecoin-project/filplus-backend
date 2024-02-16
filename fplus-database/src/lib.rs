@@ -102,8 +102,6 @@ mod tests {
         let installation_id = Some(1234);
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
-        let node_address = Some("wss://lotus-node-1.ngrok-free.app/rpc/v0".to_string());
-        let node_token = Some("222".to_string());
 
         let result = database::create_or_update_allocator(
             owner,
@@ -111,8 +109,6 @@ mod tests {
             installation_id,
             multisig_address,
             verifiers_gh_handles,
-            node_address,
-            node_token
         ).await;
         assert!(result.is_ok());
     }
@@ -153,8 +149,6 @@ mod tests {
             let multisig_address = Some
             ("0x1234567890".to_string());
             let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
-            let node_address = Some("wss://lotus-node.app/rpc/v0".to_string());
-            let node_token = Some("111".to_string());
 
             let result = database::create_or_update_allocator(
                 owner.clone(),
@@ -162,8 +156,6 @@ mod tests {
                 installation_id,
                 multisig_address,
                 verifiers_gh_handles,
-                node_address,
-                node_token
             ).await;
             assert!(result.is_ok());
         }
@@ -173,8 +165,6 @@ mod tests {
         let installation_id = Some(1234);
         let multisig_address = Some("0x0987654321".to_string());
         let verifiers_gh_handles = Some("test_verifier_3, test_verifier_4".to_string());
-        let node_address = Some("wss://lotus-node.app/rpc/v0".to_string());
-        let node_token = Some("111".to_string());
 
         let result = database::update_allocator(
             &owner,
@@ -182,8 +172,6 @@ mod tests {
             installation_id,
             multisig_address,
             verifiers_gh_handles,
-            node_address,
-            node_token
         ).await;
         assert!(result.is_ok());
     }
@@ -228,8 +216,6 @@ mod tests {
         let installation_id = Some(1234);
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
-        let node_address = Some("wss://lotus-node-2.ngrok-free.app/rpc/v0".to_string());
-        let node_token = Some("333".to_string());
 
         let result = database::create_or_update_allocator(
             owner.clone(),
@@ -237,8 +223,6 @@ mod tests {
             installation_id,
             multisig_address,
             verifiers_gh_handles,
-            node_address,
-            node_token
         ).await;
 
         assert!(result.is_ok());
