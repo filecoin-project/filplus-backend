@@ -9,7 +9,7 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base64,
+    base64::{self},
     config::get_env_var_or_default,
     error::LDNError,
     external_services::github::{
@@ -20,13 +20,13 @@ use crate::{
 use fplus_database::database;
 
 use self::application::file::{
-    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, VerifierInput,
-    ValidVerifierList,
+    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList, VerifierInput
 };
 use rayon::prelude::*;
 use crate::core::application::file::Allocation;
 
 pub mod application;
+pub mod allocator;
 
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
@@ -98,6 +98,12 @@ pub struct Allocator {
     pub installation_id: Option<i64>,
     pub multisig_address: Option<String>,
     pub verifiers_gh_handles: Option<String>,
+
+
+}
+#[derive(Deserialize)]
+pub struct ChangedAllocator {
+    pub file_changed: String
 }
 
 #[derive(Deserialize)]
@@ -584,7 +590,7 @@ impl LDNApplication {
             .take_items()
             .get(0)
             .and_then(|f| f.content.clone())
-            .and_then(|f| base64::decode(&f.replace("\n", "")))
+            .and_then(|f| base64::decode_application_file(&f.replace("\n", "")))
             .ok_or(LDNError::Load(format!("Application file is corrupted",)))?;
         return Ok(ApplicationFile::from(f.clone()));
     }

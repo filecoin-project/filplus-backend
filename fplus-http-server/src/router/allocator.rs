@@ -1,6 +1,6 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
 use fplus_database::database;
-use fplus_lib::core::{Allocator, AllocatorUpdateInfo};
+use fplus_lib::core::{allocator::process_allocator_file, AllocatorUpdateInfo, ChangedAllocator};
 
 /**
  * Get all allocators
@@ -19,34 +19,46 @@ pub async fn allocators() -> impl Responder {
         },
     }
 }
-
 /**
- * Create a new allocator
+ * Creates new Allocator in the db from a JSON file in the repository
  * 
  * # Arguments
- * @param info: web::Json<Allocator> - The allocator information
+ * @param files: web::Json<ChangedAllocators> - The list of changed JSON file names
  * 
  * # Returns
  * @return HttpResponse - The result of the operation
  */
-#[post("/allocator")]
-pub async fn create_or_update(info: web::Json<Allocator>) -> impl Responder {
-    match database::create_or_update_allocator(
-        info.owner.clone(),
-        info.repo.clone(),
-        info.installation_id,
-        info.multisig_address.clone(),
-        info.verifiers_gh_handles.clone(),
-    ).await {
-        Ok(allocator_model) => HttpResponse::Ok().json(allocator_model),
-        Err(e) => {
-            if e.to_string().contains("Allocator already exists") {
-                return HttpResponse::BadRequest().body(e.to_string());
+#[post("/allocator/create")]
+pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::Result<impl Responder> {
+    let file_name = &file.file_changed;
+    log::info!("Starting allocator creation on:  {}", file_name);
+
+    match process_allocator_file(file_name).await {
+        Ok(model) => {
+            if model.multisig_address.is_empty() {
+                return Ok(HttpResponse::BadRequest().body("Missing or invalid multisig_address"));
             }
-            return HttpResponse::InternalServerError().body(e.to_string());
-        }
+            let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {
+                None
+            } else {
+                Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
+            };
+            
+            match database::create_or_update_allocator(
+                model.owner,
+                model.repo,
+                Some(model.installation_id as i64), 
+                Some(model.multisig_address),      
+                verifiers_gh_handles,
+            ).await {
+                Ok(allocator_model) => Ok(HttpResponse::Ok().json(allocator_model)),
+                Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+            }
+        },
+        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
     }
 }
+
 
 /**
  * Update an allocator

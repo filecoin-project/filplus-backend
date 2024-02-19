@@ -5,7 +5,6 @@ use actix_web::{App, HttpServer};
 use env_logger;
 use log::info;
 use fplus_database;
-
 pub(crate) mod router;
 
 #[tokio::main]
@@ -44,9 +43,9 @@ async fn main() -> std::io::Result<()> {
             .service(router::blockchain::verified_clients)
             .service(router::verifier::verifiers)
             .service(router::allocator::allocators)
-            .service(router::allocator::create_or_update)
             .service(router::allocator::allocator)
             .service(router::allocator::delete)
+            .service(router::allocator::create_from_json)
     })
     .bind(("0.0.0.0", 8080))?
     .run()
