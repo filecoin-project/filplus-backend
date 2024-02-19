@@ -1,4 +1,4 @@
-use self::file::{AllocationRequest, Allocations, LifeCycle, Notary};
+use self::file::{AllocationRequest, Allocations, LifeCycle, Verifier};
 
 pub mod allocation;
 pub mod client;
@@ -77,7 +77,7 @@ impl file::ApplicationFile {
 
     pub fn add_signer_to_allocation(
         &self,
-        signer: Notary,
+        signer: Verifier,
         request_id: String,
         app_lifecycle: LifeCycle,
     ) -> Self {
@@ -91,7 +91,7 @@ impl file::ApplicationFile {
 
     pub fn add_signer_to_allocation_and_complete(
         &self,
-        signer: Notary,
+        signer: Verifier,
         request_id: String,
         app_lifecycle: LifeCycle,
     ) -> Self {

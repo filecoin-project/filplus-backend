@@ -1,17 +1,17 @@
 use chrono::Utc;
 
 use super::file::{
-    Allocation, AllocationRequest, AllocationRequestType, Allocations, Notaries, Notary,
+    Allocation, AllocationRequest, AllocationRequestType, Allocations, Verifiers, Verifier,
 };
 
-impl Default for Notaries {
+impl Default for Verifiers {
     fn default() -> Self {
         Self(vec![])
     }
 }
 
-impl Notaries {
-    pub fn add(&self, signer: Notary) -> Self {
+impl Verifiers {
+    pub fn add(&self, signer: Verifier) -> Self {
         let mut res = self.0.clone();
         res.push(signer);
         Self(res)
@@ -44,7 +44,7 @@ impl Allocation {
             updated_at: Utc::now().to_string(),
             is_active: true,
             amount: request_information.allocation_amount,
-            signers: Notaries::default(),
+            signers: Verifiers::default(),
         }
     }
 }
@@ -100,7 +100,7 @@ impl Allocations {
         is_active
     }
 
-    pub fn add_signer(&self, request_id: String, signer: Notary) -> Self {
+    pub fn add_signer(&self, request_id: String, signer: Verifier) -> Self {
         let mut res: Vec<Allocation> = self.0.clone();
         for allocation in res.iter_mut() {
             if allocation.id == request_id && allocation.is_active {
@@ -111,7 +111,7 @@ impl Allocations {
         Self(res)
     }
 
-    pub fn add_signer_and_complete(&self, request_id: String, signer: Notary) -> Self {
+    pub fn add_signer_and_complete(&self, request_id: String, signer: Verifier) -> Self {
         let mut res: Vec<Allocation> = self.0.clone();
         for allocation in res.iter_mut() {
             if allocation.id == request_id && allocation.is_active {

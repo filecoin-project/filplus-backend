@@ -36,7 +36,7 @@ pub struct CreateApplicationInfo {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct NotaryList(pub Vec<String>);
+pub struct VerifierList(pub Vec<String>);
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CompleteNewApplicationProposalInfo {
@@ -617,7 +617,7 @@ impl LDNApplication {
     pub async fn fetch_verifiers(owner: String, repo: String) -> Result<ValidVerifierList, LDNError> {
         let allocator = database::get_allocator(&owner, &repo).await.map_err(|e| LDNError::Load(format!("Failed to retrieve allocators /// {}", e)))?;
     
-        let mut gov_team_handles = Vec::new();
+        let mut verifiers_handles = Vec::new();
 
         let allocator = match allocator {
             Some(a) => a,
@@ -625,14 +625,14 @@ impl LDNApplication {
         };
 
         if let Some(handles) = allocator.verifiers_gh_handles {
-            gov_team_handles.extend(handles.split(',').map(String::from));
+            verifiers_handles.extend(handles.split(',').map(|s| s.trim().to_string()));
         }
     
-        if gov_team_handles.is_empty() {
+        if verifiers_handles.is_empty() {
             return Err(LDNError::Load("No governance team found".into()));
         }
     
-        Ok(ValidVerifierList { gov_team: gov_team_handles })
+        Ok(ValidVerifierList { verifiers: verifiers_handles })
     }
 
     async fn single_merged(application_id: String, owner: String, repo: String) -> Result<(Content, ApplicationFile), LDNError> {
@@ -882,7 +882,7 @@ impl LDNApplication {
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
             let active_request_id = application_file.lifecycle.active_request.clone();
-            let valid_gov_team = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
+            let valid_verifier_list = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
             let bot_user = get_env_var_or_default("BOT_USER", "filplus-allocators-staging-bot[bot]");
 
             let res: bool = match app_state {
@@ -916,8 +916,8 @@ impl LDNApplication {
                         } else if actor != bot_user {
                             log::warn!("- Not ready to sign - actor is not the bot user");
                             false
-                        } else if !valid_gov_team.is_valid(&validated_by) {
-                            log::warn!("- Not ready to sign - valid_gov_team is not valid");
+                        } else if !valid_verifier_list.is_valid(&validated_by) {
+                            log::warn!("- Not ready to sign - valid_verifier_list is not valid");
                             false
                         } else {
                             log::info!("- Validated!");
@@ -945,7 +945,7 @@ impl LDNApplication {
                 AppState::StartSignDatacap => {
                     if !validated_at.is_empty()
                         && !validated_by.is_empty()
-                        && valid_gov_team.is_valid(&validated_by)
+                        && valid_verifier_list.is_valid(&validated_by)
                     {
                         log::info!("- Validated!");
                         true
@@ -956,8 +956,8 @@ impl LDNApplication {
                         if validated_by.is_empty() {
                             log::warn!("- AppState: StartSignDatacap, validation failed: validated_by is empty");
                         }
-                        if !valid_gov_team.is_valid(&validated_by) {
-                            log::warn!("- AppState: StartSignDatacap, validation failed: valid_gov_team is not valid");
+                        if !valid_verifier_list.is_valid(&validated_by) {
+                            log::warn!("- AppState: StartSignDatacap, validation failed: valid_verifier_list is not valid");
                         }
                         false
                     }
@@ -965,7 +965,7 @@ impl LDNApplication {
                 AppState::Granted => {
                     if !validated_at.is_empty()
                         && !validated_by.is_empty()
-                        && valid_gov_team.is_valid(&validated_by)
+                        && valid_verifier_list.is_valid(&validated_by)
                     {
                         log::info!("- Application is granted");
                         true
@@ -980,9 +980,9 @@ impl LDNApplication {
                                 "- AppState: Granted, validation failed: validated_by is empty"
                             );
                         }
-                        if !valid_gov_team.is_valid(&validated_by) {
+                        if !valid_verifier_list.is_valid(&validated_by) {
                             log::warn!(
-                                "- AppState: Granted, validation failed: valid_gov_team is not valid"
+                                "- AppState: Granted, validation failed: valid_verifier_list is not valid"
                             );
                         }
                         false
@@ -1059,15 +1059,15 @@ impl LDNApplication {
                             return Ok(false);
                         }
                     };
-                    let signers: application::file::Notaries = active_request.signers.clone();
+                    let signers: application::file::Verifiers = active_request.signers.clone();
                     if signers.0.len() != 2 {
                         log::warn!("- Not enough signers");
                         return Ok(false);
                     }
                     let signer = signers.0.get(1).unwrap();
-                    let signer_address = signer.signing_address.clone();
+                    let signer_gh_handle = signer.github_username.clone();
                     let valid_verifiers = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
-                    if valid_verifiers.is_valid(&signer_address) {
+                    if valid_verifiers.is_valid(&signer_gh_handle) {
                         log::info!("- Validated!");
                         Self::issue_datacap_request_signature(
                             application_file.clone(), 
@@ -1130,9 +1130,9 @@ impl LDNApplication {
                         return Ok(false);
                     }
                     let signer = signers.0.get(0).unwrap();
-                    let signer_address = signer.signing_address.clone();
+                    let signer_gh_handle = signer.github_username.clone();
                     let valid_verifiers = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
-                    if valid_verifiers.is_valid(&signer_address) {
+                    if valid_verifiers.is_valid(&signer_gh_handle) {
                         Self::issue_start_sign_dc(
                             application_file.issue_number.clone(),
                             owner.clone(), 
@@ -1302,9 +1302,9 @@ impl LDNApplication {
             datacap_allocation_requested = allocation.amount.clone();
             id = allocation.id.clone();
 
-            if let Some(first_notary) = allocation.signers.0.get(0) {
-                signing_address = first_notary.signing_address.clone();
-                message_cid = first_notary.message_cid.clone();
+            if let Some(first_verifier) = allocation.signers.0.get(0) {
+                signing_address = first_verifier.signing_address.clone();
+                message_cid = first_verifier.message_cid.clone();
             }
         }
 

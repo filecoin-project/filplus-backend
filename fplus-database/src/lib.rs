@@ -108,7 +108,7 @@ mod tests {
             repo,
             installation_id,
             multisig_address,
-            verifiers_gh_handles
+            verifiers_gh_handles,
         ).await;
         assert!(result.is_ok());
     }
@@ -155,7 +155,7 @@ mod tests {
                 repo.clone(),
                 installation_id,
                 multisig_address,
-                verifiers_gh_handles
+                verifiers_gh_handles,
             ).await;
             assert!(result.is_ok());
         }
@@ -171,7 +171,7 @@ mod tests {
             &repo,
             installation_id,
             multisig_address,
-            verifiers_gh_handles
+            verifiers_gh_handles,
         ).await;
         assert!(result.is_ok());
     }
@@ -222,7 +222,7 @@ mod tests {
             repo.clone(),
             installation_id,
             multisig_address,
-            verifiers_gh_handles
+            verifiers_gh_handles,
         ).await;
 
         assert!(result.is_ok());
