@@ -88,22 +88,21 @@ struct Author {
 
 impl GithubWrapper {
     pub fn new(owner: String, repo: String) -> Self {
-        let app_id = get_env_var_or_default("GITHUB_APP_ID", "826129")
-            .parse::<u64>()
-            .unwrap_or_else(|_| {
-                log::error!("Failed to parse GITHUB_APP_ID, using default");
-                826129
-            });
-        let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID", "47207972")
-            .parse::<u64>()
-            .unwrap_or_else(|_| {
-                log::error!("Failed to parse GITHUB_INSTALLATION_ID, using default");
-                47207972
-            });
+        let app_id_str = get_env_var_or_default("GITHUB_APP_ID");
+        let installation_id_str = get_env_var_or_default("GITHUB_INSTALLATION_ID");
+    
+        let app_id = app_id_str.parse::<u64>().unwrap_or_else(|_| {
+            log::error!("Failed to parse GITHUB_APP_ID as u64, using default value");
+            0
+        });
+    
+        let installation_id = installation_id_str.parse::<u64>().unwrap_or_else(|_| {
+            log::error!("Failed to parse GITHUB_INSTALLATION_ID as u64, using default value");
+            0
+        });
+    
         let gh_private_key = std::env::var("GH_PRIVATE_KEY").unwrap_or_else(|_| {
-            log::warn!(
-                "GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem"
-            );
+            log::warn!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
             std::fs::read_to_string("gh-private-key.pem").unwrap_or_else(|e| {
                 log::error!("Failed to read gh-private-key.pem. Error: {:?}", e);
                 std::process::exit(1);
