@@ -73,6 +73,7 @@ pub struct RefillInfo {
 
 #[derive(Deserialize)]
 pub struct DcReachedInfo {
+    pub id: String,
     pub owner: String,
     pub repo: String
 }

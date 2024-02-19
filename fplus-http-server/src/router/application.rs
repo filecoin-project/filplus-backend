@@ -134,7 +134,7 @@ pub async fn merged(query: web::Query<GithubQueryParams>) -> actix_web::Result<i
     }
 }
 
-#[post("/application/{id}/refill")]
+#[post("/application/refill")]
 pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Responder> {
     match LDNApplication::refill(data.into_inner()).await {
         Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
@@ -142,10 +142,10 @@ pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Respo
     }
 }
 
-#[post("/application/{id}/totaldcreached")]
-pub async fn total_dc_reached(id: web::Path<String>, data: web::Json<DcReachedInfo>) -> actix_web::Result<impl Responder> {
-    let DcReachedInfo {owner, repo} = data.into_inner();
-    match LDNApplication::total_dc_reached(id.into_inner(), owner, repo).await {
+#[post("/application/totaldcreached")]
+pub async fn total_dc_reached(data: web::Json<DcReachedInfo>) -> actix_web::Result<impl Responder> {
+    let DcReachedInfo {id, owner, repo} = data.into_inner();
+    match LDNApplication::total_dc_reached(id, owner, repo).await {
         Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
         Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
     }
