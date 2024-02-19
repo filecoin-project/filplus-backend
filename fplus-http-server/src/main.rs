@@ -6,6 +6,8 @@ use env_logger;
 use log::info;
 use fplus_database;
 
+use crate::router::allocator;
+
 pub(crate) mod router;
 
 #[tokio::main]
@@ -47,6 +49,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::allocator::create_or_update)
             .service(router::allocator::allocator)
             .service(router::allocator::delete)
+            .service(router::allocator::create_from_json)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

@@ -103,7 +103,7 @@ pub struct Allocator {
 }
 #[derive(Deserialize)]
 pub struct ChangedAllocator {
-    pub file_changed: String,
+    pub file_changed: String
 }
 
 #[derive(Deserialize)]

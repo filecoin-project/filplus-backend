@@ -88,13 +88,13 @@ struct Author {
 
 impl GithubWrapper {
     pub fn new(owner: String, repo: String) -> Self {
-        let app_id = get_env_var_or_default("GITHUB_APP_ID", "826129")
+        let app_id = get_env_var_or_default("GITHUB_APP_ID", "373258")
             .parse::<u64>()
             .unwrap_or_else(|_| {
                 log::error!("Failed to parse GITHUB_APP_ID, using default");
                 826129
             });
-        let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID", "47207972")
+        let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID", "40514592")
             .parse::<u64>()
             .unwrap_or_else(|_| {
                 log::error!("Failed to parse GITHUB_INSTALLATION_ID, using default");

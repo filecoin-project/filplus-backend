@@ -6,10 +6,15 @@ use self::file::AllocatorModel;
 
 pub mod file;
 
-pub async fn process_allocator_file(owner: &str, repo: &str, branch: &str, path: &str) -> Result<AllocatorModel, LDNError> {
+pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, LDNError> {
+    let owner = "fidlabs";
+    let repo = "Allocator-Governance-Staging";
+    let branch = "main";
+    let path = file_name.to_string();
+
     let gh = GithubWrapper::new(owner.to_string(), repo.to_string());
 
-    let content_items = gh.get_file(path, branch).await.map_err(|e| LDNError::Load(e.to_string()))?;
+    let content_items = gh.get_file(&path, branch).await.map_err(|e| LDNError::Load(e.to_string()))?;
     let model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
 
     Ok(model)
@@ -26,12 +31,4 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
         .ok_or(LDNError::Load("Failed to parse allocator model".to_string()))?;
 
     Ok(allocator_model)
-}
-
-pub fn extract_owner_repo(file_name: &str) -> Result<(&str, &str), &'static str> {
-    let parts: Vec<&str> = file_name.splitn(2, '_').collect();
-    if parts.len() != 2 {
-        return Err("Invalid file name format");
-    }
-    Ok((parts[0], parts[1]))
 }
