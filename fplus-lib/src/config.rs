@@ -1,9 +1,32 @@
 use log::warn;
+use std::collections::HashMap;
+use once_cell::sync::OnceCell;
 
-pub fn get_env_var_or_default(key: &str, default: &str) -> String {
+pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
+    static DEFAULTS: OnceCell<HashMap<&'static str, &'static str>> = OnceCell::new();
+    DEFAULTS.get_or_init(|| {
+        let mut m = HashMap::new();
+        m.insert("GITHUB_OWNER", "filecoin-project");
+        m.insert("GITHUB_REPO", "filecoin-plus-falcon");
+        m.insert("GITHUB_APP_ID", "826129");
+        m.insert("GITHUB_INSTALLATION_ID", "47207972");
+        m.insert("RUST_LOG", "info");
+        m.insert("RUST_BACKTRACE", "1");
+        m.insert("DB_URL", "");
+        m.insert("ALLOCATOR_GOVERNANCE_REPO", "Allocator-Governance-Staging");
+        m.insert("ALLOCATOR_GOVERNANCE_OWNER", "fidlabs");
+        m.insert("BOT_USER", "filplus-allocators-staging-bot[bot]");
+        
+        m
+    })
+}
+
+pub fn get_env_var_or_default(key: &str) -> String {
     match std::env::var(key) {
         Ok(val) => val,
         Err(_) => {
+            let defaults = default_env_vars();
+            let default = defaults.get(key).unwrap_or(&"");
             warn!("{} not set, using default value: {}", key, default);
             default.to_string()
         }

@@ -856,7 +856,7 @@ impl LDNApplication {
             log::info!("- Application is in a valid state!");
             return Ok(true);
         }
-        let bot_user = get_env_var_or_default("BOT_USER", "filplus-allocators-staging-bot[bot]");
+        let bot_user = get_env_var_or_default("BOT_USER");
         if author != bot_user {
             log::warn!("- Author is not the bot user");
             return Ok(false);
@@ -884,7 +884,7 @@ impl LDNApplication {
             let app_state = application_file.lifecycle.get_state();
             let active_request_id = application_file.lifecycle.active_request.clone();
             let valid_verifier_list = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
-            let bot_user = get_env_var_or_default("BOT_USER", "filplus-allocators-staging-bot[bot]");
+            let bot_user = get_env_var_or_default("BOT_USER");
 
             let res: bool = match app_state {
                 AppState::Submitted => {
