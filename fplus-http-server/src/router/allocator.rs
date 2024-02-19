@@ -31,23 +31,24 @@ pub async fn allocators() -> impl Responder {
 #[post("/allocator/create")]
 pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::Result<impl Responder> {
     let file_name = &file.file_changed;
+    log::info!("File name:  {}", file_name);
 
     match process_allocator_file(file_name).await {
         Ok(model) => {
-            if model.multisig_address.is_empty() {
+            if model.address.is_empty() {
                 return Ok(HttpResponse::BadRequest().body("Missing or invalid multisig_address"));
             }
-            let verifiers_gh_handles = if model.verifiers.is_empty() {
+            let verifiers_gh_handles = if model.application.github_handles.is_empty() {
                 None
             } else {
-                Some(model.verifiers.join(", ")) // Join verifiers in a string if exists
+                Some(model.application.github_handles.join(", ")) // Join verifiers in a string if exists
             };
             
             match database::create_or_update_allocator(
                 model.organization,
                 model.slug,
-                Some(model.installation_id as i64), 
-                Some(model.multisig_address),      
+                Some(model.common_ui_install_id as i64), 
+                Some(model.address),      
                 verifiers_gh_handles,
             ).await {
                 Ok(allocator_model) => Ok(HttpResponse::Ok().json(allocator_model)),
