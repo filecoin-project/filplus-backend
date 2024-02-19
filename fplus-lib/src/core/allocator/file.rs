@@ -2,14 +2,19 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AllocatorModel {
-    pub slug: String,  
-    pub organization: String,
-    pub address: String,
+    #[serde(rename = "slug")]
+    pub repo: String,  
+    #[serde(rename = "organization")]
+    pub owner: String,
+    #[serde(rename = "address")]
+    pub multisig_address: String,
     pub application: Application,
-    pub common_ui_install_id: u64, 
+    #[serde(rename = "common_ui_install_id")]
+    pub installation_id: u64, 
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Application {
-    pub github_handles: Vec<String>
+    #[serde(rename = "github_handles")]
+    pub verifiers_gh_handles: Vec<String>
 }

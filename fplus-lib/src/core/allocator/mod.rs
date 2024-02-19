@@ -7,13 +7,19 @@ use self::file::AllocatorModel;
 pub mod file;
 
 pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, LDNError> {
-    let owner = "fidlabs";
-    let repo = "Allocator-Governance-Staging";
+
+    let owner = std::env::var("ALLOCATOR_GOVERNANCE_OWNER").unwrap_or_else(|_| {
+        log::warn!("ALLOCATOR_GOVERNANCE_OWNER not found in .env file");
+        "Allocator-Governance-Staging".to_string()
+    });
+    let repo = std::env::var("ALLOCATOR_GOVERNANCE_REPO").unwrap_or_else(|_| {
+        log::warn!("ALLOCATOR_GOVERNANCE_REPO not found in .env file");
+        "fidlabs".to_string()
+    });
     let branch = "main";
     let path = file_name.to_string();
 
     let gh = GithubWrapper::new(owner.to_string(), repo.to_string());
-    log::info!("Github is initialized");
     let content_items = gh.get_file(&path, branch).await.map_err(|e| LDNError::Load(e.to_string()))?;
     let model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
 
