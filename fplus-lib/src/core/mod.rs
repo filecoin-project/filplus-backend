@@ -239,12 +239,12 @@ impl LDNApplication {
     }
 
     pub async fn all_applications() -> Result<Vec<(ApplicationFile, String, String)>, Vec<LDNError>> {
-        let allocators = database::get_allocators().await.map_err(|_| LDNError::new("Failed to get allocators from the database"))?;
+        let allocators = database::get_allocators().await.map_err(|_| LDNError::New("Failed to get allocators from the database"))?;
         let mut all_apps: Vec<(ApplicationFile, String, String)> = Vec::new();
         let mut errors: Vec<LDNError> = Vec::new();
     
         for allocator in allocators {
-            match active(allocator.owner.clone(), allocator.repo.clone(), None).await {
+            match Self::active(allocator.owner.clone(), allocator.repo.clone(), None).await {
                 Ok(apps) => {
                     for app in apps {
                         all_apps.push((app, allocator.repo.clone(), allocator.owner.clone()));
@@ -256,7 +256,7 @@ impl LDNApplication {
                 },
             }
     
-            match merged(allocator.owner.clone(), allocator.repo.clone()).await {
+            match Self::merged(allocator.owner.clone(), allocator.repo.clone()).await {
                 Ok(merged_apps) => {
                     for app in merged_apps {
                         all_apps.push((app.1, allocator.repo.clone(), allocator.owner.clone()));
