@@ -238,29 +238,44 @@ impl LDNApplication {
         });
     }
 
-    pub async fn all_applications() -> Result<Vec<ApplicationFile>, LDNError> {
-        let allocators = database::get_allocators().await.map_err(|e| LDNError::Load(format!("Failed to retrieve allocators /// {}", e)))?;
+    pub async fn all_applications() -> Result<Vec<(ApplicationFile, String, String)>, Vec<LDNError>> {
+        let allocators = database::get_allocators().await.map_err(|_| LDNError::new("Failed to get allocators from the database"))?;
+        let mut all_apps: Vec<(ApplicationFile, String, String)> = Vec::new();
+        let mut errors: Vec<LDNError> = Vec::new();
     
-        let mut all_apps: Vec<ApplicationFile> = Vec::new();
         for allocator in allocators {
-            // Process active applications
-            if let Ok(apps) = Self::active(allocator.owner.clone(), allocator.repo.clone(), None).await {
-                all_apps.extend(apps);
-            } else {
-                eprintln!("Failed to process active applications for allocator {}:{}", allocator.repo, allocator.owner);
+            match active(allocator.owner.clone(), allocator.repo.clone(), None).await {
+                Ok(apps) => {
+                    for app in apps {
+                        all_apps.push((app, allocator.repo.clone(), allocator.owner.clone()));
+                    }
+                },
+                Err(e) => {
+                    errors.push(e);
+                    eprintln!("Failed to process active applications for allocator {}:{}", allocator.repo, allocator.owner);
+                },
             }
     
-            // Process merged applications
-            if let Ok(merged_apps) = Self::merged(allocator.owner.clone(), allocator.repo.clone()).await {
-                // Assuming you only need ApplicationFile from the tuple (Content, ApplicationFile)
-                all_apps.extend(merged_apps.into_iter().map(|(_, app_file)| app_file));
-            } else {
-                eprintln!("Failed to process merged applications for allocator {}:{}", allocator.repo, allocator.owner);
+            match merged(allocator.owner.clone(), allocator.repo.clone()).await {
+                Ok(merged_apps) => {
+                    for app in merged_apps {
+                        all_apps.push((app.1, allocator.repo.clone(), allocator.owner.clone()));
+                    }
+                },
+                Err(e) => {
+                    errors.push(e);
+                    eprintln!("Failed to process merged applications for allocator {}:{}", allocator.repo, allocator.owner);
+                },
             }
         }
     
-        Ok(all_apps)
+        if errors.is_empty() {
+            Ok(all_apps)
+        } else {
+            Err(errors)
+        }
     }
+    
 
     pub async fn active(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
         let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
