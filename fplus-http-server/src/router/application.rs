@@ -113,6 +113,19 @@ pub async fn approve(
     }
 }
 
+#[get("/applications")]
+pub async fn all_applications() -> impl Responder {
+    match LDNApplication::all_applications().await {
+        Ok(apps) => {
+            match serde_json::to_string_pretty(&apps) {
+                Ok(json) => HttpResponse::Ok().content_type("application/json").body(json),
+                Err(e) => HttpResponse::InternalServerError().body(format!("Failed to serialize applications: {}", e)),
+            }
+        },
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}
+
 #[get("/application/active")]
 pub async fn active(query: web::Query<GithubQueryParams>) -> impl Responder {
     let GithubQueryParams { owner, repo } = query.into_inner();
