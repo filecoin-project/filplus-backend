@@ -239,7 +239,16 @@ impl LDNApplication {
     }
 
     pub async fn active(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
-        let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
+        let gh: GithubWrapper
+        if let Some(repo) = repo {
+            if let Some(owner) = owner {
+                gh = GithubWrapper::new(owner.clone(), repo.clone());
+            } else {
+                Err(LDNError::new("Owner must be specified if repo is provided"))
+            }
+        } else {
+            gh = GithubWrapper::new();
+        }
         let mut apps: Vec<ApplicationFile> = Vec::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
         let pull_requests = future::try_join_all(
@@ -681,7 +690,16 @@ impl LDNApplication {
     }
 
     pub async fn merged(owner: String, repo: String) -> Result<Vec<(Content, ApplicationFile)>, LDNError> {
-        let gh = GithubWrapper::new(owner.clone(), repo.clone());
+        let gh: GithubWrapper
+        if let Some(repo) = repo {
+            if let Some(owner) = owner {
+                gh = GithubWrapper::new(owner.clone(), repo.clone());
+            } else {
+                Err(LDNError::new("Owner must be specified if repo is provided"))
+            }
+        } else {
+            gh = GithubWrapper::new();
+        }
         let applications_path = "applications";
         let mut all_files = gh.get_files(applications_path).await.map_err(|e| {
             LDNError::Load(format!(
