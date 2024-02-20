@@ -122,7 +122,12 @@ pub async fn all_applications() -> impl Responder {
                 Err(e) => HttpResponse::InternalServerError().body(format!("Failed to serialize applications: {}", e)),
             }
         },
-        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+        Err(errors) => {
+            match serde_json::to_string_pretty(&errors) {
+                Ok(json) => HttpResponse::BadRequest().content_type("application/json").body(json),
+                Err(e) => HttpResponse::InternalServerError().body(format!("Failed to serialize errors: {}", e)),
+            }
+        },
     }
 }
 

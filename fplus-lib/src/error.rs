@@ -8,8 +8,9 @@ use actix_web::{
     body::{BodySize, MessageBody},
     web::Bytes,
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum LDNError {
     New(String),
     Load(String),

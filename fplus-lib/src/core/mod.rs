@@ -239,8 +239,10 @@ impl LDNApplication {
     }
 
     pub async fn all_applications() -> Result<Vec<(ApplicationFile, String, String)>, Vec<LDNError>> {
-        let allocators = database::get_allocators().await.map_err(|_| LDNError::New("Failed to get allocators from the database"))?;
-        let mut all_apps: Vec<(ApplicationFile, String, String)> = Vec::new();
+        let allocators = match database::get_allocators().await {
+            Ok(allocs) => allocs,
+            Err(e) => return Err(vec![LDNError::Load(format!("Failed to retrieve allocators: {}", e))]),
+        };        let mut all_apps: Vec<(ApplicationFile, String, String)> = Vec::new();
         let mut errors: Vec<LDNError> = Vec::new();
     
         for allocator in allocators {
