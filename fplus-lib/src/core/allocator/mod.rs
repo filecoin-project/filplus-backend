@@ -1,5 +1,6 @@
 use octocrab::models::repos::ContentItems;
 
+use crate::config::get_env_var_or_default;
 use crate::{base64::decode_allocator_model, error::LDNError, external_services::github::GithubWrapper};
 
 use self::file::AllocatorModel;
@@ -8,14 +9,8 @@ pub mod file;
 
 pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, LDNError> {
 
-    let owner = std::env::var("ALLOCATOR_GOVERNANCE_OWNER").unwrap_or_else(|_| {
-        log::warn!("ALLOCATOR_GOVERNANCE_OWNER not found in .env file");
-        "Allocator-Governance-Staging".to_string()
-    });
-    let repo = std::env::var("ALLOCATOR_GOVERNANCE_REPO").unwrap_or_else(|_| {
-        log::warn!("ALLOCATOR_GOVERNANCE_REPO not found in .env file");
-        "fidlabs".to_string()
-    });
+    let owner = get_env_var_or_default("ALLOCATOR_GOVERNANCE_OWNER");
+    let repo = get_env_var_or_default("ALLOCATOR_GOVERNANCE_REPO");
     let branch = "main";
     let path = file_name.to_string();
 
