@@ -40,6 +40,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::validate_application_trigger)
             .service(router::application::validate_application_proposal)
             .service(router::application::validate_application_approval)
+            .service(router::application::cache_renewal)
             .service(router::blockchain::address_allowance)
             .service(router::blockchain::verified_clients)
             .service(router::verifier::verifiers)
