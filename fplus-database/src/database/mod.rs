@@ -92,6 +92,7 @@ pub async fn create_or_update_allocator(
     installation_id: Option<i64>,
     multisig_address: Option<String>,
     verifiers_gh_handles: Option<String>,
+    multisig_threshold: Option<i32>
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
 
     let existing_allocator = get_allocator(&owner, &repo).await?;
@@ -113,6 +114,7 @@ pub async fn create_or_update_allocator(
             installation_id: Set(installation_id),
             multisig_address: Set(multisig_address),
             verifiers_gh_handles: Set(verifiers_gh_handles),
+            multisig_threshold: Set(multisig_threshold),
             ..Default::default()
         };
     

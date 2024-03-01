@@ -102,6 +102,7 @@ mod tests {
         let installation_id = Some(1234);
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
+        let multisig_threshold = Some(2);
 
         let result = database::create_or_update_allocator(
             owner,
@@ -109,6 +110,7 @@ mod tests {
             installation_id,
             multisig_address,
             verifiers_gh_handles,
+            multisig_threshold
         ).await;
         assert!(result.is_ok());
     }
@@ -149,6 +151,7 @@ mod tests {
             let multisig_address = Some
             ("0x1234567890".to_string());
             let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
+            let multisig_threshold = Some(2);
 
             let result = database::create_or_update_allocator(
                 owner.clone(),
@@ -156,6 +159,7 @@ mod tests {
                 installation_id,
                 multisig_address,
                 verifiers_gh_handles,
+                multisig_threshold
             ).await;
             assert!(result.is_ok());
         }
@@ -216,6 +220,7 @@ mod tests {
         let installation_id = Some(1234);
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
+        let multisig_threshold = Some(2);
 
         let result = database::create_or_update_allocator(
             owner.clone(),
@@ -223,6 +228,7 @@ mod tests {
             installation_id,
             multisig_address,
             verifiers_gh_handles,
+            multisig_threshold
         ).await;
 
         assert!(result.is_ok());

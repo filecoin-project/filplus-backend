@@ -50,6 +50,7 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
                 Some(model.installation_id as i64), 
                 Some(model.multisig_address),      
                 verifiers_gh_handles,
+                model.multisig_threshold
             ).await {
                 Ok(allocator_model) => Ok(HttpResponse::Ok().json(allocator_model)),
                 Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
