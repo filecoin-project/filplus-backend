@@ -1,11 +1,125 @@
-use std::env;
-
-use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer};
 use env_logger;
 use log::info;
 use fplus_database;
 pub(crate) mod router;
+use reqwest::Client;
+use serde::Deserialize;
+
+use std::{env, future::{ready, Ready}};
+
+use actix_web::{
+    App,
+    HttpServer,
+    web,
+    middleware::Logger,
+    dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
+    Error,
+    HttpResponse,
+    http::StatusCode,
+};
+use futures_util::future::LocalBoxFuture;
+
+#[derive(Deserialize, Debug)]
+struct RepoQuery {
+    owner: String,
+    repo: String,
+}
+
+pub struct GHAuth;
+
+impl<S, B> Transform<S, ServiceRequest> for GHAuth
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type InitError = ();
+    type Transform = GHAuthMiddleware<S>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(GHAuthMiddleware { service }))
+    }
+}
+
+pub struct GHAuthMiddleware<S> {
+    service: S,
+}
+
+impl<S, B> Service<ServiceRequest> for GHAuthMiddleware<S>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    forward_ready!(service);
+
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        let query_string = req.query_string();
+        let query: Result<web::Query<RepoQuery>, _> = web::Query::from_query(query_string);
+
+        let auth_header_value = req.headers().get("Authorization")
+            .and_then(|hv| hv.to_str().ok())
+            .filter(|hv| hv.starts_with("Bearer "))
+            .map(|hv| hv["Bearer ".len()..].to_string());
+        let fut = self.service.call(req);
+
+        Box::pin(async move {
+            // if let Some(token) = auth_header_value {
+            //     // Make the asynchronous HTTP request here
+            //     let client = Client::new();
+            //     let user_info_result = client.get("https://api.github.com/user")
+            //         .header("Authorization", format!("Bearer {}", token))
+            //         .header("User-Agent", "Actix-web")
+            //         .send()
+            //         .await;
+    
+            //     match user_info_result {
+            //         Ok(response) => {
+            //             if response.status().is_success() {
+            //                 let user_info = response
+            //                 .json::<serde_json::Value>()
+            //                 .await
+            //                 .expect("Failed to parse JSON");
+                            
+            //                 if let Some(login) = user_info.get("login").and_then(|v| v.as_str()) {
+            //                     println!("Login: {}", login);
+            //                 } else {
+            //                     println!("Login information not found.");
+            //                 }
+            //             } else {
+            //                 println!("Failed to get GitHub user info");
+            //             }
+            //         },
+            //         Err(e) => println!("Request error: {:?}", e),
+            //     }
+            // }
+
+            // match database::get_allocator(&owner, &repo).await {
+            //     Ok(allocator) => {
+            //         match allocator {
+            //             Some(allocator) => HttpResponse::Ok().json(allocator),
+            //             None => HttpResponse::NotFound().finish(),
+            //         }
+            //     },
+            //     Err(e) => {
+            //         HttpResponse::InternalServerError().body(e.to_string())
+            //     }
+            // }
+    
+            let res = fut.await?;
+            println!("Hi from response");
+            Ok(res)
+        })
+    }
+}
+
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -27,9 +141,14 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .service(router::health)
             .service(router::application::create)
-            .service(router::application::trigger)
-            .service(router::application::propose)
-            .service(router::application::approve)
+            .service(
+                web::scope("/api")
+                    .wrap(GHAuth) // Apply GitHubAuth to all routes under "/api"
+                    .service(router::application::testz)
+                    .service(router::application::trigger)
+                    .service(router::application::propose)
+                    .service(router::application::approve)
+            )
             .service(router::application::merged)
             .service(router::application::active)
             .service(router::application::all_applications)
