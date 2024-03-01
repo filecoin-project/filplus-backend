@@ -1,6 +1,6 @@
 use env_logger;
 use log::info;
-use fplus_database;
+use fplus_database::database;
 pub(crate) mod router;
 use reqwest::Client;
 use serde::Deserialize;
@@ -63,6 +63,14 @@ where
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let query_string = req.query_string();
         let query: Result<web::Query<RepoQuery>, _> = web::Query::from_query(query_string);
+        let RepoQuery { owner, repo } = match query {
+            Ok(q) => q.into_inner(),
+            Err(_) => {
+                return Box::pin(async {
+                    return Err(actix_web::error::ErrorBadRequest("Wrong query string format"));
+                });
+            }
+        };
 
         let auth_header_value = req.headers().get("Authorization")
             .and_then(|hv| hv.to_str().ok())
@@ -71,47 +79,45 @@ where
         let fut = self.service.call(req);
 
         Box::pin(async move {
-            // if let Some(token) = auth_header_value {
-            //     // Make the asynchronous HTTP request here
-            //     let client = Client::new();
-            //     let user_info_result = client.get("https://api.github.com/user")
-            //         .header("Authorization", format!("Bearer {}", token))
-            //         .header("User-Agent", "Actix-web")
-            //         .send()
-            //         .await;
+            if let Some(token) = auth_header_value {
+                // Make the asynchronous HTTP request here
+                let client = Client::new();
+                let user_info_result = client.get("https://api.github.com/user")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .header("User-Agent", "Actix-web")
+                    .send()
+                    .await;
     
-            //     match user_info_result {
-            //         Ok(response) => {
-            //             if response.status().is_success() {
-            //                 let user_info = response
-            //                 .json::<serde_json::Value>()
-            //                 .await
-            //                 .expect("Failed to parse JSON");
-                            
-            //                 if let Some(login) = user_info.get("login").and_then(|v| v.as_str()) {
-            //                     println!("Login: {}", login);
-            //                 } else {
-            //                     println!("Login information not found.");
-            //                 }
-            //             } else {
-            //                 println!("Failed to get GitHub user info");
-            //             }
-            //         },
-            //         Err(e) => println!("Request error: {:?}", e),
-            //     }
-            // }
+                match user_info_result {
+                    Ok(response) => {
+                        //Raise an actix test error
+                        if response.status().is_success() {
+                            let user_info = response
+                                .json::<serde_json::Value>()
+                                .await
+                                .expect("Failed to parse JSON");
 
-            // match database::get_allocator(&owner, &repo).await {
-            //     Ok(allocator) => {
-            //         match allocator {
-            //             Some(allocator) => HttpResponse::Ok().json(allocator),
-            //             None => HttpResponse::NotFound().finish(),
-            //         }
-            //     },
-            //     Err(e) => {
-            //         HttpResponse::InternalServerError().body(e.to_string())
-            //     }
-            // }
+                            if let Some(login) = user_info.get("login").and_then(|v| v.as_str()) {
+                                println!("Login: {}", login);
+                            } else {
+                                println!("Login information not found.");
+                            }
+                        } else {
+                            println!("Failed to get GitHub user info");
+                        }
+                    },
+                    Err(e) => println!("Request error: {:?}", e),
+                }
+            }
+
+            match database::get_allocator(&owner, &repo).await {
+                Ok(allocator) => {
+                    println!("Allocator: {:?}", allocator);
+                },
+                Err(e) => {
+                    println!("Failed to get allocator: {:?}", e);
+                }
+            }
     
             let res = fut.await?;
             println!("Hi from response");
