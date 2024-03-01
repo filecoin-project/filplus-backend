@@ -42,8 +42,6 @@ pub struct VerifierList(pub Vec<String>);
 pub struct CompleteNewApplicationProposalInfo {
     pub signer: VerifierInput,
     pub request_id: String,
-    pub owner: String,
-    pub repo: String
 }
 
 #[derive(Debug)]
@@ -58,8 +56,6 @@ pub struct LDNApplication {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompleteGovernanceReviewInfo {
     pub actor: String,
-    pub owner: String, 
-    pub repo: String,
 }
 
 #[derive(Deserialize, Debug)]
