@@ -231,15 +231,15 @@ pub async fn validate_application_approval(
     }
 }
 
-#[post("application/merge")]
-pub async fn merge_application(
+#[post("application/merge/validate")]
+pub async fn validate_application_merge(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
     let ValidationPullRequestData { pr_number, user_handle: _, owner, repo } = info.into_inner();
     let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
-        Ok(pr_number) => match LDNApplication::merge_application(pr_number, owner, repo).await {
+        Ok(pr_number) => match LDNApplication::validate_merge_application(pr_number, owner, repo).await {
             Ok(result) => HttpResponse::Ok().json(result),
             Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
         },

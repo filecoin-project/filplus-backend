@@ -232,4 +232,27 @@ mod tests {
         
     }
 
+    /**
+     * Test the create_application function
+     *
+     * # Returns
+     * @return () - The result of the test
+     */
+    #[tokio::test]
+    #[serial]
+    async fn test_create_application() {
+        setup_test_environment().await;
+
+        let id = "test_id".to_string();
+        let owner = "keyko-io".to_string();
+        let repo = "great-test-library".to_string();
+        let pr_number = 14;
+        let app_file = "test_app_file".to_string();
+        let sha = "test_sha".to_string();
+        let path = "test_path".to_string();
+
+        let result = database::applications::create_application(id, owner, repo, pr_number, app_file, sha, path).await;
+        assert!(result.is_ok());
+    }
+
 }

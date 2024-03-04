@@ -290,6 +290,7 @@ impl LDNApplication {
     }
 
     pub async fn all_applications() -> Result<Vec<(ApplicationFile, String, String)>, Vec<LDNError>> {
+        //TODO: Avoid filtering by allocators. Simply get all active & merged applications from the database.
         let allocators = match database::allocators::get_allocators().await {
             Ok(allocs) => allocs,
             Err(e) => return Err(vec![LDNError::Load(format!("Failed to retrieve allocators: {}", e))]),
@@ -996,7 +997,57 @@ impl LDNApplication {
         Err(LDNError::Load("Failed to get application file".to_string()))
     }
 
-    pub async fn merge_application(pr_number: u64, owner: String, repo: String) -> Result<bool, LDNError> {
+    pub async fn validate_merge_application(pr_number: u64, owner: String, repo: String) -> Result<bool, LDNError> {
+        log::info!("Starting validate_merge_application:");
+        log::info!(
+            "- Validating merge for PR number {}",
+            pr_number,
+        );
+
+        let application = match LDNApplication::single_active(pr_number, owner.clone(), repo.clone()).await {
+            Ok(app) => {
+                log::info!("- Got application");
+                app
+            }
+            Err(err) => {
+                log::error!("- Failed to get application. Reason: {}", err);
+                return Err(LDNError::Load(format!(
+                    "Failed to get application. Reason: {}",
+                    err
+                )));
+            }
+        };
+
+        // conditions for automerge:
+        // 1. Application is in Granted state
+        // 2. Application has Validated by and Validated at fields set
+        // 3. Application doesn't have an active request
+        if application.lifecycle.get_state() == AppState::Granted {
+            if application.lifecycle.validated_by.is_empty() {
+                log::warn!("- Application has not been validated");
+                return Ok(false);
+            }
+            if application.lifecycle.validated_at.is_empty() {
+                log::warn!("- Application has not been validated at");
+                return Ok(false);
+            }
+            let active_request = application.allocation.active();
+            if active_request.is_some() {
+                log::warn!("- Application has an active request");
+                return Ok(false);
+            }
+            log::info!("- Application is in a valid state!");
+
+            Self::merge_application(pr_number, owner, repo, application.id).await?;
+            return Ok(true);
+        }
+
+        log::warn!("- Application is not in a valid state");
+        return Ok(false);
+        
+    }
+
+    pub async fn merge_application(pr_number: u64, owner: String, repo: String, application_id: String) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new(owner.clone(), repo.clone());
 
         gh.merge_pull_request(pr_number).await.map_err(|e| {
@@ -1006,7 +1057,23 @@ impl LDNApplication {
             ))
         })?;
 
-        database::applications::merge_application_by_pr_number(owner, repo, pr_number).await.map_err(|e| {
+        //Get file SHA with get_file function
+
+        let file_name = LDNPullRequest::application_path(&application_id);
+        let branch_name = "main";
+        let file_sha = match GithubWrapper::new(owner.clone(), repo.clone())
+            .get_file(&file_name, &branch_name).await {
+                Ok(file) => file.items.get(0).unwrap().sha.clone(),
+                Err(e) => {
+                    log::error!("- Failed to get file content. Reason: {}", e);
+                    return Err(LDNError::Load(format!(
+                        "Failed to get file content. Reason: {}",
+                        e
+                    )));
+                }
+        };
+
+        database::applications::merge_application_by_pr_number(owner, repo, pr_number, file_sha).await.map_err(|e| {
             LDNError::Load(format!(
                 "Failed to update application in database. Reason: {}",
                 e

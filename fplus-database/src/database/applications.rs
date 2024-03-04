@@ -123,30 +123,41 @@ pub async fn get_application_by_pr_number(owner: String, repo: String, pr_number
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_number: u64) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_number: u64, sha: String) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let existing_application = get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await?;
-    let mut active_application = existing_application.into_active_model();
-    
-    let application_id = if let Some(id) = active_application.id.take() {
-      id
-  } else {
-      return Err(DbErr::Custom("Application ID is not set".into()));
-  };
+    let pr_application = get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await?;
+    let mut exists_merged = true;
+    let merged_application = match get_application_by_pr_number(owner.clone(), repo.clone(), 0).await {
+        Ok(application) => application.into_active_model(),
+        Err(_) => {
+            exists_merged = false;
+            ActiveModel {
+                id: Set(pr_application.id.clone()),
+                owner: Set(owner),
+                repo: Set(repo),
+                pr_number: Set(0),
+                application: Set(pr_application.application.clone()),
+                sha: Set(Some(sha)),
+                path: Set(pr_application.path.clone()),
+                ..Default::default()
+            }
+        }
+    };
 
-    // Delete the application with pr_number 0
-    Application::delete_many()
-      .filter(Column::Id.eq(application_id))
-      .filter(Column::Owner.contains(owner))
-      .filter(Column::Repo.contains(repo))
-      .filter(Column::PrNumber.eq(0))
-      .exec(&conn)
-      .await?;
-
-    // Update the application and set pr_number to 0
-    active_application.pr_number = Set(0);
-    let updated_application = active_application.update(&conn).await?;
-    Ok(updated_application)
+    pr_application.delete(&conn).await?;
+    if exists_merged {
+        let result = merged_application.update(&conn).await;
+        match result {
+            Ok(application) => Ok(application),
+            Err(e) => Err(sea_orm::DbErr::Custom(format!("Failed to merge application: {}", e))),
+        }
+    } else {
+        let result = merged_application.insert(&conn).await;
+        match result {
+            Ok(application) => Ok(application),
+            Err(e) => Err(sea_orm::DbErr::Custom(format!("Failed to merge application: {}", e))),
+        }
+    }
 }
 
 /**
