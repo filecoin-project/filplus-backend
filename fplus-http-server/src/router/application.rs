@@ -21,15 +21,10 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
 pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder {
     let ApplicationQueryParams { id, owner, repo } = query.into_inner();
 
-    let app = match LDNApplication::load(id, owner, repo).await {
-        Ok(app) => app,
+    match LDNApplication::load_from_db(id, owner, repo).await {
+        Ok(app_file) => return HttpResponse::Ok().body(serde_json::to_string_pretty(&app_file).unwrap()),
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
-    if let Ok(app_file) = app.file().await {
-        HttpResponse::Ok().body(serde_json::to_string_pretty(&app_file).unwrap())
-    } else {
-        HttpResponse::BadRequest().body("Application not found")
-    }
 }
 
 #[post("/application/{id}/trigger")]
@@ -103,7 +98,6 @@ pub async fn approve(
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
-    dbg!(&ldn_application);
     match ldn_application
         .complete_new_application_approval(signer, request_id, owner, repo)
         .await
@@ -233,6 +227,37 @@ pub async fn validate_application_approval(
             Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
         },
         Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
+    }
+}
+
+#[post("application/merge/validate")]
+pub async fn validate_application_merge(
+    info: web::Json<ValidationPullRequestData>,
+) -> impl Responder {
+    let ValidationPullRequestData { pr_number, user_handle: _, owner, repo } = info.into_inner();
+    let pr_number = pr_number.trim_matches('"').parse::<u64>();
+
+    match pr_number {
+        Ok(pr_number) => match LDNApplication::validate_merge_application(pr_number, owner, repo).await {
+            Ok(result) => HttpResponse::Ok().json(result),
+            Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
+        },
+        Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
+    }
+}
+
+#[post("application/cache/renewal")]
+pub async fn cache_renewal(
+    info: web::Json<GithubQueryParams>,
+) -> impl Responder {
+    let GithubQueryParams { owner, repo } = info.into_inner();
+    let active_result = LDNApplication::cache_renewal_active(owner.clone(), repo.clone()).await;
+
+    let merged_result = LDNApplication::cache_renewal_merged(owner, repo).await;
+
+    match (active_result, merged_result) {
+        (Ok(_), Ok(_)) => HttpResponse::Ok().json("Cache renewal for active and merged applications succeeded"),
+        (Err(e), _) | (_, Err(e)) => HttpResponse::InternalServerError().json(e.to_string()),
     }
 }
 

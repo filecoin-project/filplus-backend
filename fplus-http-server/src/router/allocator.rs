@@ -1,5 +1,5 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
-use fplus_database::database;
+use fplus_database::database::allocators as allocators_db;
 use fplus_lib::core::{allocator::process_allocator_file, AllocatorUpdateInfo, ChangedAllocator};
 
 /**
@@ -10,7 +10,7 @@ use fplus_lib::core::{allocator::process_allocator_file, AllocatorUpdateInfo, Ch
  */
 #[get("/allocators")]
 pub async fn allocators() -> impl Responder {
-    let allocators = database::get_allocators().await;
+    let allocators = allocators_db::get_allocators().await;
     match allocators {
         Ok(allocators) => HttpResponse::Ok().json(allocators),
         Err(e) => {
@@ -44,7 +44,7 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
                 Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
             };
             
-            match database::create_or_update_allocator(
+            match allocators_db::create_or_update_allocator(
                 model.owner,
                 model.repo,
                 Some(model.installation_id as i64), 
@@ -76,7 +76,7 @@ pub async fn update(
     info: web::Json<AllocatorUpdateInfo>
 ) -> impl Responder {
     let (owner, repo) = path.into_inner();
-    match database::update_allocator(
+    match allocators_db::update_allocator(
         &owner,
         &repo,
         info.installation_id,
@@ -105,7 +105,7 @@ pub async fn update(
 #[get("/allocator/{owner}/{repo}")]
 pub async fn allocator(path: web::Path<(String, String)>) -> impl Responder {
     let (owner, repo) = path.into_inner();
-    match database::get_allocator(&owner, &repo).await {
+    match allocators_db::get_allocator(&owner, &repo).await {
         Ok(allocator) => {
             match allocator {
                 Some(allocator) => HttpResponse::Ok().json(allocator),
@@ -130,7 +130,7 @@ pub async fn allocator(path: web::Path<(String, String)>) -> impl Responder {
 #[delete("/allocator/{owner}/{repo}")]
 pub async fn delete(path: web::Path<(String, String)>) -> impl Responder {
     let (owner, repo) = path.into_inner();
-    match database::delete_allocator(&owner, &repo).await {
+    match allocators_db::delete_allocator(&owner, &repo).await {
         Ok(_) => HttpResponse::Ok().finish(),
         Err(e) => {
             if e.to_string().contains("Allocator not found") {

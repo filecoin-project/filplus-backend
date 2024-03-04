@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::Arc;
 
 use futures::future;
 use octocrab::models::{
@@ -7,6 +8,8 @@ use octocrab::models::{
 };
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use serde_json::from_str;
 
 use crate::{
     base64::{self},
@@ -18,12 +21,14 @@ use crate::{
     parsers::ParsedIssue,
 };
 use fplus_database::database;
+use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList, VerifierInput
 };
 use rayon::prelude::*;
 use crate::core::application::file::Allocation;
+use std::collections::HashSet;
 
 pub mod application;
 pub mod allocator;
@@ -99,9 +104,8 @@ pub struct Allocator {
     pub installation_id: Option<i64>,
     pub multisig_address: Option<String>,
     pub verifiers_gh_handles: Option<String>,
-
-
 }
+
 #[derive(Deserialize)]
 pub struct ChangedAllocator {
     pub file_changed: String
@@ -125,6 +129,21 @@ pub struct ApplicationQueryParams {
     pub id: String,
     pub owner: String,
     pub repo: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ApplicationFileWithDate {
+    pub application_file: ApplicationFile,
+    pub updated_at: DateTime<Utc>,
+    pub pr_number: u64,
+    pub sha: String,
+    pub path: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApplicationGithubInfo {
+    pub sha: String,
+    pub path: String,
 }
 
 impl LDNApplication {
@@ -192,7 +211,39 @@ impl LDNApplication {
         )))
     }
 
+    pub async fn load_from_db(application_id: String, owner: String, repo: String) -> Result<ApplicationFile, LDNError> {
+        // Try to get the application model from the database.
+        let app_model_result = database::applications::get_application(application_id.clone(), owner, repo, None).await;
+        
+        // First handle the Result to see if there was an error in the query.
+        let app_model = match app_model_result {
+            Ok(model) => model,
+            Err(e) => return Err(LDNError::Load(format!("Database error: {}", e))),
+        };
+    
+        // Now, app_model is directly a Model, not an Option<Model>.
+        // Check if the application field is present.
+        let app_str = match app_model.application {
+            Some(app_str) => app_str,
+            None => return Err(LDNError::Load(format!(
+                "Application {} does not have an application field",
+                application_id
+            ))),
+        };
+    
+        // Try to convert the application string to an ApplicationFile structure.
+        let app = match ApplicationFile::from_str(&app_str) {
+            Ok(app) => app,
+            Err(e) => {
+                return Err(LDNError::Load(format!("Failed to parse application file from DB /// {}", e)));
+            }
+        };
+    
+        Ok(app)
+    }
+
     pub async fn load(application_id: String, owner: String, repo: String) -> Result<Self, LDNError> {
+
         let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
         let pull_requests = gh.list_pull_requests().await.unwrap();
         let pull_requests = future::try_join_all(
@@ -239,7 +290,8 @@ impl LDNApplication {
     }
 
     pub async fn all_applications() -> Result<Vec<(ApplicationFile, String, String)>, Vec<LDNError>> {
-        let allocators = match database::get_allocators().await {
+        //TODO: Avoid filtering by allocators. Simply get all active & merged applications from the database.
+        let allocators = match database::allocators::get_allocators().await {
             Ok(allocs) => allocs,
             Err(e) => return Err(vec![LDNError::Load(format!("Failed to retrieve allocators: {}", e))]),
         };        let mut all_apps: Vec<(ApplicationFile, String, String)> = Vec::new();
@@ -249,7 +301,7 @@ impl LDNApplication {
             match Self::active(allocator.owner.clone(), allocator.repo.clone(), None).await {
                 Ok(apps) => {
                     for app in apps {
-                        all_apps.push((app, allocator.repo.clone(), allocator.owner.clone()));
+                        all_apps.push((app, allocator.owner.clone(), allocator.repo.clone()));
                     }
                 },
                 Err(e) => {
@@ -260,8 +312,8 @@ impl LDNApplication {
     
             match Self::merged(allocator.owner.clone(), allocator.repo.clone()).await {
                 Ok(merged_apps) => {
-                    for app in merged_apps {
-                        all_apps.push((app.1, allocator.repo.clone(), allocator.owner.clone()));
+                    for (_, app) in merged_apps {
+                        all_apps.push((app, allocator.owner.clone(), allocator.repo.clone()));
                     }
                 },
                 Err(e) => {
@@ -280,8 +332,40 @@ impl LDNApplication {
     
 
     pub async fn active(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
-        let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
+        // Get all active applications from the database.
+        let active_apps_result = database::applications::get_active_applications(owner, repo).await;
+
+        // Handle errors in getting active applications.
+        let active_apps = match active_apps_result {
+            Ok(apps) => apps,
+            Err(e) => return Err(LDNError::Load(format!("Database error: {}", e))),
+        };
+
+        // Filter and convert active applications.
         let mut apps: Vec<ApplicationFile> = Vec::new();
+        for app_model in active_apps {
+            // If a filter was provided and it doesn't match the application's id, continue to the next iteration.
+            if let Some(ref filter_id) = filter {
+                if app_model.application.is_some() && app_model.id != filter_id.as_str() {
+                    continue;
+                }
+            }
+
+            // Try to deserialize the `application` field to `ApplicationFile`.
+            if let Some(app_json) = app_model.application {
+                match from_str::<ApplicationFile>(&app_json) {
+                    Ok(app) => apps.push(app),
+                    Err(e) => return Err(LDNError::Load(format!("Failed to parse application file: {}", e))),
+                }
+            }
+        }
+
+        Ok(apps)
+    }
+
+    pub async fn active_apps_with_last_update(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFileWithDate>, LDNError> {
+        let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
+        let mut apps: Vec<ApplicationFileWithDate> = Vec::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
         let pull_requests = future::try_join_all(
             pull_requests
@@ -292,18 +376,64 @@ impl LDNApplication {
         .await
         .unwrap();
         for r in pull_requests {
-            if r.is_some() {
-                let r = r.unwrap();
-                if filter.is_none() {
-                    apps.push(r.2)
-                } else {
-                    if r.2.id == filter.clone().unwrap() {
-                        apps.push(r.2)
+            if let Some((sha, path, app_file, pr_info)) = r {
+                if let Some(updated_at) = pr_info.updated_at {
+                    let app_with_date = ApplicationFileWithDate {
+                        application_file: app_file.clone(),
+                        updated_at,
+                        pr_number: pr_info.number,
+                        sha,
+                        path,
+                    };
+        
+                    if filter.as_ref().map_or(true, |f| &app_file.id == f) {
+                        apps.push(app_with_date);
                     }
                 }
             }
         }
         Ok(apps)
+    }
+
+    pub async fn merged_apps_with_last_update(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFileWithDate>, LDNError> {
+
+        let gh = Arc::new(GithubWrapper::new(owner.clone(), repo.clone()));
+        let applications_path = "applications";
+        let mut all_files_result = gh.get_files(applications_path).await.map_err(|e| {
+            LDNError::Load(format!("Failed to retrieve all files from GitHub. Reason: {}", e))
+        })?;
+
+        all_files_result.items.retain(|item| item.download_url.is_some() && item.name.ends_with(".json"));
+
+        let mut application_files_with_date: Vec<ApplicationFileWithDate> = vec![];
+        for fd in all_files_result.items {
+            let gh_clone = Arc::clone(&gh);
+            let result = gh_clone.get_last_modification_date(&fd.path).await;
+    
+            if let Ok(updated_at) = result {
+                let map_result = LDNApplication::map_merged(fd).await;
+    
+                if let Ok(Some((content, app_file))) = map_result {
+                    application_files_with_date.push(ApplicationFileWithDate {
+                        application_file: app_file,
+                        updated_at,
+                        pr_number: 0,
+                        sha: content.sha,
+                        path: content.path,
+                    });
+                }
+            } else {
+                log::warn!("Failed to get last modification date for file: {}", fd.path);
+            }
+        }
+    
+        let filtered_files: Vec<ApplicationFileWithDate> = if let Some(filter_val) = filter {
+            application_files_with_date.into_iter().filter(|f| f.application_file.id == filter_val).collect()
+        } else {
+            application_files_with_date
+        };
+    
+        Ok(filtered_files)
     }
 
     /// Create New Application
@@ -370,6 +500,30 @@ impl LDNApplication {
                     info.owner.clone(), 
                     info.repo.clone()
                 ).await?;
+
+                match gh.get_pull_request_by_head(&branch_name).await {
+                    Ok(prs) => {
+                        if let Some(pr) = prs.get(0) {
+                            let number = pr.number;
+                            database::applications::create_application(
+                                application_id.clone(),
+                                info.owner.clone(), 
+                                info.repo.clone(), 
+                                number, 
+                                file_content,
+                                file_sha.clone(),
+                                LDNPullRequest::application_path(&app_id)
+                            ).await.map_err(|e| {
+                                return LDNError::New(format!(
+                                    "Application issue {} cannot create application in DB /// {}",
+                                    application_id, e
+                                ));
+                            })?;
+                        }
+                    }
+                    Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                }
+
                 Ok(LDNApplication {
                     github: gh,
                     application_id,
@@ -416,16 +570,35 @@ impl LDNApplication {
                     ).await?;
                     match LDNPullRequest::add_commit_to(
                         app_path.to_string(),
-                        app_branch,
+                        app_branch.clone(),
                         LDNPullRequest::application_move_to_proposal_commit(&actor),
                         file_content,
                         self.file_sha.clone(),
-                        owner, 
-                        repo
+                        owner.clone(), 
+                        repo.clone()
                     )
                     .await
                     {
-                        Some(()) => Ok(app_file),
+                        Some(()) => {
+                            match self.github.get_pull_request_by_head(&app_branch).await {
+                                Ok(prs) => {
+                                    if let Some(pr) = prs.get(0) {
+                                        let number = pr.number;
+                                        let _ = database::applications::update_application(
+                                            app_file.id.clone(),
+                                            owner,
+                                            repo,
+                                            number,
+                                            serde_json::to_string_pretty(&app_file).unwrap(),
+                                            Some(self.file_sha.clone()),
+                                            Some(app_path.clone())
+                                        ).await;
+                                    }
+                                }
+                                Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                            };
+                            Ok(app_file)
+                        },
                         None => {
                             return Err(LDNError::New(format!(
                                 "Application issue {} cannot be triggered(1)",
@@ -479,12 +652,31 @@ impl LDNApplication {
                         ),
                         file_content,
                         self.file_sha.clone(),
-                        owner,
-                        repo
+                        owner.clone(),
+                        repo.clone()
                     )
                     .await
                     {
-                        Some(()) => Ok(app_file),
+                        Some(()) => {
+                            match self.github.get_pull_request_by_head(&self.branch_name).await {
+                                Ok(prs) => {
+                                    if let Some(pr) = prs.get(0) {
+                                        let number = pr.number;
+                                        let _ = database::applications::update_application(
+                                            app_file.id.clone(),
+                                            owner,
+                                            repo,
+                                            number,
+                                            serde_json::to_string_pretty(&app_file).unwrap(),
+                                            Some(self.file_sha.clone()),
+                                            Some(self.file_name.clone())
+                                        ).await;
+                                    }
+                                }
+                                Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                            };
+                            Ok(app_file)
+                        },
                         None => {
                             return Err(LDNError::New(format!(
                                 "Application issue {} cannot be proposed(1)",
@@ -531,12 +723,31 @@ impl LDNApplication {
                         ),
                         file_content,
                         self.file_sha.clone(),
-                        owner,
-                        repo
+                        owner.clone(),
+                        repo.clone()
                     )
                     .await
                     {
-                        Some(()) => Ok(app_file),
+                        Some(()) => {
+                            match self.github.get_pull_request_by_head(&self.branch_name).await {
+                                Ok(prs) => {
+                                    if let Some(pr) = prs.get(0) {
+                                        let number = pr.number;
+                                        let _ = database::applications::update_application(
+                                            app_file.id.clone(),
+                                            owner,
+                                            repo,
+                                            number,
+                                            serde_json::to_string_pretty(&app_file).unwrap(),
+                                            Some(self.file_sha.clone()),
+                                            Some(self.file_name.clone())
+                                        ).await;
+                                    }
+                                }
+                                Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                            };
+                            Ok(app_file)
+                        },
                         None => {
                             return Err(LDNError::New(format!(
                                 "Application issue {} cannot be proposed(1)",
@@ -657,7 +868,7 @@ impl LDNApplication {
     }
 
     pub async fn fetch_verifiers(owner: String, repo: String) -> Result<ValidVerifierList, LDNError> {
-        let allocator = database::get_allocator(&owner, &repo).await.map_err(|e| LDNError::Load(format!("Failed to retrieve allocators /// {}", e)))?;
+        let allocator = database::allocators::get_allocator(&owner, &repo).await.map_err(|e| LDNError::Load(format!("Failed to retrieve allocators /// {}", e)))?;
     
         let mut verifiers_handles = Vec::new();
 
@@ -677,7 +888,7 @@ impl LDNApplication {
         Ok(ValidVerifierList { verifiers: verifiers_handles })
     }
 
-    async fn single_merged(application_id: String, owner: String, repo: String) -> Result<(Content, ApplicationFile), LDNError> {
+    async fn single_merged(application_id: String, owner: String, repo: String) -> Result<(ApplicationGithubInfo, ApplicationFile), LDNError> {
         Ok(LDNApplication::merged(owner, repo)
             .await?
             .into_iter()
@@ -721,44 +932,39 @@ impl LDNApplication {
         Ok(Some((item, app)))
     }
 
-    pub async fn merged(owner: String, repo: String) -> Result<Vec<(Content, ApplicationFile)>, LDNError> {
-        let gh = GithubWrapper::new(owner.clone(), repo.clone());
-        let applications_path = "applications";
-        let mut all_files = gh.get_files(applications_path).await.map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to retrieve all files from GitHub. Reason: {}",
-                e
-            ))
-        })?;
-        all_files
-            .items
-            .retain(|item| item.download_url.is_some() && item.name.ends_with(".json"));
-        let all_files = future::try_join_all(
-            all_files
-                .items
-                .into_iter()
-                .map(|fd| LDNApplication::map_merged(fd))
-                .collect::<Vec<_>>(),
-        )
-        .await
-        .map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to fetch application files from their URLs. Reason: {}",
-                e
-            ))
-        })?;
+    pub async fn merged(owner: String, repo: String) -> Result<Vec<(ApplicationGithubInfo, ApplicationFile)>, LDNError> {
+        // Retrieve all applications in the main branch from the database.
+        let merged_apps_result = database::applications::get_merged_applications(owner.clone(), repo.clone()).await;
 
-        let mut apps: Vec<(Content, ApplicationFile)> = vec![];
-        let active: Vec<ApplicationFile> = Self::active(owner.clone(), repo.clone(), None).await?;
-        for app in all_files {
-            if app.is_some() {
-                let app = app.unwrap();
-                if active.iter().find(|a| a.id == app.1.id).is_none() && app.1.lifecycle.is_active {
-                    apps.push(app);
+        // Handle errors in getting applications from the main branch.
+        let merged_app_models = match merged_apps_result {
+            Ok(apps) => apps,
+            Err(e) => return Err(LDNError::Load(format!("Database error: {}", e))),
+        };
+
+        // Convert applications from the main branch.
+        let mut merged_apps: Vec<(ApplicationGithubInfo, ApplicationFile)> = Vec::new();
+        for app_model in merged_app_models {
+
+            // Try to deserialize the `application` field to `ApplicationFile`.
+            if let Some(app_json) = app_model.application {
+                match from_str::<ApplicationFile>(&app_json) {
+                    Ok(app) => merged_apps.push((ApplicationGithubInfo {sha: app_model.sha.unwrap(), path: app_model.path.unwrap()}, app)),
+                    Err(e) => return Err(LDNError::Load(format!("Failed to parse application file: {}", e))),
                 }
             }
         }
+
+        let active_apps = Self::active(owner, repo, None).await?;
+        let mut apps: Vec<(ApplicationGithubInfo, ApplicationFile)> = vec![];
+        for app in merged_apps {
+            if active_apps.iter().find(|a| a.id == app.1.id).is_none() && app.1.lifecycle.is_active {
+                apps.push(app);
+            }
+        }
+
         Ok(apps)
+        
     }
 
     pub async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
@@ -789,6 +995,76 @@ impl LDNApplication {
             return Ok(true);
         }
         Err(LDNError::Load("Failed to get application file".to_string()))
+    }
+
+    pub async fn validate_merge_application(pr_number: u64, owner: String, repo: String) -> Result<bool, LDNError> {
+        log::info!("Starting validate_merge_application:");
+        log::info!(
+            "- Validating merge for PR number {}",
+            pr_number,
+        );
+
+        let application = match LDNApplication::single_active(pr_number, owner.clone(), repo.clone()).await {
+            Ok(app) => {
+                log::info!("- Got application");
+                app
+            }
+            Err(err) => {
+                log::error!("- Failed to get application. Reason: {}", err);
+                return Err(LDNError::Load(format!(
+                    "Failed to get application. Reason: {}",
+                    err
+                )));
+            }
+        };
+
+        // conditions for automerge:
+        // 1. Application is in Granted state
+        // 2. Application has Validated by and Validated at fields set
+        // 3. Application doesn't have an active request
+        if application.lifecycle.get_state() == AppState::Granted {
+            if application.lifecycle.validated_by.is_empty() {
+                log::warn!("- Application has not been validated");
+                return Ok(false);
+            }
+            if application.lifecycle.validated_at.is_empty() {
+                log::warn!("- Application has not been validated at");
+                return Ok(false);
+            }
+            let active_request = application.allocation.active();
+            if active_request.is_some() {
+                log::warn!("- Application has an active request");
+                return Ok(false);
+            }
+            log::info!("- Application is in a valid state!");
+
+            Self::merge_application(pr_number, owner, repo).await?;
+            return Ok(true);
+        }
+
+        log::warn!("- Application is not in a valid state");
+        return Ok(false);
+        
+    }
+
+    pub async fn merge_application(pr_number: u64, owner: String, repo: String) -> Result<bool, LDNError> {
+        let gh = GithubWrapper::new(owner.clone(), repo.clone());
+
+        gh.merge_pull_request(pr_number).await.map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to merge pull request {}. Reason: {}",
+                pr_number, e
+            ))
+        })?;
+
+        database::applications::merge_application_by_pr_number(owner, repo, pr_number).await.map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to update application in database. Reason: {}",
+                e
+            ))
+        })?;
+
+        return Ok(true);
     }
 
     pub async fn validate_flow(pr_number: u64, actor: &str, owner: String, repo: String) -> Result<bool, LDNError> {
@@ -1049,17 +1325,36 @@ impl LDNApplication {
             let ldn_application = LDNApplication::load(app_file.id.clone(), owner.clone(), repo.clone()).await?;
 
             match LDNPullRequest::add_commit_to(
-                ldn_application.file_name,
+                ldn_application.file_name.clone(),
                 ldn_application.branch_name.clone(),
                 format!("Move application back to governance review"),
                 serde_json::to_string_pretty(&app_file).unwrap(),
                 ldn_application.file_sha.clone(), 
-                owner, 
-                repo
+                owner.clone(), 
+                repo.clone()
             )
             .await
             {
-                Some(()) => {}
+                Some(()) => {
+                    let gh = GithubWrapper::new(owner.clone(), repo.clone());
+                    match gh.get_pull_request_by_head(&ldn_application.branch_name).await {
+                        Ok(prs) => {
+                            if let Some(pr) = prs.get(0) {
+                                let number = pr.number;
+                                let _ = database::applications::update_application(
+                                    app_file.id.clone(),
+                                    owner,
+                                    repo,
+                                    number,
+                                    serde_json::to_string_pretty(&app_file).unwrap(),
+                                    Some(ldn_application.file_sha.clone()),
+                                    Some(ldn_application.file_name.clone())
+                                ).await;
+                            }
+                        }
+                        Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                    };
+                }
                 None => {}
             };
 
@@ -1509,6 +1804,120 @@ Your Datacap Allocation Request has been {} by the Notary
 
         Ok(())
     }
+
+    pub async fn cache_renewal_active(owner: String, repo: String) -> Result<(), LDNError> {
+        let active_from_gh: Vec<ApplicationFileWithDate> = LDNApplication::active_apps_with_last_update(owner.clone(), repo.clone(), None).await?;
+        let active_from_db: Vec<ApplicationModel> = database::applications::get_active_applications(owner.clone(), repo.clone()).await.unwrap();
+    
+        let mut db_apps_set: HashSet<String> = HashSet::new();
+        let mut processed_gh_apps: HashSet<String> = HashSet::new();
+
+        for db_app in active_from_db.iter() {
+            db_apps_set.insert(db_app.id.clone());
+            if let Some(gh_app) = active_from_gh
+                .iter()
+                .find(|&x| x.application_file.id == db_app.id && x.pr_number == db_app.pr_number as u64) {
+                if gh_app.updated_at > db_app.updated_at {
+                    database::applications::update_application(
+                        db_app.id.clone(), 
+                        owner.clone(), 
+                        repo.clone(), 
+                        db_app.pr_number as u64, 
+                        serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
+                        None,
+                        None
+                    ).await.unwrap();
+                }
+                // If the app is in GH, remove it from the set to not consider it for deletion
+                db_apps_set.remove(&db_app.id);
+                processed_gh_apps.insert(gh_app.application_file.id.clone());
+            } else {
+                // If the app is not in GH, call the delete_application function
+                database::applications::delete_application(
+                    db_app.id.clone(), 
+                    owner.clone(), 
+                    repo.clone(), 
+                    db_app.pr_number as u64
+                ).await.unwrap();
+            }
+        }
+
+        // Iterates over the active apps in GitHub to create the ones that are not in the database
+        for gh_app in active_from_gh {
+            if !db_apps_set.contains(&gh_app.application_file.id) && !processed_gh_apps.contains(&gh_app.application_file.id) {
+                // Call the create_application function if the GH app is not in DB
+                database::applications::create_application(
+                    gh_app.application_file.id.clone(),
+                    owner.clone(), 
+                    repo.clone(), 
+                    gh_app.pr_number as u64, 
+                    serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
+                    gh_app.sha,
+                    gh_app.path
+                ).await.unwrap();
+            }
+        }
+
+        Ok(())
+
+    }
+
+    pub async fn cache_renewal_merged(owner: String, repo: String) -> Result<(), LDNError> {
+        let merged_from_gh: Vec<ApplicationFileWithDate> = LDNApplication::merged_apps_with_last_update(owner.clone(), repo.clone(), None).await?;
+        let merged_from_db: Vec<ApplicationModel> = database::applications::get_merged_applications(owner.clone(), repo.clone()).await.unwrap();
+    
+        let mut db_apps_set: HashSet<String> = HashSet::new();
+        let mut processed_gh_apps: HashSet<String> = HashSet::new();
+
+        for db_app in merged_from_db.iter() {
+            db_apps_set.insert(db_app.id.clone());
+            if let Some(gh_app) = merged_from_gh
+                .iter()
+                .find(|&x| x.application_file.id == db_app.id) {
+                if gh_app.updated_at > db_app.updated_at {
+                    database::applications::update_application(
+                        db_app.id.clone(), 
+                        owner.clone(), 
+                        repo.clone(), 
+                        0, 
+                        serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
+                        Some(gh_app.sha.clone()),
+                        Some(gh_app.path.clone())
+                    ).await.unwrap();
+                }
+                // If the app is in GH, remove it from the set to not consider it for deletion
+                db_apps_set.remove(&db_app.id);
+                processed_gh_apps.insert(gh_app.application_file.id.clone());
+            } else {
+                // If the app is not in GH, call the delete_application function
+                database::applications::delete_application(
+                    db_app.id.clone(), 
+                    owner.clone(), 
+                    repo.clone(), 
+                    db_app.pr_number as u64
+                ).await.unwrap();
+            }
+        }
+
+        // Iterates over the active apps in GitHub to create the ones that are not in the database
+        for gh_app in merged_from_gh {
+            if !db_apps_set.contains(&gh_app.application_file.id) && !processed_gh_apps.contains(&gh_app.application_file.id) {
+                // Call the create_application function if the GH app is not in DB
+                database::applications::create_application(
+                    gh_app.application_file.id.clone(),
+                    owner.clone(), 
+                    repo.clone(), 
+                    0, 
+                    serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
+                    gh_app.sha,
+                    gh_app.path
+                ).await.unwrap();
+            }
+        }
+
+        Ok(())
+
+    }
     
 }
 
@@ -1574,7 +1983,7 @@ impl LDNPullRequest {
         repo: String
     ) -> Result<u64, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
-        let gh: GithubWrapper = GithubWrapper::new(owner, repo);
+        let gh: GithubWrapper = GithubWrapper::new(owner.clone(), repo.clone());
         let head_hash = gh.get_main_branch_sha().await.unwrap();
         let create_ref_request = gh
             .build_create_ref_request(branch_name.clone(), head_hash)
@@ -1588,16 +1997,32 @@ impl LDNPullRequest {
             .create_refill_merge_request(CreateRefillMergeRequestData {
                 application_id: application_id.clone(),
                 owner_name,
-                file_name,
-                file_sha,
+                file_name: file_name.clone(),
+                file_sha: file_sha.clone(),
                 ref_request: create_ref_request,
                 branch_name,
-                file_content,
+                file_content: file_content.clone(),
                 commit: initial_commit,
             })
             .await
         {
-            Ok(pr) => pr,
+            Ok(pr) => {
+                database::applications::create_application(
+                    application_id.clone(),
+                    owner, 
+                    repo, 
+                    pr.0.number, 
+                    file_content,
+                    file_sha,
+                    file_name
+                ).await.map_err(|e| {
+                    return LDNError::New(format!(
+                        "Application issue {} cannot create application in DB /// {}",
+                        application_id, e
+                    ));
+                })?;
+                pr
+            },
             Err(e) => {
                 return Err(LDNError::New(format!(
                     "Application issue {} cannot create branch /// {}",
