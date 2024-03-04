@@ -574,6 +574,7 @@ impl LDNApplication {
                 AppState::StartSignDatacap => {
                     let app_file: ApplicationFile = self.file().await?;
                     let app_lifecycle = app_file.lifecycle.finish_approval();
+
                     // Find the signers that already signed
                     let current_signers = app_file
                         .allocation
@@ -603,6 +604,11 @@ impl LDNApplication {
                         request_id.clone(),
                         app_lifecycle,
                     );
+                    // If the number of current signers plus this one is less than the threshold, return early
+                    if current_signers.len() + 1 < multisig_threshold as usize {
+                        return Ok(app_file);
+                    }                
+
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     match LDNPullRequest::add_commit_to(
                         self.file_name.to_string(),
