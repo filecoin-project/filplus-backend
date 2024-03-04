@@ -1038,7 +1038,7 @@ impl LDNApplication {
             }
             log::info!("- Application is in a valid state!");
 
-            Self::merge_application(pr_number, owner, repo, application.id).await?;
+            Self::merge_application(pr_number, owner, repo).await?;
             return Ok(true);
         }
 
@@ -1047,7 +1047,7 @@ impl LDNApplication {
         
     }
 
-    pub async fn merge_application(pr_number: u64, owner: String, repo: String, application_id: String) -> Result<bool, LDNError> {
+    pub async fn merge_application(pr_number: u64, owner: String, repo: String) -> Result<bool, LDNError> {
         let gh = GithubWrapper::new(owner.clone(), repo.clone());
 
         gh.merge_pull_request(pr_number).await.map_err(|e| {
@@ -1057,23 +1057,7 @@ impl LDNApplication {
             ))
         })?;
 
-        //Get file SHA with get_file function
-
-        let file_name = LDNPullRequest::application_path(&application_id);
-        let branch_name = "main";
-        let file_sha = match GithubWrapper::new(owner.clone(), repo.clone())
-            .get_file(&file_name, &branch_name).await {
-                Ok(file) => file.items.get(0).unwrap().sha.clone(),
-                Err(e) => {
-                    log::error!("- Failed to get file content. Reason: {}", e);
-                    return Err(LDNError::Load(format!(
-                        "Failed to get file content. Reason: {}",
-                        e
-                    )));
-                }
-        };
-
-        database::applications::merge_application_by_pr_number(owner, repo, pr_number, file_sha).await.map_err(|e| {
+        database::applications::merge_application_by_pr_number(owner, repo, pr_number).await.map_err(|e| {
             LDNError::Load(format!(
                 "Failed to update application in database. Reason: {}",
                 e

@@ -98,7 +98,6 @@ pub async fn approve(
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
-    dbg!(&ldn_application);
     match ldn_application
         .complete_new_application_approval(signer, request_id, owner, repo)
         .await

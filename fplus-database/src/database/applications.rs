@@ -1,6 +1,7 @@
 use sea_orm::{entity::*, query::*, DbErr};
 use crate::models::applications::{Column, ActiveModel, Entity as Application, Model as ApplicationModel};
 use crate::get_database_connection;
+use sha1::{Sha1, Digest};
 
 /**
  * Get all applications from the database
@@ -123,11 +124,12 @@ pub async fn get_application_by_pr_number(owner: String, repo: String, pr_number
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_number: u64, sha: String) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_number: u64) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     let pr_application = get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await?;
     let mut exists_merged = true;
-    let merged_application = match get_application_by_pr_number(owner.clone(), repo.clone(), 0).await {
+
+    let mut merged_application = match get_application_by_pr_number(owner.clone(), repo.clone(), 0).await {
         Ok(application) => application.into_active_model(),
         Err(_) => {
             exists_merged = false;
@@ -137,14 +139,24 @@ pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_numb
                 repo: Set(repo),
                 pr_number: Set(0),
                 application: Set(pr_application.application.clone()),
-                sha: Set(Some(sha)),
                 path: Set(pr_application.path.clone()),
                 ..Default::default()
             }
         }
     };
 
+    let mut hasher = Sha1::new();
+    let application = match pr_application.application.clone() {
+        Some(app) => format!("blob {}\x00{}", app.len(), app),
+        None => "".to_string()
+
+    };
+    hasher.update(application.as_bytes());
+    let file_sha = format!("{:x}", hasher.finalize());
+    merged_application.sha = Set(Some(file_sha));
+
     pr_application.delete(&conn).await?;
+
     if exists_merged {
         let result = merged_application.update(&conn).await;
         match result {
