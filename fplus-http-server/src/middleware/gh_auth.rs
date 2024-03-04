@@ -7,7 +7,7 @@ use reqwest::Client;
 use serde::Deserialize;
 
 // Import any other modules that you reference in this file
-use fplus_database::database;
+use fplus_database::database::allocators::get_allocator;
 #[derive(Deserialize, Debug)]
 struct RepoQuery {
   owner: String,
@@ -106,7 +106,7 @@ where
                 }
             }
 
-            match database::get_allocator(&owner, &repo).await {
+            match get_allocator(&owner, &repo).await {
                 Ok(allocator) => {
                     if let Some(allocator) = &allocator {
                         if let Some(verifiers) = &allocator.verifiers_gh_handles {
