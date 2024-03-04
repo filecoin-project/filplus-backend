@@ -93,9 +93,9 @@ mod tests {
         let owner = "test_owner".to_string();
         let repo = "test_repo".to_string();
 
-        let existing_allocator = database::get_allocator(&owner, &repo).await.unwrap();
+        let existing_allocator = database::allocators::get_allocator(&owner, &repo).await.unwrap();
         if let Some(_) = existing_allocator {
-            let result = database::delete_allocator(&owner, &repo).await;
+            let result = database::allocators::delete_allocator(&owner, &repo).await;
             return assert!(result.is_ok());
         }
         
@@ -103,7 +103,7 @@ mod tests {
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
 
-        let result = database::create_or_update_allocator(
+        let result = database::allocators::create_or_update_allocator(
             owner,
             repo,
             installation_id,
@@ -124,7 +124,7 @@ mod tests {
     async fn test_get_allocators() {
         setup_test_environment().await;
         
-        let result = database::get_allocators().await;
+        let result = database::allocators::get_allocators().await;
         assert!(result.is_ok());
     }
 
@@ -139,7 +139,7 @@ mod tests {
     async fn test_update_allocator() {
         setup_test_environment().await;
 
-        let allocator = database::get_allocator("test_owner", "test_repo")
+        let allocator = database::allocators::get_allocator("test_owner", "test_repo")
             .await
             .expect("Allocator not found");
         if allocator.is_none() {
@@ -150,7 +150,7 @@ mod tests {
             ("0x1234567890".to_string());
             let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
 
-            let result = database::create_or_update_allocator(
+            let result = database::allocators::create_or_update_allocator(
                 owner.clone(),
                 repo.clone(),
                 installation_id,
@@ -166,7 +166,7 @@ mod tests {
         let multisig_address = Some("0x0987654321".to_string());
         let verifiers_gh_handles = Some("test_verifier_3, test_verifier_4".to_string());
 
-        let result = database::update_allocator(
+        let result = database::allocators::update_allocator(
             &owner,
             &repo,
             installation_id,
@@ -187,9 +187,9 @@ mod tests {
     async fn test_get_allocator() {
         setup_test_environment().await;
 
-        let allocator = database::get_allocators().await.expect("Failed to get allocators").pop().expect("No allocators found");
+        let allocator = database::allocators::get_allocators().await.expect("Failed to get allocators").pop().expect("No allocators found");
 
-        let result = database::get_allocator(&allocator.owner, &allocator.repo).await;
+        let result = database::allocators::get_allocator(&allocator.owner, &allocator.repo).await;
         assert!(result.is_ok());
     }
 
@@ -207,9 +207,9 @@ mod tests {
         let owner = "test_owner".to_string();
         let repo = "test_repo".to_string();
 
-        let existing_allocator = database::get_allocator(&owner, &repo).await.unwrap();
+        let existing_allocator = database::allocators::get_allocator(&owner, &repo).await.unwrap();
         if let Some(_) = existing_allocator {
-            let result = database::delete_allocator(&owner, &repo).await;
+            let result = database::allocators::delete_allocator(&owner, &repo).await;
             return assert!(result.is_ok());
         }
 
@@ -217,7 +217,7 @@ mod tests {
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
 
-        let result = database::create_or_update_allocator(
+        let result = database::allocators::create_or_update_allocator(
             owner.clone(),
             repo.clone(),
             installation_id,
@@ -227,7 +227,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let result = database::delete_allocator(&owner, &repo).await;
+        let result = database::allocators::delete_allocator(&owner, &repo).await;
         assert!(result.is_ok());
         
     }
