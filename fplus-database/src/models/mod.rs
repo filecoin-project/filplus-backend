@@ -3,3 +3,4 @@
 pub mod prelude;
 
 pub mod allocators;
+pub mod applications;

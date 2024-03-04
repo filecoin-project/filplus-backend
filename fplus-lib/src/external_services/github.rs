@@ -276,6 +276,27 @@ impl GithubWrapper {
         Ok((pr_number, iid.items.into_iter().map(|i| i.into()).collect()))
     }
 
+    pub async fn get_last_modification_date(&self, path: &str) -> Result<chrono::DateTime<chrono::Utc>, OctocrabError> {
+        let commits = self
+            .inner
+            .repos(&self.owner, &self.repo)
+            .list_commits()
+            .path(path)
+            .per_page(1)
+            .send()
+            .await?;
+
+        match commits.items.into_iter().next() {
+            Some(commit) => {
+                match commit.commit.author.and_then(|author| author.date) {
+                    Some(date) => Ok(date),
+                    None => Ok(chrono::Utc::now()),
+                }
+            },
+            None => Ok(chrono::Utc::now()),
+        }
+    }
+
     pub async fn list_branches(&self) -> Result<Vec<Branch>, OctocrabError> {
         let iid = self
             .inner
@@ -520,7 +541,7 @@ impl GithubWrapper {
             .pulls(&self.owner, &self.repo)
             .list()
             .state(State::Open)
-            .head(head)
+            .head(format!("{}:{}", self.owner.clone(), head))
             .per_page(1)
             .send()
             .await?;
