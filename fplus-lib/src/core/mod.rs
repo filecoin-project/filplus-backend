@@ -6,6 +6,7 @@ use octocrab::models::{
     pulls::PullRequest,
     repos::{Content, ContentItems},
 };
+use rayon::prelude::*;
 use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
@@ -20,7 +21,7 @@ use crate::{
     },
     parsers::ParsedIssue,
 };
-use fplus_database::database;
+use fplus_database::database::{self, allocators::get_allocator};
 use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
@@ -253,24 +254,20 @@ impl LDNApplication {
             pull_requests
                 .into_iter()
                 .map(|pr: PullRequest| {
-                    (LDNApplication::load_pr_files(pr, owner.clone(), repo.clone()))
+                    LDNApplication::load_pr_files(pr, owner.clone(), repo.clone())
                 })
                 .collect::<Vec<_>>(),
         )
         .await?;
         let result = pull_requests
-            .par_iter()
-            .filter(|pr| {
-                if let Some(r) = pr {
-                    if String::from(r.2.id.clone()) == application_id.clone() {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                } else {
-                    return false;
-                }
-            })
+        .par_iter()
+        .filter(|pr| {
+            if let Some(r) = pr {
+                String::from(r.2.id.clone()) == application_id.clone()
+            } else {
+                false
+            }
+        })
             .collect::<Vec<_>>();
         if let Some(r) = result.get(0) {
             if let Some(r) = r {
