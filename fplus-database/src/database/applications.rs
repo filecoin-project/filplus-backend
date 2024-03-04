@@ -11,7 +11,10 @@ use sha1::{Sha1, Digest};
  */
 pub async fn get_applications() ->Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    Application::find().all(&conn).await
+    Application::find()
+        .order_by(Column::Owner, Order::Asc)
+        .order_by(Column::Repo, Order::Asc)
+        .all(&conn).await
 }
 
 /**
@@ -24,12 +27,19 @@ pub async fn get_applications() ->Result<Vec<ApplicationModel>, sea_orm::DbErr> 
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_merged_applications(owner: String, repo: String) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+pub async fn get_merged_applications(owner: Option<String>, repo: Option<String>) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    Application::find()
-        .filter(Column::Owner.contains(owner))
-        .filter(Column::Repo.contains(repo))
-        .filter(Column::PrNumber.eq(0))
+    let mut query = Application::find()
+        .filter(Column::PrNumber.eq(0));
+    if let Some(owner) = owner {
+        query = query.filter(Column::Owner.contains(owner));
+    }
+    if let Some(repo) = repo {
+        query = query.filter(Column::Repo.contains(repo));
+    }
+    query
+        .order_by(Column::Owner, Order::Asc)
+        .order_by(Column::Repo, Order::Asc)
         .all(&conn)
         .await
 }
@@ -44,12 +54,19 @@ pub async fn get_merged_applications(owner: String, repo: String) -> Result<Vec<
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_active_applications(owner: String, repo: String) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+pub async fn get_active_applications(owner: Option<String>, repo: Option<String>) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    Application::find()
-        .filter(Column::Owner.contains(owner))
-        .filter(Column::Repo.contains(repo))
-        .filter(Column::PrNumber.ne(0))
+    let mut query = Application::find()
+        .filter(Column::PrNumber.ne(0));
+    if let Some(owner) = owner {
+        query = query.filter(Column::Owner.contains(owner));
+    }
+    if let Some(repo) = repo {
+        query = query.filter(Column::Repo.contains(repo));
+    }
+    query
+        .order_by(Column::Owner, Order::Asc)
+        .order_by(Column::Repo, Order::Asc)
         .all(&conn)
         .await
 }

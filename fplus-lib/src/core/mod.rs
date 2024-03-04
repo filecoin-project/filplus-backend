@@ -333,7 +333,7 @@ impl LDNApplication {
 
     pub async fn active(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFile>, LDNError> {
         // Get all active applications from the database.
-        let active_apps_result = database::applications::get_active_applications(owner, repo).await;
+        let active_apps_result = database::applications::get_active_applications(Some(owner), Some(repo)).await;
 
         // Handle errors in getting active applications.
         let active_apps = match active_apps_result {
@@ -355,7 +355,8 @@ impl LDNApplication {
             if let Some(app_json) = app_model.application {
                 match from_str::<ApplicationFile>(&app_json) {
                     Ok(app) => apps.push(app),
-                    Err(e) => return Err(LDNError::Load(format!("Failed to parse application file: {}", e))),
+                    //if error, don't push into apps
+                    Err(_) => {}
                 }
             }
         }
@@ -934,7 +935,7 @@ impl LDNApplication {
 
     pub async fn merged(owner: String, repo: String) -> Result<Vec<(ApplicationGithubInfo, ApplicationFile)>, LDNError> {
         // Retrieve all applications in the main branch from the database.
-        let merged_apps_result = database::applications::get_merged_applications(owner.clone(), repo.clone()).await;
+        let merged_apps_result = database::applications::get_merged_applications(Some(owner.clone()), Some(repo.clone())).await;
 
         // Handle errors in getting applications from the main branch.
         let merged_app_models = match merged_apps_result {
@@ -950,7 +951,7 @@ impl LDNApplication {
             if let Some(app_json) = app_model.application {
                 match from_str::<ApplicationFile>(&app_json) {
                     Ok(app) => merged_apps.push((ApplicationGithubInfo {sha: app_model.sha.unwrap(), path: app_model.path.unwrap()}, app)),
-                    Err(e) => return Err(LDNError::Load(format!("Failed to parse application file: {}", e))),
+                    Err(_) => {},
                 }
             }
         }
@@ -1807,7 +1808,7 @@ Your Datacap Allocation Request has been {} by the Notary
 
     pub async fn cache_renewal_active(owner: String, repo: String) -> Result<(), LDNError> {
         let active_from_gh: Vec<ApplicationFileWithDate> = LDNApplication::active_apps_with_last_update(owner.clone(), repo.clone(), None).await?;
-        let active_from_db: Vec<ApplicationModel> = database::applications::get_active_applications(owner.clone(), repo.clone()).await.unwrap();
+        let active_from_db: Vec<ApplicationModel> = database::applications::get_active_applications(Some(owner.clone()), Some(repo.clone())).await.unwrap();
     
         let mut db_apps_set: HashSet<String> = HashSet::new();
         let mut processed_gh_apps: HashSet<String> = HashSet::new();
@@ -1864,7 +1865,7 @@ Your Datacap Allocation Request has been {} by the Notary
 
     pub async fn cache_renewal_merged(owner: String, repo: String) -> Result<(), LDNError> {
         let merged_from_gh: Vec<ApplicationFileWithDate> = LDNApplication::merged_apps_with_last_update(owner.clone(), repo.clone(), None).await?;
-        let merged_from_db: Vec<ApplicationModel> = database::applications::get_merged_applications(owner.clone(), repo.clone()).await.unwrap();
+        let merged_from_db: Vec<ApplicationModel> = database::applications::get_merged_applications(Some(owner.clone()), Some(repo.clone())).await.unwrap();
     
         let mut db_apps_set: HashSet<String> = HashSet::new();
         let mut processed_gh_apps: HashSet<String> = HashSet::new();
