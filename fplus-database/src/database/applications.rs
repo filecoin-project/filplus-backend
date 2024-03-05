@@ -1,7 +1,8 @@
-use sea_orm::{entity::*, query::*, DbErr};
+use sea_orm::{entity::*, query::*, DbBackend, DbErr};
 use crate::models::applications::{Column, ActiveModel, Entity as Application, Model as ApplicationModel};
 use crate::get_database_connection;
 use sha1::{Sha1, Digest};
+use chrono::{DateTime, Utc, TimeZone};
 
 /**
  * Get all applications from the database
@@ -9,9 +10,52 @@ use sha1::{Sha1, Digest};
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_applications() ->Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    Application::find().all(&conn).await
+
+    //Get all applications from the database. 
+    //Distinct on is not supported in sea_orm yet, so we have to use raw SQL
+    let app_data = JsonValue::find_by_statement(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        r#"
+            SELECT DISTINCT ON (owner, repo, id) 
+                a.id, 
+                a.owner, 
+                a.repo, 
+                a.pr_number, 
+                a.application, 
+                a.updated_at, 
+                a.sha,
+                a.path
+            FROM 
+                applications a 
+            ORDER BY 
+                a.owner, 
+                a.repo, 
+                a.id, 
+                a.pr_number DESC
+            "#,
+        [],
+    ))
+    .all(&conn)
+    .await?;
+
+    //Iterate over the results and convert them to ApplicationModel
+    let mut applications: Vec<ApplicationModel> = Vec::new();
+    for app in app_data {
+        applications.push(ApplicationModel {
+            id: app.get("id").unwrap().as_str().unwrap().to_string(),
+            owner: app.get("owner").unwrap().as_str().unwrap().to_string(),
+            repo: app.get("repo").unwrap().as_str().unwrap().to_string(),
+            pr_number: app.get("pr_number").unwrap().as_i64().unwrap() as i64,
+            application: Some(app.get("application").unwrap().as_str().unwrap().to_string()),
+            updated_at: Utc.from_utc_datetime(&app.get("updated_at").unwrap().as_str().unwrap().parse::<DateTime<Utc>>().unwrap().naive_utc()),
+            sha: Some(app.get("sha").unwrap().as_str().unwrap().to_string()),
+            path: Some(app.get("path").unwrap().as_str().unwrap().to_string()),
+        });
+    }
+    Ok(applications)
+   
 }
 
 /**
@@ -24,12 +68,22 @@ pub async fn get_applications() ->Result<Vec<ApplicationModel>, sea_orm::DbErr> 
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_merged_applications(owner: String, repo: String) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+pub async fn get_merged_applications(owner: Option<String>, repo: Option<String>) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    Application::find()
-        .filter(Column::Owner.contains(owner))
-        .filter(Column::Repo.contains(repo))
-        .filter(Column::PrNumber.eq(0))
+    let mut query = Application::find()
+        .filter(Column::PrNumber.eq(0));
+    if let Some(owner) = owner.clone() {
+        query = query.filter(Column::Owner.contains(owner));
+    }
+    if let Some(repo) = repo {
+        if owner.is_none() {
+            return Err(DbErr::Custom(format!("Owner is required to get merged applications").into()));
+        }
+        query = query.filter(Column::Repo.contains(repo));
+    }
+    query
+        .order_by(Column::Owner, Order::Asc)
+        .order_by(Column::Repo, Order::Asc)
         .all(&conn)
         .await
 }
@@ -44,12 +98,22 @@ pub async fn get_merged_applications(owner: String, repo: String) -> Result<Vec<
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_active_applications(owner: String, repo: String) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+pub async fn get_active_applications(owner: Option<String>, repo: Option<String>) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    Application::find()
-        .filter(Column::Owner.contains(owner))
-        .filter(Column::Repo.contains(repo))
-        .filter(Column::PrNumber.ne(0))
+    let mut query = Application::find()
+        .filter(Column::PrNumber.ne(0));
+    if let Some(owner) = owner.clone() {
+        query = query.filter(Column::Owner.contains(owner));
+    }
+    if let Some(repo) = repo {
+        if owner.is_none() {
+            return Err(DbErr::Custom(format!("Owner is required to get merged applications").into()));
+        }
+        query = query.filter(Column::Repo.contains(repo));
+    }
+    query
+        .order_by(Column::Owner, Order::Asc)
+        .order_by(Column::Repo, Order::Asc)
         .all(&conn)
         .await
 }
