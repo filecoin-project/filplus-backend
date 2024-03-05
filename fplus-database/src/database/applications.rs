@@ -72,10 +72,13 @@ pub async fn get_merged_applications(owner: Option<String>, repo: Option<String>
     let conn = get_database_connection().await?;
     let mut query = Application::find()
         .filter(Column::PrNumber.eq(0));
-    if let Some(owner) = owner {
+    if let Some(owner) = owner.clone() {
         query = query.filter(Column::Owner.contains(owner));
     }
     if let Some(repo) = repo {
+        if owner.is_none() {
+            return Err(DbErr::Custom(format!("Owner is required to get merged applications").into()));
+        }
         query = query.filter(Column::Repo.contains(repo));
     }
     query
@@ -99,10 +102,13 @@ pub async fn get_active_applications(owner: Option<String>, repo: Option<String>
     let conn = get_database_connection().await?;
     let mut query = Application::find()
         .filter(Column::PrNumber.ne(0));
-    if let Some(owner) = owner {
+    if let Some(owner) = owner.clone() {
         query = query.filter(Column::Owner.contains(owner));
     }
     if let Some(repo) = repo {
+        if owner.is_none() {
+            return Err(DbErr::Custom(format!("Owner is required to get merged applications").into()));
+        }
         query = query.filter(Column::Repo.contains(repo));
     }
     query
