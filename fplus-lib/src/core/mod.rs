@@ -290,44 +290,26 @@ impl LDNApplication {
     }
 
     pub async fn all_applications() -> Result<Vec<(ApplicationFile, String, String)>, Vec<LDNError>> {
-        //TODO: Avoid filtering by allocators. Simply get all active & merged applications from the database.
-        let allocators = match database::allocators::get_allocators().await {
-            Ok(allocs) => allocs,
-            Err(e) => return Err(vec![LDNError::Load(format!("Failed to retrieve allocators: {}", e))]),
-        };        let mut all_apps: Vec<(ApplicationFile, String, String)> = Vec::new();
-        let mut errors: Vec<LDNError> = Vec::new();
-    
-        for allocator in allocators {
-            match Self::active(allocator.owner.clone(), allocator.repo.clone(), None).await {
-                Ok(apps) => {
-                    for app in apps {
-                        all_apps.push((app, allocator.owner.clone(), allocator.repo.clone()));
-                    }
-                },
-                Err(e) => {
-                    errors.push(e);
-                    eprintln!("Failed to process active applications for allocator {}:{}", allocator.repo, allocator.owner);
-                },
-            }
-    
-            match Self::merged(allocator.owner.clone(), allocator.repo.clone()).await {
-                Ok(merged_apps) => {
-                    for (_, app) in merged_apps {
-                        all_apps.push((app, allocator.owner.clone(), allocator.repo.clone()));
-                    }
-                },
-                Err(e) => {
-                    errors.push(e);
-                    eprintln!("Failed to process merged applications for allocator {}:{}", allocator.repo, allocator.owner);
-                },
-            }
+        let db_apps = database::applications::get_applications().await;
+        let mut all_apps: Vec<(ApplicationFile, String, String)> = Vec::new();
+        match db_apps {
+            Ok(apps) => {
+                for app in apps {
+                    let app_file = match ApplicationFile::from_str(&app.application.unwrap()) {
+                        Ok(app) => app,
+                        Err(e) => {
+                            return Err(vec![LDNError::Load(format!("Failed to parse application file from DB /// {}", e))]);
+                        }
+                    };
+                    all_apps.push((app_file, app.owner, app.repo));
+                }
+                return Ok(all_apps);
+            },
+            Err(e) => {
+                return Err(vec![LDNError::Load(format!("Failed to retrieve applications from the database /// {}", e))]);
+            },
         }
-    
-        if errors.is_empty() {
-            Ok(all_apps)
-        } else {
-            Err(errors)
-        }
+
     }
     
 
