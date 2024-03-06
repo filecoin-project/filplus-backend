@@ -309,7 +309,7 @@ impl LDNApplication {
                     let app_file = match ApplicationFile::from_str(&app.application.unwrap()) {
                         Ok(app) => app,
                         Err(e) => {
-                            return Err(vec![LDNError::Load(format!("Failed to parse application file from DB /// {}", e))]);
+                            continue;
                         }
                     };
                     all_apps.push((app_file, app.owner, app.repo));
