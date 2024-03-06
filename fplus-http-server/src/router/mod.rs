@@ -4,6 +4,7 @@ pub mod application;
 pub mod blockchain;
 pub mod verifier;
 pub mod allocator;
+pub mod rkh;
 
 /// Return server health status
 #[get("/health")]

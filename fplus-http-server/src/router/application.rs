@@ -27,20 +27,11 @@ pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder
     };
 }
 
-#[post("/testz")]
-pub async fn testz(
-    query: web::Query<ApplicationQueryParams>
-) -> impl Responder {
-    println!("testzzzz {:?} {:?}", query.owner, query.repo);
-    return HttpResponse::Ok()
-}
-
 #[post("/application/trigger")]
 pub async fn trigger(
     query: web::Query<ApplicationQueryParams>,
     info: web::Json<CompleteGovernanceReviewInfo>,
 ) -> impl Responder {
-
     let CompleteGovernanceReviewInfo { actor} = info.into_inner();
     let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
         Ok(app) => app,
@@ -50,7 +41,7 @@ pub async fn trigger(
     };
     dbg!(&ldn_application);
     match ldn_application
-        .complete_governance_review(actor, query.id.clone(), query.repo.clone())
+        .complete_governance_review(actor, query.owner.clone(), query.repo.clone())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),

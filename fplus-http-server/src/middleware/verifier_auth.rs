@@ -14,9 +14,9 @@ struct RepoQuery {
   repo: String,
 }
 
-pub struct GHAuth;
+pub struct VerifierAuth;
 
-impl<S, B> Transform<S, ServiceRequest> for GHAuth
+impl<S, B> Transform<S, ServiceRequest> for VerifierAuth
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
@@ -25,19 +25,19 @@ where
     type Response = ServiceResponse<B>;
     type Error = Error;
     type InitError = ();
-    type Transform = GHAuthMiddleware<S>;
+    type Transform = VerifierAuthMiddleware<S>;
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(GHAuthMiddleware { service }))
+        ready(Ok(VerifierAuthMiddleware { service }))
     }
 }
 
-pub struct GHAuthMiddleware<S> {
+pub struct VerifierAuthMiddleware<S> {
     service: S,
 }
 
-impl<S, B> Service<ServiceRequest> for GHAuthMiddleware<S>
+impl<S, B> Service<ServiceRequest> for VerifierAuthMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,

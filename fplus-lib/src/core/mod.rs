@@ -32,6 +32,7 @@ use std::collections::HashSet;
 
 pub mod application;
 pub mod allocator;
+pub mod rkh;
 
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
@@ -140,6 +141,14 @@ pub struct ApplicationFileWithDate {
 pub struct ApplicationGithubInfo {
     pub sha: String,
     pub path: String,
+}
+
+#[derive(Deserialize)]
+pub struct GenerateNonceQueryParams {
+    pub owner: String,
+    pub repo: String,
+    pub wallet: String,
+    pub multisig_address: String,
 }
 
 impl LDNApplication {
