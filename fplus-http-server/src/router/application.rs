@@ -1,7 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-    CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
-    LDNApplication, RefillInfo, DcReachedInfo, ValidationPullRequestData, GithubQueryParams, ApplicationQueryParams
+    application::file::VerifierInput, ApplicationQueryParams, CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
 };
 
 #[post("/application")]
@@ -27,20 +26,11 @@ pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder
     };
 }
 
-#[post("/testz")]
-pub async fn testz(
-    query: web::Query<ApplicationQueryParams>
-) -> impl Responder {
-    println!("testzzzz {:?} {:?}", query.owner, query.repo);
-    return HttpResponse::Ok()
-}
-
 #[post("/application/trigger")]
 pub async fn trigger(
     query: web::Query<ApplicationQueryParams>,
     info: web::Json<CompleteGovernanceReviewInfo>,
 ) -> impl Responder {
-
     let CompleteGovernanceReviewInfo { actor} = info.into_inner();
     let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
         Ok(app) => app,
@@ -50,7 +40,7 @@ pub async fn trigger(
     };
     dbg!(&ldn_application);
     match ldn_application
-        .complete_governance_review(actor, query.id.clone(), query.repo.clone())
+        .complete_governance_review(actor, query.owner.clone(), query.repo.clone())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -64,7 +54,7 @@ pub async fn trigger(
 #[post("/application/propose")]
 pub async fn propose(
     info: web::Json<CompleteNewApplicationProposalInfo>,
-    query: web::Query<ApplicationQueryParams>,
+    query: web::Query<VerifierActionsQueryParams>,
 ) -> impl Responder {
     let CompleteNewApplicationProposalInfo {
         signer,
@@ -76,8 +66,14 @@ pub async fn propose(
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
+    let updated_signer = VerifierInput {
+        github_username: query.github_username.clone(), // Use the provided `github_username` parameter
+        signing_address: signer.signing_address,
+        created_at: signer.created_at,
+        message_cid: signer.message_cid,
+    };
     match ldn_application
-        .complete_new_application_proposal(signer, request_id, query.owner.clone(), query.repo.clone())
+        .complete_new_application_proposal(updated_signer, request_id, query.owner.clone(), query.repo.clone())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -89,7 +85,7 @@ pub async fn propose(
 
 #[post("/application/approve")]
 pub async fn approve(
-    query: web::Query<ApplicationQueryParams>,
+    query: web::Query<VerifierActionsQueryParams>,
     info: web::Json<CompleteNewApplicationProposalInfo>,
 ) -> impl Responder {
     let CompleteNewApplicationProposalInfo {
@@ -102,8 +98,14 @@ pub async fn approve(
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
+    let updated_signer = VerifierInput {
+        github_username: query.github_username.clone(), // Use the provided `github_username` parameter
+        signing_address: signer.signing_address,
+        created_at: signer.created_at,
+        message_cid: signer.message_cid,
+    };
     match ldn_application
-        .complete_new_application_approval(signer, request_id, query.owner.clone(), query.repo.clone())
+        .complete_new_application_approval(updated_signer, request_id, query.owner.clone(), query.repo.clone())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),

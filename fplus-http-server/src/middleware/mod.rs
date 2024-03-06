@@ -1,1 +1,1 @@
-pub mod gh_auth;
+pub mod verifier_auth;

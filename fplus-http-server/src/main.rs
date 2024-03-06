@@ -1,7 +1,7 @@
 use env_logger;
 use log::info;
 mod middleware;
-use middleware::gh_auth;
+use middleware::verifier_auth::VerifierAuth;
 pub(crate) mod router;
 use std::env;
 
@@ -11,8 +11,6 @@ use actix_web::{
     web,
     middleware::Logger,
 };
-
-use gh_auth::GHAuth;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -36,7 +34,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::create)
             .service(
                 web::scope("/api")
-                    .wrap(GHAuth) // Apply GitHubAuth to all routes under "/api"
+                    .wrap(VerifierAuth) // Apply GitHubAuth to all routes under "/api"
                     .service(router::application::trigger)
                     .service(router::application::propose)
                     .service(router::application::approve)
