@@ -2,14 +2,19 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
     ApplicationQueryParams, CompleteGovernanceReviewInfo, LDNApplication, rkh::auth::{GenerateNonceQueryParams, generate_nonce}
 };
+use serde_json::json;
 
 #[get("/generate-nonce")]
 pub async fn fetch_nonce(query: web::Query<GenerateNonceQueryParams>) -> impl Responder {
-    let GenerateNonceQueryParams { wallet, multisig_address, owner, repo } = query.into_inner();
+    let GenerateNonceQueryParams { wallet_address } = query.into_inner();
 
-    generate_nonce(wallet, multisig_address, owner, repo)
-        .map(|nonce| HttpResponse::Ok().body(nonce))
-        .unwrap_or_else(|e| HttpResponse::BadRequest().body(e.to_string())) as HttpResponse
+    match generate_nonce(wallet_address)
+        .await {
+            Ok(nonce) => HttpResponse::Ok().json(json!({ "nonce": nonce.to_string() })),
+            Err(e) => {
+                return HttpResponse::BadRequest().body(e.to_string());
+            }
+        }
 }
 
 #[post("/application/trigger")]
@@ -27,14 +32,13 @@ pub async fn trigger(
     dbg!(&ldn_application);
     match ldn_application
         .complete_governance_review(actor, query.owner.clone(), query.repo.clone())
-        .await
-    {
-        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
-        Err(e) => {
-            return HttpResponse::BadRequest()
-                .body(format!("Application is not in the correct state {}", e));
+        .await {
+            Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+            Err(e) => {
+                return HttpResponse::BadRequest()
+                    .body(format!("Application is not in the correct state {}", e));
+            }
         }
-    }
 }
 
 #[get("/health")]
