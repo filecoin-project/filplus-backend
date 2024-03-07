@@ -6,4 +6,4 @@ use crate::{base64::decode_allocator_model, error::LDNError, external_services::
 use self::file::AllocatorModel;
 
 pub mod file;
-
+pub mod auth;

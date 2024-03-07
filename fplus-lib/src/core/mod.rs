@@ -143,14 +143,6 @@ pub struct ApplicationGithubInfo {
     pub path: String,
 }
 
-#[derive(Deserialize)]
-pub struct GenerateNonceQueryParams {
-    pub owner: String,
-    pub repo: String,
-    pub wallet: String,
-    pub multisig_address: String,
-}
-
 impl LDNApplication {
 
     pub async fn single_active(pr_number: u64, owner: String, repo: String) -> Result<ApplicationFile, LDNError> {

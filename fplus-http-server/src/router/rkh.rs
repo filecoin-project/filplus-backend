@@ -1,31 +1,16 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-    ApplicationQueryParams, CompleteGovernanceReviewInfo, LDNApplication, GenerateNonceQueryParams
+    ApplicationQueryParams, CompleteGovernanceReviewInfo, LDNApplication, rkh::auth::{GenerateNonceQueryParams, generate_nonce}
 };
 
-// #[post("/get")]
-// pub async fn generate_nonce(query: web::Query<GenerateNonceQueryParams>) -> impl Responder {
-//   let GenerateNonceQueryParams { wallet, multisig_address, owner, repo } = query.into_inner();
+#[get("/generate-nonce")]
+pub async fn fetch_nonce(query: web::Query<GenerateNonceQueryParams>) -> impl Responder {
+    let GenerateNonceQueryParams { wallet, multisig_address, owner, repo } = query.into_inner();
 
-//   // verify all query params exist
-
-//   // verify if wallet addresss is a rkh for sent multisig
-
-//   // generate nonce (uuid)
-
-//   // save nonce to db (create row if not existing / update row if existing)
-
-//   // send nonce as response
-//   match app
-//     .await
-//   {
-//     Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
-//     Err(e) => {
-//         return HttpResponse::BadRequest()
-//             .body(format!("Application is not in the correct state {}", e));
-//     }
-//   }
-// }
+    generate_nonce(wallet, multisig_address, owner, repo)
+        .map(|nonce| HttpResponse::Ok().body(nonce))
+        .unwrap_or_else(|e| HttpResponse::BadRequest().body(e.to_string())) as HttpResponse
+}
 
 #[post("/application/trigger")]
 pub async fn trigger(
