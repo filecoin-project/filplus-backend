@@ -1,11 +1,16 @@
-use std::env;
-
-use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer};
 use env_logger;
 use log::info;
-use fplus_database;
+mod middleware;
+use middleware::verifier_auth::VerifierAuth;
 pub(crate) mod router;
+use std::env;
+
+use actix_web::{
+    App,
+    HttpServer,
+    web,
+    middleware::Logger,
+};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -27,9 +32,13 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .service(router::health)
             .service(router::application::create)
-            .service(router::application::trigger)
-            .service(router::application::propose)
-            .service(router::application::approve)
+            .service(
+                web::scope("/api")
+                    .wrap(VerifierAuth) // Apply GitHubAuth to all routes under "/api"
+                    .service(router::application::trigger)
+                    .service(router::application::propose)
+                    .service(router::application::approve)
+            )
             .service(router::application::merged)
             .service(router::application::active)
             .service(router::application::all_applications)
