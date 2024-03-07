@@ -1,7 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-    CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
-    LDNApplication, RefillInfo, DcReachedInfo, ValidationPullRequestData, GithubQueryParams, ApplicationQueryParams
+    application::file::VerifierInput, ApplicationQueryParams, CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
 };
 
 #[post("/application")]
@@ -27,14 +26,13 @@ pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder
     };
 }
 
-#[post("/application/{id}/trigger")]
+#[post("/application/trigger")]
 pub async fn trigger(
-    id: web::Path<String>,
+    query: web::Query<ApplicationQueryParams>,
     info: web::Json<CompleteGovernanceReviewInfo>,
 ) -> impl Responder {
-
-    let CompleteGovernanceReviewInfo { actor, owner, repo } = info.into_inner();
-    let ldn_application = match LDNApplication::load(id.into_inner(), owner.clone(), repo.clone()).await {
+    let CompleteGovernanceReviewInfo { actor} = info.into_inner();
+    let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
         Ok(app) => app,
         Err(e) => {
             return HttpResponse::BadRequest().body(e.to_string());
@@ -42,7 +40,7 @@ pub async fn trigger(
     };
     dbg!(&ldn_application);
     match ldn_application
-        .complete_governance_review(actor, owner, repo)
+        .complete_governance_review(actor, query.owner.clone(), query.repo.clone())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -53,25 +51,29 @@ pub async fn trigger(
     }
 }
 
-#[post("/application/{id}/propose")]
+#[post("/application/propose")]
 pub async fn propose(
-    id: web::Path<String>,
     info: web::Json<CompleteNewApplicationProposalInfo>,
+    query: web::Query<VerifierActionsQueryParams>,
 ) -> impl Responder {
     let CompleteNewApplicationProposalInfo {
         signer,
         request_id, 
-        owner, 
-        repo
     } = info.into_inner();
-    let ldn_application = match LDNApplication::load(id.into_inner(), owner.clone(), repo.clone()).await {
+    let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
         Ok(app) => app,
         Err(e) => {
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
+    let updated_signer = VerifierInput {
+        github_username: query.github_username.clone(), // Use the provided `github_username` parameter
+        signing_address: signer.signing_address,
+        created_at: signer.created_at,
+        message_cid: signer.message_cid,
+    };
     match ldn_application
-        .complete_new_application_proposal(signer, request_id, owner, repo)
+        .complete_new_application_proposal(updated_signer, request_id, query.owner.clone(), query.repo.clone())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -81,25 +83,29 @@ pub async fn propose(
     }
 }
 
-#[post("/application/{id}/approve")]
+#[post("/application/approve")]
 pub async fn approve(
-    id: web::Path<String>,
+    query: web::Query<VerifierActionsQueryParams>,
     info: web::Json<CompleteNewApplicationProposalInfo>,
 ) -> impl Responder {
     let CompleteNewApplicationProposalInfo {
         signer,
         request_id, 
-        owner, 
-        repo
     } = info.into_inner();
-    let ldn_application = match LDNApplication::load(id.into_inner(), owner.clone(), repo.clone()).await {
+    let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
         Ok(app) => app,
         Err(e) => {
             return HttpResponse::BadRequest().body(e.to_string());
         }
     };
+    let updated_signer = VerifierInput {
+        github_username: query.github_username.clone(), // Use the provided `github_username` parameter
+        signing_address: signer.signing_address,
+        created_at: signer.created_at,
+        message_cid: signer.message_cid,
+    };
     match ldn_application
-        .complete_new_application_approval(signer, request_id, owner, repo)
+        .complete_new_application_approval(updated_signer, request_id, query.owner.clone(), query.repo.clone())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),

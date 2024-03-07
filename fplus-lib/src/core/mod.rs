@@ -44,11 +44,16 @@ pub struct CreateApplicationInfo {
 pub struct VerifierList(pub Vec<String>);
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct ApplicationProposalApprovalSignerInfo {
+    pub signing_address: String,
+    pub created_at: String,
+    pub message_cid: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct CompleteNewApplicationProposalInfo {
-    pub signer: VerifierInput,
+    pub signer: ApplicationProposalApprovalSignerInfo,
     pub request_id: String,
-    pub owner: String,
-    pub repo: String
 }
 
 #[derive(Debug)]
@@ -63,8 +68,6 @@ pub struct LDNApplication {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompleteGovernanceReviewInfo {
     pub actor: String,
-    pub owner: String, 
-    pub repo: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -126,6 +129,14 @@ pub struct GithubQueryParams {
 
 #[derive(Deserialize)]
 pub struct ApplicationQueryParams {
+    pub id: String,
+    pub owner: String,
+    pub repo: String,
+}
+
+#[derive(Deserialize)]
+pub struct VerifierActionsQueryParams {
+    pub github_username: String,
     pub id: String,
     pub owner: String,
     pub repo: String,
