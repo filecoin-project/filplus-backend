@@ -66,11 +66,6 @@ pub struct LDNApplication {
     pub branch_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CompleteGovernanceReviewInfo {
-    pub actor: String,
-}
-
 #[derive(Deserialize, Debug)]
 pub struct RefillInfo {
     pub id: String,
