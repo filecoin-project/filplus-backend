@@ -33,8 +33,8 @@ async fn main() -> std::io::Result<()> {
             .service(router::health)
             .service(router::application::create)
             .service(
-                web::scope("/api")
-                    .wrap(VerifierAuth) // Apply GitHubAuth to all routes under "/api"
+                web::scope("/verifier")
+                    .wrap(VerifierAuth)
                     .service(router::application::trigger)
                     .service(router::application::propose)
                     .service(router::application::approve)
