@@ -55,7 +55,8 @@ use actix_web::{
           let query: Result<web::Query<RepoQuery>, _> = web::Query::from_query(query_string);
           let RepoQuery { owner, repo, github_username } = match query {
               Ok(q) => q.into_inner(),
-              Err(_) => {
+              Err(e) => {
+                println!("{}", e);
                   return Box::pin(async {
                       return Err(actix_web::error::ErrorBadRequest("Wrong query string format"));
                   });

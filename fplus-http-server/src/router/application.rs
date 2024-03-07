@@ -1,6 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-    application::file::VerifierInput, ApplicationQueryParams, CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
+    application::file::VerifierInput, ApplicationQueryParams, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
 };
 
 #[post("/application")]
@@ -28,10 +28,8 @@ pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder
 
 #[post("/application/trigger")]
 pub async fn trigger(
-    query: web::Query<ApplicationQueryParams>,
-    info: web::Json<CompleteGovernanceReviewInfo>,
+    query: web::Query<VerifierActionsQueryParams>,
 ) -> impl Responder {
-    let CompleteGovernanceReviewInfo { actor} = info.into_inner();
     let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
         Ok(app) => app,
         Err(e) => {
@@ -40,7 +38,7 @@ pub async fn trigger(
     };
     dbg!(&ldn_application);
     match ldn_application
-        .complete_governance_review(actor, query.owner.clone(), query.repo.clone())
+        .complete_governance_review(query.github_username.clone(), query.owner.clone(), query.repo.clone())
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
