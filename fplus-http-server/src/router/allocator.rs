@@ -83,6 +83,7 @@ pub async fn update(
         info.installation_id,
         info.multisig_address.clone(),
         info.verifiers_gh_handles.clone(),
+        info.multisig_threshold
     ).await {
         Ok(allocator_model) => HttpResponse::Ok().json(allocator_model),
         Err(e) => {
