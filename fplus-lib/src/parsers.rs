@@ -343,14 +343,14 @@ impl From<IssueValidData> for Datacap {
 
 #[cfg(test)]
 mod tests {
-    use crate::external_services::github::GithubWrapper;
+    use crate::external_services::github::github_async_new;
 
     static OWNER: &str = "filecoin-project";
     static REPO: &str = "filplus-tooling-backend-test";
 
     #[tokio::test]
     async fn test_parser() {
-        let gh = GithubWrapper::new(OWNER.to_string(), REPO.to_string());
+        let gh = github_async_new(OWNER.to_string(), REPO.to_string()).await;
         let issue = gh.list_issue(706).await.unwrap();
         let parsed_ldn = super::ParsedIssue::from_issue_body(&issue.body.unwrap());
         dbg!(&parsed_ldn);
