@@ -2097,8 +2097,8 @@ mod tests {
     use env_logger::{Builder, Env};
     use tokio::time::{sleep, Duration};
 
-    static OWNER: &str = "filecoin-project";
-    static REPO: &str = "filplus-tooling-backend-test";
+    static OWNER: &str = "keyko-io";
+    static REPO: &str = "test-philip-second";
 
     #[tokio::test]
     async fn end_to_end() {
@@ -2107,6 +2107,7 @@ mod tests {
         log::info!("Starting end-to-end test");
 
         // Test Creating an application
+        let _ = fplus_database::setup().await;
         let gh = github_async_new(OWNER.to_string(), REPO.to_string()).await;
 
         log::info!("Creating a new LDNApplication from issue");
