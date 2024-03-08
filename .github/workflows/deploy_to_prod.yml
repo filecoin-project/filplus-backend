@@ -8,6 +8,7 @@ on:
 jobs:
   deploy_to_prod:
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
     - name: Checkout code
@@ -49,13 +50,12 @@ jobs:
             },
             "environment": { 
               "GH_PRIVATE_KEY": "${{secrets.GH_PRIVATE_KEY}}",
-              "GITHUB_OWNER": "${{secrets.GH_OWNER}}",
-              "GITHUB_REPO": "${{secrets.GH_REPO}}",
-              "GITHUB_APP_ID": "${{secrets.GH_APP_ID}}",
-              "GITHUB_INSTALLATION_ID": "${{secrets.GH_INSTALLATION_ID}}",
+              "GITHUB_APP_ID": "${{vars.GH_APP_ID}}",
               "FILPLUS_ENV": "prod",
               "RUST_LOG": "debug",
-              "BOT_USER": "${{secrets.BOT_USER}}"
+              "BOT_USER": "${{vars.BOT_USER}}",
+              "BACKEND_URL": "${{vars.BACKEND_URL}}",
+              "DB_URL": "${{secrets.DB_URL}}"
             }
           }
         }' > containers.json

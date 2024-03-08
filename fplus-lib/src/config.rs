@@ -9,7 +9,7 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("GITHUB_OWNER", "filecoin-project");
         m.insert("GITHUB_REPO", "filecoin-plus-falcon");
         m.insert("GITHUB_APP_ID", "826129");
-        m.insert("GITHUB_INSTALLATION_ID", "47207972");
+        m.insert("GITHUB_INSTALLATION_ID", "48206379");
         m.insert("RUST_LOG", "info");
         m.insert("RUST_BACKTRACE", "1");
         m.insert("DB_URL", "");
