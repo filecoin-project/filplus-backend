@@ -118,6 +118,7 @@ pub async fn create_or_update_allocator(
         allocator_active_model.installation_id = Set(installation_id);
         allocator_active_model.multisig_address = Set(multisig_address);
         allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
+        allocator_active_model.multisig_threshold = Set(multisig_threshold);
 
         let updated_model = allocator_active_model.update(&conn).await?;
 
