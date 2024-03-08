@@ -174,6 +174,7 @@ impl GithubWrapper {
             .issues(&self.owner, &self.repo)
             .get(number)
             .await?;
+        println!("{:?}", iid);
         Ok(iid)
     }
 
