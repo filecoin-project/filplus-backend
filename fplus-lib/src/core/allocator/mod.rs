@@ -1,24 +1,34 @@
 use octocrab::models::repos::ContentItems;
 
 use crate::config::get_env_var_or_default;
+use crate::external_services::filecoin::get_multisig_threshold_for_actor;
 use crate::external_services::github::{github_async_new, GithubWrapper};
-use crate::{base64::decode_allocator_model, error::LDNError};
+use crate::{
+    base64::decode_allocator_model, error::LDNError,
+};
 
 use self::file::AllocatorModel;
 
 pub mod file;
 
 pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, LDNError> {
-
     let owner = get_env_var_or_default("ALLOCATOR_GOVERNANCE_OWNER");
     let repo = get_env_var_or_default("ALLOCATOR_GOVERNANCE_REPO");
     let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID");
     let branch = "main";
     let path = file_name.to_string();
 
-    let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id);
+    let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id.clone());
     let content_items = gh.get_file(&path, branch).await.map_err(|e| LDNError::Load(e.to_string()))?;
-    let model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
+    let mut model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
+
+    // Get multisig threshold from the blockchain if multisig address is available
+    if let Ok(blockchain_threshold) = get_multisig_threshold_for_actor(&model.multisig_address).await {
+        model.multisig_threshold = Some(blockchain_threshold as i32);
+    } else {
+        log::warn!("Blockchain multisig threshold not found, using default or provided value");
+        model.multisig_threshold = model.multisig_threshold.or(Some(2));
+    }
 
     Ok(model)
 }
@@ -28,7 +38,7 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
         Some(content) => {
             log::info!("Fetched content: {:?}", content);
             content
-        },
+        }
         None => {
             log::error!("Allocator file is corrupted or empty");
             return Err(LDNError::Load("Allocator file is corrupted".to_string()));
@@ -42,16 +52,18 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
         Some(model) => {
             log::info!("Parsed allocator model successfully");
             Ok(model)
-        },
+        }
         None => {
             log::error!("Failed to parse allocator model");
-            Err(LDNError::Load("Failed to parse allocator model".to_string()))
+            Err(LDNError::Load(
+                "Failed to parse allocator model".to_string(),
+            ))
         }
     }
 }
 
 pub async fn is_allocator_repo_created(owner: &str, repo: &str) -> Result<bool, LDNError> {
-    let repo_flag_file = "invalisd.md";
+    let repo_flag_file = "invalid.md";
     let applications_directory = "applications";
     let gh = github_async_new(owner.to_string(), repo.to_string()).await;
     let all_files_result = gh.get_files(applications_directory).await.map_err(|e| {
