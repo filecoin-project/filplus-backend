@@ -64,6 +64,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::allocator::delete)
             .service(router::allocator::create_from_json)
             .service(router::rkh::fetch_nonce)
+            .service(router::rkh::test_signature)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

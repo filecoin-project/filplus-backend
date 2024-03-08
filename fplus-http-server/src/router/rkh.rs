@@ -1,14 +1,12 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
-use fplus_lib::core::{
-    ApplicationQueryParams, CompleteGovernanceReviewInfo, LDNApplication, rkh::auth::{GenerateNonceQueryParams, generate_nonce}
-};
+use fplus_lib::core::rkh::auth::{GenerateNonceQueryParams, TestSignaturePayload, generate_nonce, verify_signature};
 use serde_json::json;
 
-#[get("/generate-nonce")]
+#[get("/nonce")]
 pub async fn fetch_nonce(query: web::Query<GenerateNonceQueryParams>) -> impl Responder {
-    let GenerateNonceQueryParams { wallet_address } = query.into_inner();
+    let GenerateNonceQueryParams { wallet_address, multisig_address } = query.into_inner();
 
-    match generate_nonce(wallet_address)
+    match generate_nonce(wallet_address, multisig_address)
         .await {
             Ok(nonce) => HttpResponse::Ok().json(json!({ "nonce": nonce.to_string() })),
             Err(e) => {
@@ -17,26 +15,15 @@ pub async fn fetch_nonce(query: web::Query<GenerateNonceQueryParams>) -> impl Re
         }
 }
 
-#[post("/application/trigger")]
-pub async fn trigger(
-    query: web::Query<ApplicationQueryParams>,
-    info: web::Json<CompleteGovernanceReviewInfo>,
-) -> impl Responder {
-    let CompleteGovernanceReviewInfo { actor} = info.into_inner();
-    let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
-        Ok(app) => app,
-        Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
-        }
-    };
-    dbg!(&ldn_application);
-    match ldn_application
-        .complete_governance_review(actor, query.owner.clone(), query.repo.clone())
+#[post("/test-signature")]
+pub async fn test_signature(data: web::Json<TestSignaturePayload>) -> impl Responder {
+    let TestSignaturePayload {wallet_address, signature} = data.into_inner();
+
+    match verify_signature(&wallet_address, &signature)
         .await {
-            Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+            Ok(is_valid) => HttpResponse::Ok().json(json!({ "isValid": is_valid })),
             Err(e) => {
-                return HttpResponse::BadRequest()
-                    .body(format!("Application is not in the correct state {}", e));
+                return HttpResponse::BadRequest().body(e.to_string());
             }
         }
 }

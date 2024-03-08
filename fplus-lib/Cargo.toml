@@ -32,3 +32,4 @@ log = "0.4.20"
 once_cell = "1.19.0"
 fplus-database = { path = "../fplus-database", version = "1.0.19"}
 uuid = { version = "1.7.0", features = ["v4", "macro-diagnostics", "fast-rng"] }
+ethers = "0.1"

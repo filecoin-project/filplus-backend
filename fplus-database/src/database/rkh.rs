@@ -62,3 +62,19 @@ pub async fn get_rkh(
       .one(&conn)
       .await
 }
+
+pub async fn get_nonce_for_rkh(
+  wallet_address: &str,
+) -> Result<Option<String>, sea_orm::DbErr> {
+  let conn = get_database_connection().await?;
+  let rkh = RKH::find()
+      .filter(Column::WalletAddress.eq(wallet_address))
+      .one(&conn)
+      .await?;
+
+  if let Some(rkh) = rkh {
+      Ok(Some(rkh.nonce))
+  } else {
+      Ok(None)
+  }
+}
