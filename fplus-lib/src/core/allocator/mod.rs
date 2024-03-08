@@ -18,7 +18,7 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     let branch = "main";
     let path = file_name.to_string();
 
-    let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id);
+    let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id.clone());
     let content_items = gh.get_file(&path, branch).await.map_err(|e| LDNError::Load(e.to_string()))?;
     let mut model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
 
@@ -63,7 +63,7 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
 }
 
 pub async fn is_allocator_repo_created(owner: &str, repo: &str) -> Result<bool, LDNError> {
-    let repo_flag_file = "invalisd.md";
+    let repo_flag_file = "invalid.md";
     let applications_directory = "applications";
     let gh = github_async_new(owner.to_string(), repo.to_string()).await;
     let all_files_result = gh.get_files(applications_directory).await.map_err(|e| {
