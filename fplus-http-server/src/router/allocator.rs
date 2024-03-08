@@ -1,6 +1,6 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
 use fplus_database::database::allocators as allocators_db;
-use fplus_lib::core::{allocator::process_allocator_file, AllocatorUpdateInfo, ChangedAllocator};
+use fplus_lib::core::{allocator::{process_allocator_file, is_allocator_repo_created, create_allocator_repo}, AllocatorUpdateInfo, ChangedAllocator};
 
 /**
  * Get all allocators
@@ -44,14 +44,29 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
                 Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
             };
             
-            match allocators_db::create_or_update_allocator(
-                model.owner,
-                model.repo,
+            let allocator_model = match allocators_db::create_or_update_allocator(
+                model.owner.clone(),
+                model.repo.clone(),
                 Some(model.installation_id as i64), 
                 Some(model.multisig_address),      
                 verifiers_gh_handles,
             ).await {
-                Ok(allocator_model) => Ok(HttpResponse::Ok().json(allocator_model)),
+                Ok(allocator_model) => allocator_model,
+                Err(e) => return Ok(HttpResponse::BadRequest().body(e.to_string())),
+            };
+
+            match is_allocator_repo_created(&model.owner, &model.repo).await {
+                Ok(true) => Ok(HttpResponse::Ok().json(allocator_model)),
+                Ok(false) => {
+                    //Create allocator repo. If it fails, return http error
+                    match create_allocator_repo(&model.owner, &model.repo).await {
+                        Ok(files_list) => {
+                            log::info!("Allocator repo created successfully: {:?}", files_list);
+                            Ok(HttpResponse::Ok().json(allocator_model))
+                        }
+                        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+                    }
+                },
                 Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
             }
         },
