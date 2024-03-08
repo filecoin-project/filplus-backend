@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use fplus_database::database::allocators::get_allocator;
 use http::header::USER_AGENT;
 use http::{Request, Uri};
 use hyper_rustls::HttpsConnectorBuilder;
@@ -86,10 +87,25 @@ struct Author {
     name: String,
 }
 
+pub async fn github_async_new(owner: String, repo: String) -> GithubWrapper {
+    let allocator_result = get_allocator(owner.as_str(), repo.as_str()).await;
+    
+    let allocator = match allocator_result {
+        Ok(allocator) => allocator,
+        Err(e) => {
+            log::error!("Failed to get allocator from database: {:?}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let installation_id = allocator.unwrap().installation_id.unwrap_or(0).to_string();
+
+    return GithubWrapper::new(owner, repo, installation_id);
+}
+
 impl GithubWrapper {
-    pub fn new(owner: String, repo: String) -> Self {
+    pub fn new(owner: String, repo: String, installation_id_str: String) -> Self {
         let app_id_str = get_env_var_or_default("GITHUB_APP_ID");
-        let installation_id_str = get_env_var_or_default("GITHUB_INSTALLATION_ID");
     
         let app_id = app_id_str.parse::<u64>().unwrap_or_else(|_| {
             log::error!("Failed to parse GITHUB_APP_ID as u64, using default value");
