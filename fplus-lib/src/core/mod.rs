@@ -2107,7 +2107,7 @@ mod tests {
         log::info!("Starting end-to-end test");
 
         // Test Creating an application
-        let _ = fplus_database::setup().await;
+        let _ = fplus_database::setup_test_environment().await;
         let gh = github_async_new(OWNER.to_string(), REPO.to_string()).await;
 
         log::info!("Creating a new LDNApplication from issue");
