@@ -2111,8 +2111,8 @@ mod tests {
         let gh = github_async_new(OWNER.to_string(), REPO.to_string()).await;
 
         log::info!("Creating a new LDNApplication from issue");
-        let ldn_application = match LDNApplication::new_from_issue(CreateApplicationInfo {
-            issue_number: "706".to_string(),
+        let ldn_application: LDNApplication = match LDNApplication::new_from_issue(CreateApplicationInfo {
+            issue_number: "37".to_string(),
             owner: OWNER.to_string(),
             repo: REPO.to_string()
         })
