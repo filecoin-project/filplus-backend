@@ -21,7 +21,6 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     Ok(model)
 }
 
-
 fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel, LDNError> {
     let encoded_content = match file.items.get(0).and_then(|f| f.content.clone()) {
         Some(content) => {
@@ -47,4 +46,89 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
             Err(LDNError::Load("Failed to parse allocator model".to_string()))
         }
     }
+}
+
+pub async fn is_allocator_repo_created(owner: &str, repo: &str) -> Result<bool, LDNError> {
+    let repo_flag_file = "invalisd.md";
+    let applications_directory = "applications";
+    let gh = GithubWrapper::new(owner.to_string(), repo.to_string());
+    let all_files_result = gh.get_files(applications_directory).await.map_err(|e| {
+        LDNError::Load(format!("Failed to retrieve all files from GitHub. Reason: {}", e))
+    });
+
+    match all_files_result {
+        Ok(content_items) => {
+            let mut is_repo_created = false;
+            for file in content_items.items.iter() {
+                if file.name == repo_flag_file {
+                    is_repo_created = true;
+                    break;
+                }
+            }
+            Ok(is_repo_created)
+        },
+        Err(e) => {
+            if e.to_string().contains("GitHub: This repository is empty") || e.to_string().contains("GitHub: Not Found"){
+                Ok(false)
+            } else {
+                Err(e)
+            }
+        },
+    }
+}
+
+pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNError> {
+    let gh = GithubWrapper::new(owner.to_string(), repo.to_string());
+    let mut dirs = Vec::new();
+    dirs.push("".to_string());
+    
+    while dirs.len() > 0 {
+        let dir = dirs.pop().unwrap();
+        let files_list = gh.get_files_from_public_repo("clriesco", "filplus-allocator-template", Some(&dir)).await.map_err(|e| {
+            LDNError::Load(format!("Failed to retrieve all files from GitHub. Reason: {}", e))
+        })?;
+
+        for file in files_list.items.iter() {
+            let file_path = file.path.clone();
+            if file.r#type == "dir" {
+                dirs.push(file_path);
+                continue;
+            }
+            let file = reqwest::Client::new()
+            .get(&file.download_url.clone().unwrap())
+            .send()
+            .await
+            .map_err(|e| LDNError::Load(format!("here {}", e)))?;
+            let file = file
+                .text()
+                .await
+                .map_err(|e| LDNError::Load(format!("here1 {}", e)))?;
+
+            //Get file from target repo. If file does not exist or fails to retrieve, create it
+            let target_file = gh.get_file(&file_path, "main").await.map_err(|e| {
+                LDNError::Load(format!("Failed to retrieve file from GitHub. Reason: {} in file {}", e, file_path))
+            });
+
+            match target_file {
+                Ok(target_file) => {
+                    if target_file.items.is_empty() {
+                        log::info!("Creating file in target repo: {}", file_path);
+                        gh.add_file(&file_path, &file, "first commit", "main").await.map_err(|e| {
+                            LDNError::Load(format!("Failed to create file in GitHub. Reason: {} in file {}", e, file_path))
+                        })?;
+                    } else {
+                        log::info!("File already exists in target repo: {}", file_path);
+                    }
+                },
+                Err(_) => {
+                    log::info!("Creating file in target repo: {}", file_path);
+                    gh.add_file(&file_path, &file, "first commit", "main").await.map_err(|e| {
+                        LDNError::Load(format!("Failed to create file in GitHub. Reason: {} in file {}", e, file_path))
+                    })?;
+                },
+            }
+        }
+    }
+
+    Ok(())
 }

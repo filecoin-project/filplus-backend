@@ -694,4 +694,23 @@ impl GithubWrapper {
             .await?;
         Ok(pull_request.head.ref_field.clone())
     }
+
+    pub async fn get_files_from_public_repo(
+        &self,
+        owner: &str, 
+        repo: &str, 
+        path: Option<&str>
+    ) -> Result<ContentItems, OctocrabError> {
+        let branch = "main";
+        let octocrab = Octocrab::builder().build()?;
+        let gh = octocrab.repos(owner, repo);
+
+        //if path is not provided, take all files from root
+        let contents_items = match path {
+            Some(p) => gh.get_content().r#ref(branch).path(p).send().await?,
+            None => gh.get_content().r#ref(branch).send().await?,
+        };
+        
+        Ok(contents_items)
+    }
 }
