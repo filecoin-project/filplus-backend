@@ -1,7 +1,8 @@
 use octocrab::models::repos::ContentItems;
 
 use crate::config::get_env_var_or_default;
-use crate::{base64::decode_allocator_model, error::LDNError, external_services::github::GithubWrapper};
+use crate::external_services::github::github_async_new;
+use crate::{base64::decode_allocator_model, error::LDNError};
 
 use self::file::AllocatorModel;
 
@@ -14,7 +15,7 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     let branch = "main";
     let path = file_name.to_string();
 
-    let gh = GithubWrapper::new(owner.to_string(), repo.to_string());
+    let gh = github_async_new(owner.to_string(), repo.to_string()).await;
     let content_items = gh.get_file(&path, branch).await.map_err(|e| LDNError::Load(e.to_string()))?;
     let model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
 

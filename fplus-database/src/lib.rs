@@ -50,20 +50,21 @@ pub async fn get_database_connection() -> Result<DatabaseConnection, DbErr> {
         Err(DbErr::Custom("Database connection is not established".into()))
     }
 }
+
+/**
+* Sets up the initial test environment (database connection and env variables)
+*/
+pub async fn setup_test_environment() {
+   init();
+   setup().await.expect("Failed to setup database connection.");
+}
+
 #[cfg(test)]
 mod tests {
     
     use super::*;
     use tokio;
     use serial_test::serial;
-
-    /**
-     * Sets up the initial test environment (database connection and env variables)
-     */
-    async fn setup_test_environment() {
-        init();
-        setup().await.expect("Failed to setup database connection.");
-    }
 
     /**
      * Test the establish_connection function
