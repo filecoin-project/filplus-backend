@@ -1,7 +1,10 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-    application::file::VerifierInput, ApplicationQueryParams, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
-};
+        application::file::VerifierInput, ApplicationQueryParams,
+        CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo,
+        GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData,
+        VerifierActionsQueryParams,
+    };
 
 #[post("/application")]
 pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
@@ -21,24 +24,30 @@ pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder
     let ApplicationQueryParams { id, owner, repo } = query.into_inner();
 
     match LDNApplication::load_from_db(id, owner, repo).await {
-        Ok(app_file) => return HttpResponse::Ok().body(serde_json::to_string_pretty(&app_file).unwrap()),
+        Ok(app_file) => {
+            return HttpResponse::Ok().body(serde_json::to_string_pretty(&app_file).unwrap())
+        }
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
 }
 
 #[post("/application/trigger")]
-pub async fn trigger(
-    query: web::Query<VerifierActionsQueryParams>,
-) -> impl Responder {
-    let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
-        Ok(app) => app,
-        Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
-        }
-    };
+pub async fn trigger(query: web::Query<VerifierActionsQueryParams>) -> impl Responder {
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => {
+                return HttpResponse::BadRequest().body(e.to_string());
+            }
+        };
     dbg!(&ldn_application);
     match ldn_application
-        .complete_governance_review(query.github_username.clone(), query.owner.clone(), query.repo.clone())
+        .complete_governance_review(
+            query.github_username.clone(),
+            query.owner.clone(),
+            query.repo.clone(),
+        )
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -54,16 +63,15 @@ pub async fn propose(
     info: web::Json<CompleteNewApplicationProposalInfo>,
     query: web::Query<VerifierActionsQueryParams>,
 ) -> impl Responder {
-    let CompleteNewApplicationProposalInfo {
-        signer,
-        request_id, 
-    } = info.into_inner();
-    let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
-        Ok(app) => app,
-        Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
-        }
-    };
+    let CompleteNewApplicationProposalInfo { signer, request_id } = info.into_inner();
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => {
+                return HttpResponse::BadRequest().body(e.to_string());
+            }
+        };
     let updated_signer = VerifierInput {
         github_username: query.github_username.clone(), // Use the provided `github_username` parameter
         signing_address: signer.signing_address,
@@ -71,7 +79,12 @@ pub async fn propose(
         message_cid: signer.message_cid,
     };
     match ldn_application
-        .complete_new_application_proposal(updated_signer, request_id, query.owner.clone(), query.repo.clone())
+        .complete_new_application_proposal(
+            updated_signer,
+            request_id,
+            query.owner.clone(),
+            query.repo.clone(),
+        )
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -86,16 +99,15 @@ pub async fn approve(
     query: web::Query<VerifierActionsQueryParams>,
     info: web::Json<CompleteNewApplicationProposalInfo>,
 ) -> impl Responder {
-    let CompleteNewApplicationProposalInfo {
-        signer,
-        request_id, 
-    } = info.into_inner();
-    let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
-        Ok(app) => app,
-        Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
-        }
-    };
+    let CompleteNewApplicationProposalInfo { signer, request_id } = info.into_inner();
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => {
+                return HttpResponse::BadRequest().body(e.to_string());
+            }
+        };
     let updated_signer = VerifierInput {
         github_username: query.github_username.clone(), // Use the provided `github_username` parameter
         signing_address: signer.signing_address,
@@ -103,7 +115,12 @@ pub async fn approve(
         message_cid: signer.message_cid,
     };
     match ldn_application
-        .complete_new_application_approval(updated_signer, request_id, query.owner.clone(), query.repo.clone())
+        .complete_new_application_approval(
+            updated_signer,
+            request_id,
+            query.owner.clone(),
+            query.repo.clone(),
+        )
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -114,17 +131,19 @@ pub async fn approve(
 #[get("/applications")]
 pub async fn all_applications() -> impl Responder {
     match LDNApplication::all_applications().await {
-        Ok(apps) => {
-            match serde_json::to_string_pretty(&apps) {
-                Ok(json) => HttpResponse::Ok().content_type("application/json").body(json),
-                Err(e) => HttpResponse::InternalServerError().body(format!("Failed to serialize applications: {}", e)),
-            }
+        Ok(apps) => match serde_json::to_string_pretty(&apps) {
+            Ok(json) => HttpResponse::Ok()
+                .content_type("application/json")
+                .body(json),
+            Err(e) => HttpResponse::InternalServerError()
+                .body(format!("Failed to serialize applications: {}", e)),
         },
-        Err(errors) => {
-            match serde_json::to_string_pretty(&errors) {
-                Ok(json) => HttpResponse::BadRequest().content_type("application/json").body(json),
-                Err(e) => HttpResponse::InternalServerError().body(format!("Failed to serialize errors: {}", e)),
-            }
+        Err(errors) => match serde_json::to_string_pretty(&errors) {
+            Ok(json) => HttpResponse::BadRequest()
+                .content_type("application/json")
+                .body(json),
+            Err(e) => HttpResponse::InternalServerError()
+                .body(format!("Failed to serialize errors: {}", e)),
         },
     }
 }
@@ -160,7 +179,7 @@ pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Respo
 
 #[post("/application/totaldcreached")]
 pub async fn total_dc_reached(data: web::Json<DcReachedInfo>) -> actix_web::Result<impl Responder> {
-    let DcReachedInfo {id, owner, repo} = data.into_inner();
+    let DcReachedInfo { id, owner, repo } = data.into_inner();
     match LDNApplication::total_dc_reached(id, owner, repo).await {
         Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
         Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
@@ -171,7 +190,12 @@ pub async fn total_dc_reached(data: web::Json<DcReachedInfo>) -> actix_web::Resu
 pub async fn validate_application_flow(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let ValidationPullRequestData { pr_number, user_handle, owner, repo } = info.into_inner();
+    let ValidationPullRequestData {
+        pr_number,
+        user_handle,
+        owner,
+        repo,
+    } = info.into_inner();
     let pr_number = pr_number.trim_matches('"').parse::<u64>();
     match pr_number {
         Ok(pr_number) => {
@@ -188,7 +212,12 @@ pub async fn validate_application_flow(
 pub async fn validate_application_trigger(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let ValidationPullRequestData { pr_number, user_handle, owner, repo } = info.into_inner();
+    let ValidationPullRequestData {
+        pr_number,
+        user_handle,
+        owner,
+        repo,
+    } = info.into_inner();
     let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
@@ -206,7 +235,12 @@ pub async fn validate_application_trigger(
 pub async fn validate_application_proposal(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let ValidationPullRequestData { pr_number, user_handle: _, owner, repo } = info.into_inner();
+    let ValidationPullRequestData {
+        pr_number,
+        user_handle: _,
+        owner,
+        repo,
+    } = info.into_inner();
     let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
@@ -222,7 +256,12 @@ pub async fn validate_application_proposal(
 pub async fn validate_application_approval(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let ValidationPullRequestData { pr_number, user_handle: _, owner, repo } = info.into_inner();
+    let ValidationPullRequestData {
+        pr_number,
+        user_handle: _,
+        owner,
+        repo,
+    } = info.into_inner();
     let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
@@ -238,29 +277,36 @@ pub async fn validate_application_approval(
 pub async fn validate_application_merge(
     info: web::Json<ValidationPullRequestData>,
 ) -> impl Responder {
-    let ValidationPullRequestData { pr_number, user_handle: _, owner, repo } = info.into_inner();
+    let ValidationPullRequestData {
+        pr_number,
+        user_handle: _,
+        owner,
+        repo,
+    } = info.into_inner();
     let pr_number = pr_number.trim_matches('"').parse::<u64>();
 
     match pr_number {
-        Ok(pr_number) => match LDNApplication::validate_merge_application(pr_number, owner, repo).await {
-            Ok(result) => HttpResponse::Ok().json(result),
-            Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
-        },
+        Ok(pr_number) => {
+            match LDNApplication::validate_merge_application(pr_number, owner, repo).await {
+                Ok(result) => HttpResponse::Ok().json(result),
+                Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
+            }
+        }
         Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
     }
 }
 
 #[post("application/cache/renewal")]
-pub async fn cache_renewal(
-    info: web::Json<GithubQueryParams>,
-) -> impl Responder {
+pub async fn cache_renewal(info: web::Json<GithubQueryParams>) -> impl Responder {
     let GithubQueryParams { owner, repo } = info.into_inner();
     let active_result = LDNApplication::cache_renewal_active(owner.clone(), repo.clone()).await;
 
     let merged_result = LDNApplication::cache_renewal_merged(owner, repo).await;
 
     match (active_result, merged_result) {
-        (Ok(_), Ok(_)) => HttpResponse::Ok().json("Cache renewal for active and merged applications succeeded"),
+        (Ok(_), Ok(_)) => {
+            HttpResponse::Ok().json("Cache renewal for active and merged applications succeeded")
+        }
         (Err(e), _) | (_, Err(e)) => HttpResponse::InternalServerError().json(e.to_string()),
     }
 }
