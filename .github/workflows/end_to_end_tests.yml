@@ -11,11 +11,12 @@ jobs:
   end_to_end_tests:
     name: Perform end-to-end tests
     runs-on: ubuntu-latest
+    environment: staging
 
     steps:
     - uses: actions/checkout@v3
     - name: Run tests
       env: 
-        GH_PRIVATE_KEY: ${{ secrets.GH_STAGING_PRIVATE_KEY }}
-        DB_URL: ${{secrets.STAGING_DB_URL}}
+        GH_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }}
+        DB_URL: ${{secrets.DB_URL}}
       run: cargo test -- --nocapture
