@@ -1,21 +1,24 @@
-use log::warn;
+use std::env;
+use log::error;
 
 /**
- * Get an environment variable or a default value
+ * Get an environment variable or exit the program if not set
  * 
  * # Arguments
- * @param key: &str - The environment variable key
- * @param default: &str - The default value
+ * * `key` - The environment variable key
  * 
  * # Returns
- * @return String - The value of the environment variable or the default value
+ * * The value of the environment variable
+ * 
+ * # Panics
+ * * Exits the program if the environment variable is not set
  */
-pub fn get_env_var_or_default(key: &str, default: &str) -> String {
-    match std::env::var(key) {
+pub fn get_env_or_throw(key: &str) -> String {
+    match env::var(key) {
         Ok(val) => val,
         Err(_) => {
-            warn!("{} not set, using default value: {}", key, default);
-            default.to_string()
+            error!("Environment variable '{}' not set. Exiting program.", key);
+            std::process::exit(1);
         }
     }
 }

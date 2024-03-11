@@ -5,7 +5,7 @@ pub mod config;
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
-use crate::config::get_env_var_or_default;
+use crate::config::get_env_or_throw;
 
 /**
  * The global database connection
@@ -29,7 +29,7 @@ pub fn init() {
  * @return Result<DatabaseConnection, sea_orm::DbErr> - The result of the operation
  */
 pub async fn setup() -> Result<(), DbErr> {
-    let database_url = get_env_var_or_default("DB_URL", "");
+    let database_url = get_env_or_throw("DB_URL");
     let db_conn = Database::connect(&database_url).await?;
     let mut db_conn_global = DB_CONN.lock().unwrap();
     *db_conn_global = Some(db_conn);
