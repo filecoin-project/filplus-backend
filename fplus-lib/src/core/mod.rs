@@ -1394,12 +1394,12 @@ impl LDNApplication {
 
             let res: bool = match app_state {
                 AppState::Submitted => {
-                    log::warn!("- Application state is Submitted");
+                    log::warn!("Val Trigger (RtS) - Application state is Submitted");
                     return Ok(false);
                 }
                 AppState::ReadyToSign => {
                     if application_file.allocation.0.is_empty() {
-                        log::warn!("- No allocations found");
+                        log::warn!("Val Trigger (RtS) - No allocations found");
                         false
                     } else {
                         let active_allocation = application_file
@@ -1409,25 +1409,25 @@ impl LDNApplication {
                             .find(|obj| Some(&obj.id) == active_request_id.as_ref());
 
                         if active_allocation.is_none() {
-                            log::warn!("- Active allocation not found");
+                            log::warn!("Val Trigger (RtS) - Active allocation not found");
                             false
                         } else if active_allocation.unwrap().signers.0.len() > 0 {
-                            log::warn!("- Active allocation has signers");
+                            log::warn!("Val Trigger (RtS) - Active allocation has signers");
                             false
                         } else if validated_at.is_empty() {
-                            log::warn!("- Not ready to sign - validated_at is empty");
+                            log::warn!("Val Trigger (RtS) - Not ready to sign - validated_at is empty");
                             false
                         } else if validated_by.is_empty() {
-                            log::warn!("- Not ready to sign - validated_by is empty");
+                            log::warn!("Val Trigger (RtS) - Not ready to sign - validated_by is empty");
                             false
                         } else if actor != bot_user {
-                            log::warn!("- Not ready to sign - actor is not the bot user");
+                            log::warn!("Val Trigger (RtS) - Not ready to sign - actor is not the bot user");
                             false
                         } else if !valid_verifier_list.is_valid(&validated_by) {
-                            log::warn!("- Not ready to sign - valid_verifier_list is not valid");
+                            log::warn!("Val Trigger (RtS) - Not ready to sign - valid_verifier_list is not valid");
                             false
                         } else {
-                            log::info!("- Validated!");
+                            log::info!("Val Trigger (RtS) - Validated!");
                             Self::issue_datacap_allocation_requested(
                                 application_file.clone(),
                                 active_allocation.clone(),
@@ -1457,17 +1457,17 @@ impl LDNApplication {
                         && !validated_by.is_empty()
                         && valid_verifier_list.is_valid(&validated_by)
                     {
-                        log::info!("- Validated!");
+                        log::info!("Val Trigger (SSD) - Validated!");
                         true
                     } else {
                         if validated_at.is_empty() {
-                            log::warn!("- AppState: StartSignDatacap, validation failed: validated_at is empty");
+                            log::warn!("Val Trigger (SSD) - AppState: StartSignDatacap, validation failed: validated_at is empty");
                         }
                         if validated_by.is_empty() {
-                            log::warn!("- AppState: StartSignDatacap, validation failed: validated_by is empty");
+                            log::warn!("Val Trigger (SSD) - AppState: StartSignDatacap, validation failed: validated_by is empty");
                         }
                         if !valid_verifier_list.is_valid(&validated_by) {
-                            log::warn!("- AppState: StartSignDatacap, validation failed: valid_verifier_list is not valid");
+                            log::warn!("Val Trigger (SSD) - AppState: StartSignDatacap, validation failed: valid_verifier_list is not valid");
                         }
                         false
                     }
@@ -1477,33 +1477,33 @@ impl LDNApplication {
                         && !validated_by.is_empty()
                         && valid_verifier_list.is_valid(&validated_by)
                     {
-                        log::info!("- Application is granted");
+                        log::info!("Val Trigger (G) - Application is granted");
                         true
                     } else {
                         if validated_at.is_empty() {
                             log::warn!(
-                                "- AppState: Granted, validation failed: validated_at is empty"
+                                "Val Trigger (G) - AppState: Granted, validation failed: validated_at is empty"
                             );
                         }
                         if validated_by.is_empty() {
                             log::warn!(
-                                "- AppState: Granted, validation failed: validated_by is empty"
+                                "Val Trigger (G) - AppState: Granted, validation failed: validated_by is empty"
                             );
                         }
                         if !valid_verifier_list.is_valid(&validated_by) {
                             log::warn!(
-                                "- AppState: Granted, validation failed: valid_verifier_list is not valid"
+                                "Val Trigger (G) - AppState: Granted, validation failed: valid_verifier_list is not valid"
                             );
                         }
                         false
                     }
                 }
                 AppState::TotalDatacapReached => {
-                    log::info!("- Application state is TotalDatacapReached");
+                    log::info!("Val Trigger (TDR) - Application state is TotalDatacapReached");
                     true
                 }
                 AppState::Error => {
-                    log::warn!("- Application state is Error");
+                    log::warn!("Val Trigger (TDR) - Application state is Error");
                     return Ok(false);
                 }
             };
