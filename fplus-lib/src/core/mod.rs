@@ -1574,9 +1574,9 @@ impl LDNApplication {
                 }
                 let app_state: AppState = application_file.lifecycle.get_state();
 
-                log::info!("- App state is {:?}", app_state.as_str());
+                log::info!("Val Approval - App state is {:?}", app_state.as_str());
                 if app_state < AppState::Granted {
-                    log::warn!("- State is less than Granted");
+                    log::warn!("Val Approval < (G)- State is less than Granted");
                     return Ok(false);
                 } else if app_state == AppState::Granted {
                     let active_request_id = match application_file
@@ -1586,7 +1586,7 @@ impl LDNApplication {
                     {
                         Some(id) => id,
                         None => {
-                            log::warn!("- No active request");
+                            log::warn!("Val Approval (G) - No active request");
                             return Ok(false);
                         }
                     };
@@ -1594,13 +1594,13 @@ impl LDNApplication {
                         match application_file.allocation.find_one(active_request_id) {
                             Some(request) => request,
                             None => {
-                                log::warn!("- No active request");
+                                log::warn!("Val Approval (G) - No active request");
                                 return Ok(false);
                             }
                         };
                     let signers: application::file::Verifiers = active_request.signers.clone();
                     if signers.0.len() != 2 {
-                        log::warn!("- Not enough signers");
+                        log::warn!("Val Approval (G) - Not enough signers");
                         return Ok(false);
                     }
                     let signer = signers.0.get(1).unwrap();
@@ -1608,7 +1608,7 @@ impl LDNApplication {
                     let valid_verifiers =
                         Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
                     if valid_verifiers.is_valid(&signer_gh_handle) {
-                        log::info!("- Validated!");
+                        log::info!("Val Approval (G)- Validated!");
                         Self::issue_datacap_request_signature(
                             application_file.clone(),
                             "approved".to_string(),
@@ -1632,10 +1632,10 @@ impl LDNApplication {
                         return Ok(true);
                     }
 
-                    log::warn!("- Not validated!");
+                    log::warn!("Val Approval (G) - Not validated!");
                     Ok(false)
                 } else {
-                    log::info!("- State is greater than Granted");
+                    log::info!("Val Approval > (G) - State is greater than Granted");
                     Ok(true)
                 }
             }
@@ -1660,20 +1660,20 @@ impl LDNApplication {
                     return Ok(true);
                 }
                 let app_state: AppState = application_file.lifecycle.get_state();
-                log::info!("- App state is {:?}", app_state.as_str());
+                log::info!("Val Proposal - App state is {:?}", app_state.as_str());
                 if app_state < AppState::StartSignDatacap {
-                    log::warn!("- State is less than StartSignDatacap");
+                    log::warn!("Val Proposal (< SSD) - State is less than StartSignDatacap");
                     return Ok(false);
                 } else if app_state == AppState::StartSignDatacap {
                     let active_request = application_file.allocation.active();
                     if active_request.is_none() {
-                        log::warn!("- No active request");
+                        log::warn!("Val Proposal (SSD)- No active request");
                         return Ok(false);
                     }
                     let active_request = active_request.unwrap();
                     let signers = active_request.signers.clone();
                     if signers.0.len() != 1 {
-                        log::warn!("- Not enough signers");
+                        log::warn!("Val Proposal (SSD) - Not enough signers");
                         return Ok(false);
                     }
                     let signer = signers.0.get(0).unwrap();
@@ -1702,13 +1702,13 @@ impl LDNApplication {
                         )
                         .await?;
 
-                        log::info!("- Validated!");
+                        log::info!("Val Proposal (SSD) - Validated!");
                         return Ok(true);
                     }
-                    log::warn!("- Not validated!");
+                    log::warn!("Val Proposal (SSD) - Not validated!");
                     Ok(false)
                 } else {
-                    log::info!("- State is greater than StartSignDatacap");
+                    log::info!("Val Proposal (> SSD) - State is greater than StartSignDatacap");
                     Ok(true)
                 }
             }
