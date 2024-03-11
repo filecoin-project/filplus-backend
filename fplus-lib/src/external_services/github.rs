@@ -141,6 +141,7 @@ impl GithubWrapper {
         let db_url = get_env_var_or_default("DB_URL");
         dbg!(gh_private_key.clone().len().to_string());
         dbg!(db_url.clone().len().to_string());
+        
         let key = jsonwebtoken::EncodingKey::from_rsa_pem(gh_private_key.as_bytes()).unwrap();
         let octocrab = OctocrabBuilder::new_empty()
             .with_service(client)
