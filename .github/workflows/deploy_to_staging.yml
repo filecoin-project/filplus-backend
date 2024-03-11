@@ -69,6 +69,7 @@ jobs:
                 "GH_PRIVATE_KEY": "${{secrets.GH_PRIVATE_KEY}}",
                 "DB_URL": "${{secrets.DB_URL}}",
                 "GITHUB_APP_ID": "${{vars.GH_APP_ID}}",
+                "GITHUB_INSTALLATION_ID": "${{vars.GH_INSTALLATION_ID}}",
                 "FILPLUS_ENV": "prod",
                 "RUST_LOG": "debug",
                 "BOT_USER": "${{vars.BOT_USER}}",
