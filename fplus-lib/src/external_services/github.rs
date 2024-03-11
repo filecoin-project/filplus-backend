@@ -13,10 +13,9 @@ use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
 use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Page};
+use libsodium_sys as sodium;
 
-use sodiumoxide::crypto::box_;
-use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
-use sodiumoxide::randombytes::randombytes;
+use base64::{encode, decode};
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -736,29 +735,54 @@ impl GithubWrapper {
         Ok(contents_items)
     }
 
+    /**
+     * Create or update a secret in the repository
+     * This function will receive the secret name and value and will create or update the secret in the repository
+     * The secret value will be encrypted using the public key of the repository, as required by the GitHub API
+     * More information here: https://docs.github.com/en/rest/actions/secrets?apiVersion=2022-11-28#create-or-update-a-repository-secret
+     */
     pub async fn create_or_update_secret(
         &self,
         secret_name: &str,
         secret_value: &str,
     ) -> Result<(), OctocrabError> {
-        
-        if sodiumoxide::init().is_err() {
-            panic!("Failed to initialize sodiumoxide");
-        }
-        let (pk, sk) = box_::gen_keypair();
-        let (receiver_pk, _receiver_sk) = box_::gen_keypair();
-        let nonce = box_::gen_nonce();
-        let secret_value = secret_value.as_bytes();
-        let ciphertext = box_::seal(secret_value, &nonce, &receiver_pk, &sk);
-        let pk = base64::encode(pk.0);
-        
+        let pk = self
+            .inner
+            .repos(&self.owner, &self.repo)
+            .secrets()
+            .get_public_key()
+            .await?;
+    
+        let pk_bytes = match decode(pk.key) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                log::error!("Failed to decode public key: {:?}", e);
+                return Ok(());
+            }
+        };
+        assert_eq!(pk_bytes.len(), sodium::crypto_box_PUBLICKEYBYTES as usize, "Invalid public key length");
+        //Create a buffer to store the encrypted secret
+        let mut encrypted_secret = vec![0u8; sodium::crypto_box_SEALBYTES as usize + secret_value.len()];
+        //Encrypt the secret using the public key
+        let _encrypt_res = unsafe {
+            sodium::crypto_box_seal(
+                encrypted_secret.as_mut_ptr(),
+                secret_value.as_ptr(),
+                secret_value.len() as u64,
+                pk_bytes.as_ptr(),
+            )
+        };
+        //Encode the encrypted secret to base64
+        let encrypted_secret_base64 = encode(&encrypted_secret);
+
+        //Encrypt using libsodium
         let _create_secret_res = self
             .inner
             .repos(&self.owner, &self.repo)
             .secrets()
             .create_or_update_secret(secret_name, &CreateRepositorySecret{
-                key_id: &pk,
-                encrypted_value: &base64::encode(ciphertext),
+                key_id: &pk.key_id,
+                encrypted_value: &encrypted_secret_base64,
             })
             .await?;
         Ok(())

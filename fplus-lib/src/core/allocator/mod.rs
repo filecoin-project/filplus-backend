@@ -94,10 +94,10 @@ pub async fn is_allocator_repo_created(owner: &str, repo: &str) -> Result<bool, 
 pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNError> {
     let gh = github_async_new(owner.to_string(), repo.to_string()).await;
     let mut dirs = Vec::new();
-    // let backend_url = get_env_var_or_default("BACKEND_URL");
-    // gh.create_or_update_secret("BACKEND_URL", &backend_url).await.map_err(|e| {
-    //     LDNError::Load(format!("Failed to create or update secret in GitHub. Reason: {}", e))
-    // })?;
+    let backend_url = get_env_var_or_default("BACKEND_URL");
+    gh.create_or_update_secret("BACKEND_URL", &backend_url).await.map_err(|e| {
+        LDNError::Load(format!("Failed to create or update secret in GitHub. Reason: {}", e))
+    })?;
     dirs.push("".to_string());
     
     while dirs.len() > 0 {
