@@ -138,6 +138,7 @@ impl GithubWrapper {
         let client = hyper::Client::builder()
             .pool_idle_timeout(std::time::Duration::from_secs(15))
             .build(connector);
+        dbg!(gh_private_key.as_bytes());
         let key = jsonwebtoken::EncodingKey::from_rsa_pem(gh_private_key.as_bytes()).unwrap();
         let octocrab = OctocrabBuilder::new_empty()
             .with_service(client)
