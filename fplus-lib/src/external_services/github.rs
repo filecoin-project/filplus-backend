@@ -7,12 +7,17 @@ use hyper_rustls::HttpsConnectorBuilder;
 use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
-use octocrab::models::repos::{Branch, ContentItems, FileDeletion, FileUpdate};
+use octocrab::models::repos::{Branch, ContentItems, FileDeletion, FileUpdate, secrets::CreateRepositorySecret};
 use octocrab::models::{InstallationId, IssueState, Label};
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
 use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Page};
+
+use sodiumoxide::crypto::box_;
+use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
+use sodiumoxide::randombytes::randombytes;
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -729,5 +734,33 @@ impl GithubWrapper {
         };
         
         Ok(contents_items)
+    }
+
+    pub async fn create_or_update_secret(
+        &self,
+        secret_name: &str,
+        secret_value: &str,
+    ) -> Result<(), OctocrabError> {
+        
+        if sodiumoxide::init().is_err() {
+            panic!("Failed to initialize sodiumoxide");
+        }
+        let (pk, sk) = box_::gen_keypair();
+        let (receiver_pk, _receiver_sk) = box_::gen_keypair();
+        let nonce = box_::gen_nonce();
+        let secret_value = secret_value.as_bytes();
+        let ciphertext = box_::seal(secret_value, &nonce, &receiver_pk, &sk);
+        let pk = base64::encode(pk.0);
+        
+        let _create_secret_res = self
+            .inner
+            .repos(&self.owner, &self.repo)
+            .secrets()
+            .create_or_update_secret(secret_name, &CreateRepositorySecret{
+                key_id: &pk,
+                encrypted_value: &base64::encode(ciphertext),
+            })
+            .await?;
+        Ok(())
     }
 }

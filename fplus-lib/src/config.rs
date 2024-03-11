@@ -9,13 +9,14 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("GITHUB_OWNER", "filecoin-project");
         m.insert("GITHUB_REPO", "filecoin-plus-falcon");
         m.insert("GITHUB_APP_ID", "826129");
-        m.insert("GITHUB_INSTALLATION_ID", "48206379");
+        m.insert("GITHUB_INSTALLATION_ID", "48299904");
         m.insert("RUST_LOG", "info");
         m.insert("RUST_BACKTRACE", "1");
         m.insert("DB_URL", "");
         m.insert("ALLOCATOR_GOVERNANCE_REPO", "Allocator-Governance-Staging");
         m.insert("ALLOCATOR_GOVERNANCE_OWNER", "fidlabs");
         m.insert("BOT_USER", "filplus-allocators-staging-bot[bot]");
+        m.insert("BACKEND_URL", "https://fp-core.dp04sa0tdc6pk.us-east-1.cs.amazonlightsail.com");
         
         m
     })
