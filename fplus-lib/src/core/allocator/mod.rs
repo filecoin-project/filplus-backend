@@ -94,15 +94,17 @@ pub async fn is_allocator_repo_created(owner: &str, repo: &str) -> Result<bool, 
 pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNError> {
     let gh = github_async_new(owner.to_string(), repo.to_string()).await;
     let mut dirs = Vec::new();
-    let backend_url = get_env_var_or_default("BACKEND_URL");
-    gh.create_or_update_secret("BACKEND_URL", &backend_url).await.map_err(|e| {
-        LDNError::Load(format!("Failed to create or update secret in GitHub. Reason: {}", e))
-    })?;
+    let branch = match get_env_var_or_default("FILPLUS_ENV").as_str() {
+        "staging" => "staging",
+        "production" => "main",
+        _ => "main",
+    };
+
     dirs.push("".to_string());
     
     while dirs.len() > 0 {
         let dir = dirs.pop().unwrap();
-        let files_list = gh.get_files_from_public_repo("clriesco", "filplus-allocator-template", Some(&dir)).await.map_err(|e| {
+        let files_list = gh.get_files_from_public_repo("fidlabs", "allocator-template", branch, Some(&dir)).await.map_err(|e| {
             LDNError::Load(format!("Failed to retrieve all files from GitHub. Reason: {}", e))
         })?;
 
