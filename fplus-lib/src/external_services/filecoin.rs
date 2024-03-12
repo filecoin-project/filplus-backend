@@ -4,7 +4,6 @@ use crate::{config::get_env_var_or_default, models::filecoin::StateReadStateResp
 
 pub async fn state_get_state(actor_address: &str) -> Result<StateReadStateResponse, reqwest::Error> {
     let node_url = get_env_var_or_default("GLIF_NODE_URL");
-    let node_token = get_env_var_or_default("GLIF_NODE_TOKEN");
 
     let client = reqwest::Client::new();
     let body = json!({
@@ -15,9 +14,6 @@ pub async fn state_get_state(actor_address: &str) -> Result<StateReadStateRespon
     });
 
     let mut request = client.post(&node_url).json(&body);
-    if !node_token.is_empty() {
-        request = request.bearer_auth(&node_token);
-    }
 
     let response = request.send().await?.json::<StateReadStateResponse>().await?;
     Ok(response)
