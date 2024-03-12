@@ -74,7 +74,8 @@ jobs:
                 "RUST_LOG": "debug",
                 "BOT_USER": "${{vars.BOT_USER}}",
                 "BACKEND_URL": "${{vars.BACKEND_URL}}",
-                "DB_URL": "${{secrets.DB_URL}}"
+                "DB_URL": "${{secrets.DB_URL}}",
+                "GLIF_NODE_URL": "${{vars.GLIF_NODE_URL}}"
             }
           }
         }' > containers.json
