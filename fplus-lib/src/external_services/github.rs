@@ -7,15 +7,12 @@ use hyper_rustls::HttpsConnectorBuilder;
 use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
-use octocrab::models::repos::{Branch, ContentItems, FileDeletion, FileUpdate, secrets::CreateRepositorySecret};
+use octocrab::models::repos::{Branch, ContentItems, FileDeletion, FileUpdate};
 use octocrab::models::{InstallationId, IssueState, Label};
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
 use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Page};
-use libsodium_sys as sodium;
-
-use base64::{encode, decode};
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
