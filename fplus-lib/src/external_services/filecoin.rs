@@ -13,7 +13,7 @@ pub async fn state_get_state(actor_address: &str) -> Result<StateReadStateRespon
         "id": 1
     });
 
-    let mut request = client.post(&node_url).json(&body);
+    let request = client.post(&node_url).json(&body);
 
     let response = request.send().await?.json::<StateReadStateResponse>().await?;
     Ok(response)
