@@ -115,10 +115,21 @@ pub async fn create_or_update_allocator(
         let conn = get_database_connection().await?;
         let mut allocator_active_model = allocator_model.into_active_model();
 
-        allocator_active_model.installation_id = Set(installation_id);
-        allocator_active_model.multisig_address = Set(multisig_address);
-        allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
-        allocator_active_model.multisig_threshold = Set(multisig_threshold);
+        if installation_id.is_some() {
+            allocator_active_model.installation_id = Set(installation_id);
+        }
+
+        if multisig_address.is_some() {
+            allocator_active_model.multisig_address = Set(multisig_address);
+        }
+
+        if verifiers_gh_handles.is_some() {
+            allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
+        }
+    
+        if multisig_threshold.is_some() {
+            allocator_active_model.multisig_threshold = Set(multisig_threshold);
+        }
 
         let updated_model = allocator_active_model.update(&conn).await?;
 

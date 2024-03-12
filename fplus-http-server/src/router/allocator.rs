@@ -1,6 +1,8 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
 use fplus_database::database::allocators as allocators_db;
-use fplus_lib::core::{allocator::{process_allocator_file, is_allocator_repo_created, create_allocator_repo}, AllocatorUpdateInfo, ChangedAllocator};
+use fplus_lib::core::{allocator::{
+    create_allocator_repo, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic
+}, AllocatorUpdateInfo, ChangedAllocator, InstallationIdUpdateInfo};
 
 /**
  * Get all allocators
@@ -47,7 +49,7 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
             let allocator_model = match allocators_db::create_or_update_allocator(
                 model.owner.clone(),
                 model.repo.clone(),
-                Some(model.installation_id as i64), 
+                None,
                 Some(model.multisig_address),      
                 verifiers_gh_handles,
                 model.multisig_threshold
@@ -95,7 +97,7 @@ pub async fn update(
     match allocators_db::update_allocator(
         &owner,
         &repo,
-        info.installation_id,
+        None,
         info.multisig_address.clone(),
         info.verifiers_gh_handles.clone(),
         info.multisig_threshold
@@ -154,6 +156,29 @@ pub async fn delete(path: web::Path<(String, String)>) -> impl Responder {
                 return HttpResponse::NotFound().body(e.to_string());
             }
             return HttpResponse::InternalServerError().body(e.to_string());
+        }
+    }
+}
+
+
+// #[post("/allocator/update_installation_ids")]
+// pub async fn update_installation_ids() -> impl Responder {
+//     match update_installation_ids_logic().await {
+//         Ok(results) => HttpResponse::Ok().json(results),
+//         Err(e) => {
+//             log::error!("Failed to fetch installation ids: {}", e);
+//             HttpResponse::InternalServerError().body(format!("{}", e))
+//         }
+//     }
+// }
+
+#[get("/allocator/update_installation_id")]
+pub async fn update_single_installation_id(query: web::Query<InstallationIdUpdateInfo>,) -> impl Responder {
+    match update_single_installation_id_logic(query.installation_id.to_string()).await {
+        Ok(results) => HttpResponse::Ok().json(results),
+        Err(e) => {
+            log::error!("Failed to fetch installation ids: {}", e);
+            HttpResponse::InternalServerError().body(format!("{}", e))
         }
     }
 }

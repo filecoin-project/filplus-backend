@@ -118,6 +118,13 @@ pub struct AllocatorUpdateInfo {
     pub multisig_threshold: Option<i32>,
 }
 
+
+#[derive(Deserialize)]
+pub struct InstallationIdUpdateInfo {
+    pub installation_id: i64,
+}
+
+
 #[derive(Deserialize)]
 pub struct GithubQueryParams {
     pub owner: String,
