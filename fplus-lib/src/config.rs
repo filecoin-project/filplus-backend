@@ -17,6 +17,7 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("ALLOCATOR_GOVERNANCE_OWNER", "fidlabs");
         m.insert("BOT_USER", "filplus-allocators-staging-bot[bot]");
         m.insert("BACKEND_URL", "https://fp-core.dp04sa0tdc6pk.us-east-1.cs.amazonlightsail.com");
+        m.insert("FILPLUS_ENV", "staging");
         
         m
     })
