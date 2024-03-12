@@ -1,6 +1,7 @@
 FROM rust:1.72 AS builder
 COPY ./fplus-lib /fplus-lib
 COPY ./fplus-http-server/Cargo.toml /fplus-http-server/Cargo.toml
+COPY ./Cargo.lock /fplus-http-server/Cargo.lock
 COPY ./fplus-http-server/src /fplus-http-server/src
 COPY ./fplus-database/Cargo.toml /fplus-database/Cargo.toml
 COPY ./fplus-database/src /fplus-database/src
