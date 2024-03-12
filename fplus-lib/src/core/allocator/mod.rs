@@ -19,7 +19,7 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     let path = file_name.to_string();
 
     let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id.clone());
-    let content_items = gh.get_file(&path, branch).await.map_err(|e| LDNError::Load(e.to_string()))?;
+    let content_items = gh.get_files_from_public_repo(&owner, &repo, branch, Some(&path)).await.map_err(|e| LDNError::Load(e.to_string()))?;
     let mut model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
 
     // Get multisig threshold from the blockchain if multisig address is available
