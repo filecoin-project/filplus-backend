@@ -1,4 +1,5 @@
 use env_logger;
+use fplus_lib::core::allocator::update_installation_ids_logic;
 use log::info;
 mod middleware;
 use middleware::verifier_auth::VerifierAuth;
@@ -12,6 +13,38 @@ use actix_web::{
     middleware::Logger,
 };
 
+use cron::Schedule;
+use std::str::FromStr;
+use std::time::{Duration, Instant};
+use tokio::time::sleep_until;
+use chrono::Utc;
+
+pub async fn run_cron<F>(expression: &str, mut task: F)
+where
+    F: FnMut() -> tokio::task::JoinHandle<()> + Send + 'static,
+{
+    let schedule = match Schedule::from_str(expression) {
+        Ok(schedule) => schedule,
+        Err(e) => {
+            log::error!("Failed to parse CRON expression: {}", e);
+            return; // Exit the function or handle the error without panicking
+        }
+    };
+    loop {
+        let now = Utc::now();
+        let next = match schedule.upcoming(Utc).next() {
+            Some(next_time) => next_time,
+            None => continue,
+        };
+
+        let sleep_duration = (next - now).to_std().unwrap_or_else(|_| Duration::from_secs(1));
+        let sleep_until_time = Instant::now() + sleep_duration;
+        sleep_until(sleep_until_time.into()).await;
+
+        let _ = task().await;
+    }
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
@@ -22,6 +55,11 @@ async fn main() -> std::io::Result<()> {
     if let Err(e) = fplus_database::setup().await {
         panic!("Failed to setup database connection: {}", e);
     }
+
+    tokio::spawn(async {
+        run_cron("0 0 0,4,8,12,16,20 * * * *", || tokio::spawn(update_installation_ids_logic())).await;
+    });
+
     HttpServer::new(move || {
         let cors = actix_cors::Cors::default()
             .allow_any_origin()
@@ -58,7 +96,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::allocator::allocator)
             .service(router::allocator::delete)
             .service(router::allocator::create_from_json)
-            .service(router::application::propose)
+            .service(router::allocator::update_single_installation_id)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

@@ -1,3 +1,5 @@
+use fplus_database::database::allocators::create_or_update_allocator;
+use octocrab::auth::create_jwt;
 use octocrab::models::repos::ContentItems;
 
 use crate::config::get_env_var_or_default;
@@ -7,7 +9,11 @@ use crate::{
     base64::decode_allocator_model, error::LDNError,
 };
 
-use self::file::AllocatorModel;
+use self::file::{AccessTokenResponse, AllocatorModel, Installation, InstallationRepositories, RepositoriesResponse, RepositoryInfo};
+
+use jsonwebtoken::EncodingKey;
+use reqwest::{Client, header};
+use anyhow::Result;
 
 pub mod file;
 
@@ -151,4 +157,127 @@ pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNErr
     }
 
     Ok(())
+}
+
+pub async fn generate_github_app_jwt() -> Result<String, jsonwebtoken::errors::Error> {
+    let app_id = get_env_var_or_default("GITHUB_APP_ID").parse().unwrap();
+    let pem = get_env_var_or_default("GH_PRIVATE_KEY");
+
+    return match EncodingKey::from_rsa_pem(pem.to_string().as_bytes()) {
+        Ok(key) => {
+            let token = create_jwt(octocrab::models::AppId(app_id), &key).unwrap();
+            Ok(token)
+        },
+        Err(e) => {
+            println!("Error: {:?}", e);
+            Err(e)
+        }
+    }
+
+}
+
+pub async fn fetch_installation_ids(client: &Client, jwt: &str) -> Result<Vec<u64>> {
+    let req_url = "https://api.github.com/app/installations";
+    let response = client.get(req_url)
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt))
+        .header(header::ACCEPT, "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .header(header::USER_AGENT, "YourApp")
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        log::error!("Request failed with status: {}", response.status());
+    }
+
+    let text = response.text().await?;
+
+    log::debug!("Response body: {}", text);
+
+    let installations: Vec<Installation> = match serde_json::from_str(&text) {
+        Ok(data) => data,
+        Err(e) => {
+            log::error!("Failed to parse response as JSON: {}", e);
+            return Err(e.into());
+        }
+    };
+    Ok(installations.into_iter().map(|i| i.id).collect())
+}
+
+pub async fn fetch_access_token(client: &Client, jwt: &str, installation_id: u64) -> Result<String> {
+    let req_url = format!("https://api.github.com/app/installations/{}/access_tokens", installation_id);
+    let res: AccessTokenResponse = client.post(req_url)
+        .header(header::AUTHORIZATION, format!("Bearer {}", jwt))
+        .header(header::USER_AGENT, "YourApp")
+        .send()
+        .await?
+        .json()
+        .await?;
+    Ok(res.token)
+}
+
+pub async fn fetch_repositories(client: &Client, token: &str) -> Result<Vec<RepositoryInfo>> {
+    let req_url = "https://api.github.com/installation/repositories";
+    let res: RepositoriesResponse = client.get(req_url)
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(header::USER_AGENT, "YourApp")
+        .send()
+        .await?
+        .json()
+        .await?;
+    Ok(res.repositories.into_iter().map(|r| RepositoryInfo { slug: r.name, owner: r.owner.login }).collect())
+}
+
+pub async fn fetch_repositories_for_installation_id(client: &Client, jwt: &str, id: u64) -> Result<Vec<RepositoryInfo>> {
+    let token = fetch_access_token(&client, &jwt, id).await.unwrap();
+    let repositories = fetch_repositories(&client, &token).await.unwrap();
+    Ok(repositories)
+}
+
+pub async fn update_installation_ids_in_db(installation: InstallationRepositories) {
+    let installation_id = installation.installation_id;
+    for repo in installation.repositories.iter() {
+        let owner = repo.owner.clone();
+        let repo = repo.slug.clone();
+        let _ = create_or_update_allocator(owner, repo, Some(installation_id.try_into().unwrap()), None, None, None).await;
+    }
+}
+
+pub async fn update_installation_ids_logic() {
+    let client = Client::new();
+    let jwt = match generate_github_app_jwt().await {
+        Ok(jwt) => jwt,
+        Err(e) => {
+            log::error!("Failed to generate GitHub App JWT: {}", e);
+            return;
+        }
+    };
+
+    let installation_ids_result = fetch_installation_ids(&client, &jwt).await;
+    let mut results: Vec<InstallationRepositories> = Vec::new();
+
+    for id in installation_ids_result.unwrap_or_default() {
+        let repositories: Vec<RepositoryInfo> = fetch_repositories_for_installation_id(&client, &jwt, id).await.unwrap();
+        results.push(InstallationRepositories { installation_id: id, repositories });
+    }
+
+    for installation in results.iter() {
+        update_installation_ids_in_db(installation.clone()).await;
+    }
+}
+
+pub async fn update_single_installation_id_logic(installation_id: String) -> Result<InstallationRepositories, LDNError> {
+    let client = Client::new();
+    let jwt = match generate_github_app_jwt().await {
+        Ok(jwt) => jwt,
+        Err(e) => {
+            log::error!("Failed to generate GitHub App JWT: {}", e);
+            return Err(LDNError::Load(e.to_string()));
+        }
+    };
+    
+    let repositories: Vec<RepositoryInfo> = fetch_repositories_for_installation_id(&client, &jwt, installation_id.parse().unwrap()).await.unwrap();
+    let installation = InstallationRepositories { installation_id: installation_id.parse().unwrap(), repositories };
+    update_installation_ids_in_db(installation.clone()).await;
+    return Ok(installation);
 }
