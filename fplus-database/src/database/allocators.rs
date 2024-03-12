@@ -152,6 +152,36 @@ pub async fn create_or_update_allocator(
 }
 
 /**
+ * Update the multisig threshold of an allocator in the database
+ * 
+ * This function specifically targets and updates only the multisig threshold of an existing allocator.
+ * 
+ * # Arguments
+ * @param owner: &str - The owner of the repository.
+ * @param repo: &str - The name of the repository.
+ * @param multisig_threshold: i32 - The new multisig threshold to be updated in the allocator.
+ * 
+ * # Returns
+ * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation.
+ * On successful update, it returns the updated AllocatorModel.
+ * On failure, it returns an error of type DbErr.
+ */
+pub async fn update_allocator_threshold(
+    owner: &str,
+    repo: &str,
+    multisig_threshold: i32,
+) -> Result<AllocatorModel, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+    let mut existing_allocator = get_allocator(owner, repo).await?
+        .ok_or_else(|| DbErr::Custom("Allocator not found".into()))?
+        .into_active_model();
+
+    existing_allocator.multisig_threshold = Set(Some(multisig_threshold));
+
+    existing_allocator.update(&conn).await
+}
+
+/**
  * Delete an allocator from the database
  * 
  * # Arguments

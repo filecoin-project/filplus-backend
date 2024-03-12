@@ -21,7 +21,7 @@ use crate::{
     }},
     parsers::ParsedIssue,
 };
-use fplus_database::database::{self, allocators::get_allocator};
+use fplus_database::database::{self, allocators::{get_allocator, update_allocator_threshold}};
 use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
@@ -677,7 +677,10 @@ impl LDNApplication {
         // If blockchain threshold is available and different from DB, update DB (placeholder for update logic)
         if let Some(blockchain_threshold) = blockchain_threshold {
             if blockchain_threshold != db_threshold {
-                // TODO: Update the database with the new threshold from the blockchain
+                match update_allocator_threshold(&owner, &repo, blockchain_threshold as i32).await {
+                    Ok(_) => log::info!("Database updated with new multisig threshold"),
+                    Err(e) => log::error!("Failed to update database: {}", e),
+                };
             }
         }
         // Use the blockchain threshold if available; otherwise, fall back to the database value
@@ -788,7 +791,10 @@ impl LDNApplication {
         // If blockchain threshold is available and different from DB, update DB (placeholder for update logic)
         if let Some(blockchain_threshold) = blockchain_threshold {
             if blockchain_threshold != db_threshold {
-                // TODO: Update the database with the new threshold from the blockchain
+                match update_allocator_threshold(&owner, &repo, blockchain_threshold as i32).await {
+                    Ok(_) => log::info!("Database updated with new multisig threshold"),
+                    Err(e) => log::error!("Failed to update database: {}", e),
+                };
             }
         }
 
