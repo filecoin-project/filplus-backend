@@ -16,12 +16,18 @@ use crate::{
     base64,
     config::get_env_var_or_default,
     error::LDNError,
-    external_services::{filecoin::get_multisig_threshold_for_actor, github::{
-        github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
-    }},
+    external_services::{
+        filecoin::get_multisig_threshold_for_actor,
+        github::{
+            github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
+        },
+    },
     parsers::ParsedIssue,
 };
-use fplus_database::database::{self, allocators::{get_allocator, update_allocator_threshold}};
+use fplus_database::database::{
+    self,
+    allocators::{get_allocator, update_allocator_threshold},
+};
 use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
@@ -155,8 +161,11 @@ pub struct ApplicationGithubInfo {
 }
 
 impl LDNApplication {
-
-    pub async fn single_active(pr_number: u64, owner: String, repo: String) -> Result<ApplicationFile, LDNError> {
+    pub async fn single_active(
+        pr_number: u64,
+        owner: String,
+        repo: String,
+    ) -> Result<ApplicationFile, LDNError> {
         let gh = github_async_new(owner, repo).await;
         let (_, pull_request) = gh.get_pull_request_files(pr_number).await.unwrap();
         let pull_request = pull_request.get(0).unwrap();
@@ -261,8 +270,11 @@ impl LDNApplication {
         Ok(app)
     }
 
-    pub async fn load(application_id: String, owner: String, repo: String) -> Result<Self, LDNError> {
-
+    pub async fn load(
+        application_id: String,
+        owner: String,
+        repo: String,
+    ) -> Result<Self, LDNError> {
         let gh = github_async_new(owner.to_string(), repo.to_string()).await;
         let pull_requests = gh.list_pull_requests().await.unwrap();
         let pull_requests = future::try_join_all(
@@ -370,7 +382,11 @@ impl LDNApplication {
         Ok(apps)
     }
 
-    pub async fn active_apps_with_last_update(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFileWithDate>, LDNError> {
+    pub async fn active_apps_with_last_update(
+        owner: String,
+        repo: String,
+        filter: Option<String>,
+    ) -> Result<Vec<ApplicationFileWithDate>, LDNError> {
         let gh = github_async_new(owner.to_string(), repo.to_string()).await;
         let mut apps: Vec<ApplicationFileWithDate> = Vec::new();
         let pull_requests = gh.list_pull_requests().await.unwrap();
@@ -404,9 +420,13 @@ impl LDNApplication {
         Ok(apps)
     }
 
-    pub async fn merged_apps_with_last_update(owner: String, repo: String, filter: Option<String>) -> Result<Vec<ApplicationFileWithDate>, LDNError> {
+    pub async fn merged_apps_with_last_update(
+        owner: String,
+        repo: String,
+        filter: Option<String>,
+    ) -> Result<Vec<ApplicationFileWithDate>, LDNError> {
         let gh = Arc::new(github_async_new(owner.to_string(), repo.to_string()).await);
-        
+
         let applications_path = "applications";
         let mut all_files_result = gh.get_files(applications_path).await.map_err(|e| {
             LDNError::Load(format!(
@@ -673,7 +693,7 @@ impl LDNApplication {
             }
         };
         let db_threshold: u64 = db_allocator.unwrap().multisig_threshold.unwrap_or(2) as u64;
-        
+
         // If blockchain threshold is available and different from DB, update DB (placeholder for update logic)
         if let Some(blockchain_threshold) = blockchain_threshold {
             if blockchain_threshold != db_threshold {
@@ -958,7 +978,8 @@ impl LDNApplication {
         if app.is_some() && app.unwrap().1.lifecycle.get_state() == AppState::Granted {
             let app = app.unwrap().1.reached_total_datacap();
             let gh = github_async_new(owner.to_string(), repo.to_string()).await;
-            let ldn_app = LDNApplication::load(application_id.clone(), owner.clone(), repo.clone()).await?;
+            let ldn_app =
+                LDNApplication::load(application_id.clone(), owner.clone(), repo.clone()).await?;
             let ContentItems { items } = gh.get_file(&ldn_app.file_name, "main").await.unwrap();
             Self::issue_full_dc(app.issue_number.clone(), owner.clone(), repo.clone()).await?;
             Self::update_issue_labels(
@@ -1228,7 +1249,11 @@ impl LDNApplication {
         return Ok(false);
     }
 
-    pub async fn merge_application(pr_number: u64, owner: String, repo: String) -> Result<bool, LDNError> {
+    pub async fn merge_application(
+        pr_number: u64,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner.to_string(), repo.to_string()).await;
 
         gh.merge_pull_request(pr_number).await.map_err(|e| {
@@ -1421,13 +1446,19 @@ impl LDNApplication {
                             log::warn!("Val Trigger (RtS) - Active allocation has signers");
                             false
                         } else if validated_at.is_empty() {
-                            log::warn!("Val Trigger (RtS) - Not ready to sign - validated_at is empty");
+                            log::warn!(
+                                "Val Trigger (RtS) - Not ready to sign - validated_at is empty"
+                            );
                             false
                         } else if validated_by.is_empty() {
-                            log::warn!("Val Trigger (RtS) - Not ready to sign - validated_by is empty");
+                            log::warn!(
+                                "Val Trigger (RtS) - Not ready to sign - validated_by is empty"
+                            );
                             false
                         } else if actor != bot_user {
-                            log::warn!("Val Trigger (RtS) - Not ready to sign - actor is not the bot user");
+                            log::warn!(
+                                "Val Trigger (RtS) - Not ready to sign - actor is not the bot user"
+                            );
                             false
                         } else if !valid_verifier_list.is_valid(&validated_by) {
                             log::warn!("Val Trigger (RtS) - Not ready to sign - valid_verifier_list is not valid");
@@ -1536,7 +1567,10 @@ impl LDNApplication {
             {
                 Some(()) => {
                     let gh = github_async_new(owner.to_string(), repo.to_string()).await;
-                    match gh.get_pull_request_by_head(&ldn_application.branch_name).await {
+                    match gh
+                        .get_pull_request_by_head(&ldn_application.branch_name)
+                        .await
+                    {
                         Ok(prs) => {
                             if let Some(pr) = prs.get(0) {
                                 let number = pr.number;
@@ -1605,10 +1639,30 @@ impl LDNApplication {
                             }
                         };
                     let signers: application::file::Verifiers = active_request.signers.clone();
-                    if signers.0.len() != 2 {
-                        log::warn!("Val Approval (G) - Not enough signers");
+
+                    // Try getting the multisig threshold from the blockchain
+                    let blockchain_threshold =
+                        get_multisig_threshold_for_actor("actor_address").await;
+
+                    // Fallback to database value if blockchain query fails
+                    let multisig_threshold = match blockchain_threshold {
+                        Ok(threshold) => threshold as usize,
+                        Err(_) => {
+                            let db_allocator = get_allocator(&owner, &repo).await
+                            .map_err(|e| LDNError::Load(format!("Database error: {}", e)))?;
+                            db_allocator
+                                .as_ref()
+                                .and_then(|allocator| allocator.multisig_threshold)
+                                .unwrap_or(2) as usize
+                        }
+                    };
+                    
+                    // Check if the number of signers meets or exceeds the multisig threshold
+                    if signers.0.len() < multisig_threshold {
+                        log::warn!("Not enough signers for approval");
                         return Ok(false);
                     }
+
                     let signer = signers.0.get(1).unwrap();
                     let signer_gh_handle = signer.github_username.clone();
                     let valid_verifiers =
@@ -1725,7 +1779,11 @@ impl LDNApplication {
         }
     }
 
-    async fn issue_waiting_for_gov_review(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+    async fn issue_waiting_for_gov_review(
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
         gh.add_comment_to_issue(
             issue_number.parse().unwrap(),
@@ -1742,7 +1800,11 @@ impl LDNApplication {
         Ok(true)
     }
 
-    async fn issue_datacap_request_trigger(application_file: ApplicationFile, owner: String, repo: String) -> Result<bool, LDNError> {
+    async fn issue_datacap_request_trigger(
+        application_file: ApplicationFile,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
 
         let client_address = application_file.lifecycle.client_on_chain_address.clone();
@@ -1922,7 +1984,11 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(true)
     }
 
-    async fn issue_start_sign_dc(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+    async fn issue_start_sign_dc(
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
         gh.add_comment_to_issue(
             issue_number.parse().unwrap(),
@@ -1938,7 +2004,11 @@ Your Datacap Allocation Request has been {} by the Notary
         .unwrap();
         Ok(true)
     }
-    async fn issue_granted(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+    async fn issue_granted(
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Granted")
             .await
@@ -1951,7 +2021,11 @@ Your Datacap Allocation Request has been {} by the Notary
             .unwrap();
         Ok(true)
     }
-    async fn issue_refill(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+    async fn issue_refill(
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is in Refill")
             .await
@@ -1973,7 +2047,11 @@ Your Datacap Allocation Request has been {} by the Notary
             .unwrap();
         Ok(true)
     }
-    async fn issue_full_dc(issue_number: String, owner: String, repo: String) -> Result<bool, LDNError> {
+    async fn issue_full_dc(
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Completed")
             .await
@@ -1987,7 +2065,12 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(true)
     }
 
-    async fn add_error_label(issue_number: String, comment: String, owner: String, repo: String) -> Result<(), LDNError> {
+    async fn add_error_label(
+        issue_number: String,
+        comment: String,
+        owner: String,
+        repo: String,
+    ) -> Result<(), LDNError> {
         let gh = github_async_new(owner, repo).await;
         let num: u64 = issue_number.parse().expect("Not a valid integer");
         gh.add_error_label(num, comment)
@@ -2003,8 +2086,13 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(())
     }
 
-    async fn update_issue_labels(issue_number: String, new_labels: &[&str], owner: String, repo: String) -> Result<(), LDNError> {
-        let gh = github_async_new(owner, repo).await; 
+    async fn update_issue_labels(
+        issue_number: String,
+        new_labels: &[&str],
+        owner: String,
+        repo: String,
+    ) -> Result<(), LDNError> {
+        let gh = github_async_new(owner, repo).await;
         let num: u64 = issue_number.parse().expect("Not a valid integer");
         gh.update_issue_labels(num, new_labels)
             .await
@@ -2440,8 +2528,8 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
 //         }
 
 //         let ldn_application_after_trigger = match LDNApplication::load(
-//             application_id.clone(), 
-//             OWNER.to_string(), 
+//             application_id.clone(),
+//             OWNER.to_string(),
 //             REPO.to_string()
 //         ).await
 //         {
