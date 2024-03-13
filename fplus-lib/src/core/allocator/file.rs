@@ -9,8 +9,6 @@ pub struct AllocatorModel {
     #[serde(rename = "address")]
     pub multisig_address: String,
     pub application: Application,
-    #[serde(rename = "common_ui_install_id")]
-    pub installation_id: u64, 
     #[serde(rename = "multisig_threshold")]
     pub multisig_threshold: Option<i32>,
 }
