@@ -1646,10 +1646,11 @@ impl LDNApplication {
                             }
                         };
                     let signers: application::file::Verifiers = active_request.signers.clone();
+                    let signer = signers.0.get(1).unwrap();
 
                     // Try getting the multisig threshold from the blockchain
                     let blockchain_threshold =
-                        get_multisig_threshold_for_actor("actor_address").await;
+                        get_multisig_threshold_for_actor(&signer.signing_address).await;
 
                     // Fallback to database value if blockchain query fails
                     let multisig_threshold = match blockchain_threshold {
