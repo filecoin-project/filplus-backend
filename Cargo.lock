@@ -922,7 +922,7 @@ dependencies = [
 
 [[package]]
 name = "fplus-database"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -966,7 +966,7 @@ dependencies = [
 
 [[package]]
 name = "fplus-lib"
-version = "1.3.0"
+version = "1.4.0"
 dependencies = [
  "actix-web",
  "anyhow",
