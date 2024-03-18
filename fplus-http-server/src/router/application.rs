@@ -3,7 +3,7 @@ use fplus_lib::core::{
         application::file::VerifierInput, ApplicationQueryParams,
         CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo,
         GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData,
-        VerifierActionsQueryParams,
+        VerifierActionsQueryParams, BranchDeleteInfo,
     };
 
 #[post("/application")]
@@ -293,6 +293,15 @@ pub async fn validate_application_merge(
             }
         }
         Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
+    }
+}
+
+#[post("/application/branch/delete")]
+pub async fn delete_branch(data: web::Json<BranchDeleteInfo>) -> actix_web::Result<impl Responder> {
+    let info = data.into_inner();
+    match LDNApplication::delete_merged_branch(info.owner, info.repo, info.branch_name).await {
+        Ok(result) => Ok(HttpResponse::Ok().json(result)),
+        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
     }
 }
 
