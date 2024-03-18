@@ -37,7 +37,7 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
 
     match process_allocator_file(file_name).await {
         Ok(model) => {
-            if model.multisig_address.is_empty() {
+            if model.pathway_addresses.msig.is_empty() {
                 return Ok(HttpResponse::BadRequest().body("Missing or invalid multisig_address"));
             }
             let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {
@@ -45,12 +45,16 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
             } else {
                 Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
             };
-            
+
+            let owner_repo_parts: Vec<&str> = model.application.allocation_bookkeeping.split('/').collect();
+            let owner = parts[3];
+            let repo = parts[4];
+
             let allocator_model = match allocators_db::create_or_update_allocator(
-                model.owner.clone(),
-                model.repo.clone(),
+                owner.to_string(),
+                owner.to_string(),
                 None,
-                Some(model.multisig_address),      
+                Some(model.pathway_addresses.msig),      
                 verifiers_gh_handles,
                 model.multisig_threshold
             ).await {
