@@ -47,8 +47,8 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
             };
 
             let owner_repo_parts: Vec<&str> = model.application.allocation_bookkeeping.split('/').collect();
-            let owner = parts[3];
-            let repo = parts[4];
+            let owner = parts[owner_repo_parts.len() - 2];
+            let repo = parts[owner_repo_parts.len() - 1];
 
             let allocator_model = match allocators_db::create_or_update_allocator(
                 owner.to_string(),
