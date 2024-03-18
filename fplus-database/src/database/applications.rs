@@ -193,7 +193,7 @@ pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_numb
     let pr_application = get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await?;
     let mut exists_merged = true;
 
-    let mut merged_application = match get_application_by_pr_number(owner.clone(), repo.clone(), 0).await {
+    let mut merged_application = match get_application(pr_application.id.clone(), owner.clone(), repo.clone(), Some(0)).await {
         Ok(application) => application.into_active_model(),
         Err(_) => {
             exists_merged = false;
