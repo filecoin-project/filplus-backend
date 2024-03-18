@@ -599,7 +599,7 @@ impl GithubWrapper {
             .create_pull_request(
                 &format!("Datacap for {}", owner_name),
                 &branch_name,
-                &format!("BODY"),
+                &format!(""),
             )
             .await?;
 
@@ -628,7 +628,7 @@ impl GithubWrapper {
             .create_pull_request(
                 &format!("Datacap for {}", owner_name),
                 &branch_name,
-                &format!("BODY"),
+                &format!(""),
             )
             .await?;
 
