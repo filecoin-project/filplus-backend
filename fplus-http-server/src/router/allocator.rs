@@ -52,7 +52,7 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
 
             let allocator_model = match allocators_db::create_or_update_allocator(
                 owner.to_string(),
-                owner.to_string(),
+                repo.to_string(),
                 None,
                 Some(model.pathway_addresses.msig),      
                 verifiers_gh_handles,
