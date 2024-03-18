@@ -687,7 +687,7 @@ impl LDNApplication {
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from blockchain
-        let blockchain_threshold = match get_multisig_threshold_for_actor("actor_address").await {
+        let blockchain_threshold = match get_multisig_threshold_for_actor(&signer.signing_address).await {
             Ok(threshold) => Some(threshold),
             Err(_) => None,
         };
@@ -803,7 +803,7 @@ impl LDNApplication {
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from blockchain
-        let blockchain_threshold = match get_multisig_threshold_for_actor("actor_address").await {
+        let blockchain_threshold = match get_multisig_threshold_for_actor(&signer.signing_address).await {
             Ok(threshold) => Some(threshold),
             Err(_) => None,
         };
