@@ -218,6 +218,7 @@ pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_numb
     hasher.update(application.as_bytes());
     let file_sha = format!("{:x}", hasher.finalize());
     merged_application.sha = Set(Some(file_sha));
+    merged_application.application = Set(pr_application.application.clone());
 
     pr_application.delete(&conn).await?;
 
