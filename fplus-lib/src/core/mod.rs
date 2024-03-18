@@ -1669,10 +1669,11 @@ impl LDNApplication {
                         log::warn!("Not enough signers for approval");
                         return Ok(false);
                     }
+                    let signer_index = if multisig_threshold <= 1 { 0 } else { 1 }; 
 
-                    let signer = signers.0.get(1).unwrap();
+                    let signer = signers.0.get(signer_index).unwrap();
                     let signer_gh_handle = signer.github_username.clone();
-                    let valid_verifiers =
+                    let valid_verifiers: ValidVerifierList =
                         Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
                     if valid_verifiers.is_valid(&signer_gh_handle) {
                         log::info!("Val Approval (G)- Validated!");
