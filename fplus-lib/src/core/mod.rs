@@ -687,7 +687,7 @@ impl LDNApplication {
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from blockchain
-        let blockchain_threshold = match get_multisig_threshold_for_actor("actor_address").await {
+        let blockchain_threshold = match get_multisig_threshold_for_actor(&signer.signing_address).await {
             Ok(threshold) => Some(threshold),
             Err(_) => None,
         };
@@ -803,7 +803,7 @@ impl LDNApplication {
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from blockchain
-        let blockchain_threshold = match get_multisig_threshold_for_actor("actor_address").await {
+        let blockchain_threshold = match get_multisig_threshold_for_actor(&signer.signing_address).await {
             Ok(threshold) => Some(threshold),
             Err(_) => None,
         };
@@ -1670,10 +1670,11 @@ impl LDNApplication {
                         log::warn!("Not enough signers for approval");
                         return Ok(false);
                     }
+                    let signer_index = if multisig_threshold <= 1 { 0 } else { 1 }; 
 
-                    let signer = signers.0.get(1).unwrap();
+                    let signer = signers.0.get(signer_index).unwrap();
                     let signer_gh_handle = signer.github_username.clone();
-                    let valid_verifiers =
+                    let valid_verifiers: ValidVerifierList =
                         Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
                     if valid_verifiers.is_valid(&signer_gh_handle) {
                         log::info!("Val Approval (G)- Validated!");
