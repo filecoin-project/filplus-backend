@@ -131,12 +131,10 @@ pub struct AllocatorUpdateInfo {
     pub multisig_threshold: Option<i32>,
 }
 
-
 #[derive(Deserialize)]
 pub struct InstallationIdUpdateInfo {
     pub installation_id: i64,
 }
-
 
 #[derive(Deserialize)]
 pub struct GithubQueryParams {
@@ -694,10 +692,11 @@ impl LDNApplication {
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from blockchain
-        let blockchain_threshold = match get_multisig_threshold_for_actor(&signer.signing_address).await {
-            Ok(threshold) => Some(threshold),
-            Err(_) => None,
-        };
+        let blockchain_threshold =
+            match get_multisig_threshold_for_actor(&signer.signing_address).await {
+                Ok(threshold) => Some(threshold),
+                Err(_) => None,
+            };
         // TODO: Convert DB errors to LDN Error
         // Get multisig threshold from the database
         let db_allocator = match get_allocator(&owner, &repo).await {
@@ -810,10 +809,11 @@ impl LDNApplication {
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from blockchain
-        let blockchain_threshold = match get_multisig_threshold_for_actor(&signer.signing_address).await {
-            Ok(threshold) => Some(threshold),
-            Err(_) => None,
-        };
+        let blockchain_threshold =
+            match get_multisig_threshold_for_actor(&signer.signing_address).await {
+                Ok(threshold) => Some(threshold),
+                Err(_) => None,
+            };
 
         // Get multisig threshold from the database
         let db_allocator = match get_allocator(&owner, &repo).await {
@@ -1653,7 +1653,32 @@ impl LDNApplication {
                             }
                         };
                     let signers: application::file::Verifiers = active_request.signers.clone();
-                    let signer = signers.0.get(1).unwrap();
+                    let num_signers = signers.0.len();
+                    // Default to first signer for validation
+                    let mut signer_index = 0;
+
+                    // If there are multiple signers, fetch the multisig threshold to determine which signer to validate
+                    if num_signers > 1 {
+                        let blockchain_threshold =
+                            get_multisig_threshold_for_actor(&signers.0[0].signing_address).await;
+                        let multisig_threshold = match blockchain_threshold {
+                            Ok(threshold) => threshold as usize,
+                            Err(_) => {
+                                let db_allocator =
+                                    get_allocator(&owner, &repo).await.map_err(|e| {
+                                        LDNError::Load(format!("Database error: {}", e))
+                                    })?;
+                                db_allocator
+                                    .as_ref()
+                                    .and_then(|allocator| allocator.multisig_threshold)
+                                    .unwrap_or(2) as usize
+                            }
+                        };
+                        // Adjust signer index based on multisig threshold
+                        signer_index = if multisig_threshold <= 1 { 0 } else { 1 };
+                    }
+                    
+                    let signer = signers.0.get(signer_index).unwrap();
 
                     // Try getting the multisig threshold from the blockchain
                     let blockchain_threshold =
@@ -1663,21 +1688,22 @@ impl LDNApplication {
                     let multisig_threshold = match blockchain_threshold {
                         Ok(threshold) => threshold as usize,
                         Err(_) => {
-                            let db_allocator = get_allocator(&owner, &repo).await
-                            .map_err(|e| LDNError::Load(format!("Database error: {}", e)))?;
+                            let db_allocator = get_allocator(&owner, &repo)
+                                .await
+                                .map_err(|e| LDNError::Load(format!("Database error: {}", e)))?;
                             db_allocator
                                 .as_ref()
                                 .and_then(|allocator| allocator.multisig_threshold)
                                 .unwrap_or(2) as usize
                         }
                     };
-                    
+
                     // Check if the number of signers meets or exceeds the multisig threshold
                     if signers.0.len() < multisig_threshold {
                         log::warn!("Not enough signers for approval");
                         return Ok(false);
                     }
-                    let signer_index = if multisig_threshold <= 1 { 0 } else { 1 }; 
+                    let signer_index = if multisig_threshold <= 1 { 0 } else { 1 };
 
                     let signer = signers.0.get(signer_index).unwrap();
                     let signer_gh_handle = signer.github_username.clone();
@@ -1795,17 +1821,16 @@ impl LDNApplication {
         }
     }
 
-    pub async fn delete_merged_branch(owner: String, repo: String, branch_name: String) -> Result<bool, LDNError> {
+    pub async fn delete_merged_branch(
+        owner: String,
+        repo: String,
+        branch_name: String,
+    ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
         let request = gh.build_remove_ref_request(branch_name.clone()).unwrap();
 
-        gh.remove_branch(request)
-        .await
-        .map_err(|e| {
-            return LDNError::New(format!(
-                "Error deleting branch {} /// {}",
-                branch_name, e
-            ));
+        gh.remove_branch(request).await.map_err(|e| {
+            return LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e));
         })?;
 
         Ok(true)
