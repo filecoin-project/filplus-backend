@@ -47,6 +47,13 @@ pub struct CreateApplicationInfo {
     pub repo: String,
 }
 
+#[derive(Deserialize)]
+pub struct BranchDeleteInfo {
+    pub owner: String,
+    pub repo: String,
+    pub branch_name: String,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct VerifierList(pub Vec<String>);
 
@@ -1786,6 +1793,22 @@ impl LDNApplication {
                 pr_number, e
             ))),
         }
+    }
+
+    pub async fn delete_merged_branch(owner: String, repo: String, branch_name: String) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner, repo).await;
+        let request = gh.build_remove_ref_request(branch_name.clone()).unwrap();
+
+        gh.remove_branch(request)
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error deleting branch {} /// {}",
+                branch_name, e
+            ));
+        })?;
+
+        Ok(true)
     }
 
     async fn issue_waiting_for_gov_review(
