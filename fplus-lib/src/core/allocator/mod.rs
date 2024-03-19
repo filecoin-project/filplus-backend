@@ -29,7 +29,7 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     let mut model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
 
     // Get multisig threshold from the blockchain if multisig address is available
-    if let Ok(blockchain_threshold) = get_multisig_threshold_for_actor(&model.multisig_address).await {
+    if let Ok(blockchain_threshold) = get_multisig_threshold_for_actor(&model.pathway_addresses.msig).await {
         model.multisig_threshold = Some(blockchain_threshold as i32);
     } else {
         log::warn!("Blockchain multisig threshold not found, using default or provided value");
@@ -55,7 +55,16 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
     log::info!("Cleaned content: {:?}", cleaned_content);
 
     match decode_allocator_model(&cleaned_content) {
-        Some(model) => {
+        Some(mut model) => {
+            let owner_repo_parts: Vec<&str> = model.application.allocation_bookkeeping.split('/').collect();
+            if owner_repo_parts.len() < 2 {
+                log::error!("Failed to parse allocator model");
+                return Err(LDNError::Load("Failed to parse allocator model".to_string()));
+            }
+            
+            model.owner = Some(owner_repo_parts[owner_repo_parts.len() - 2].to_string());
+            model.repo = Some(owner_repo_parts[owner_repo_parts.len() - 1].to_string());
+            
             log::info!("Parsed allocator model successfully");
             Ok(model)
         }

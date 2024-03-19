@@ -2,21 +2,24 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AllocatorModel {
-    #[serde(rename = "slug")]
-    pub repo: String,  
-    #[serde(rename = "organization")]
-    pub owner: String,
-    #[serde(rename = "address")]
-    pub multisig_address: String,
     pub application: Application,
-    #[serde(rename = "multisig_threshold")]
     pub multisig_threshold: Option<i32>,
+    pub pathway_addresses: AllocatorModelPathwayAddresses,
+    pub owner: Option<String>,
+    pub repo: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AllocatorModelPathwayAddresses {
+    pub msig: String,
+    pub signer: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Application {
     #[serde(rename = "github_handles")]
-    pub verifiers_gh_handles: Vec<String>
+    pub verifiers_gh_handles: Vec<String>,
+    pub allocation_bookkeeping: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -37,7 +37,7 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
 
     match process_allocator_file(file_name).await {
         Ok(model) => {
-            if model.multisig_address.is_empty() {
+            if model.pathway_addresses.msig.is_empty() {
                 return Ok(HttpResponse::BadRequest().body("Missing or invalid multisig_address"));
             }
             let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {
@@ -45,12 +45,14 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
             } else {
                 Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
             };
-            
+            let owner = model.owner.clone().unwrap_or_default().to_string();
+            let repo = model.repo.clone().unwrap_or_default().to_string();
+
             let allocator_model = match allocators_db::create_or_update_allocator(
-                model.owner.clone(),
-                model.repo.clone(),
+                owner.clone(),
+                repo.clone(),
                 None,
-                Some(model.multisig_address),      
+                Some(model.pathway_addresses.msig),      
                 verifiers_gh_handles,
                 model.multisig_threshold
             ).await {
@@ -58,11 +60,11 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
                 Err(e) => return Ok(HttpResponse::BadRequest().body(e.to_string())),
             };
 
-            match is_allocator_repo_created(&model.owner, &model.repo).await {
+            match is_allocator_repo_created(&owner, &repo).await {
                 Ok(true) => Ok(HttpResponse::Ok().json(allocator_model)),
                 Ok(false) => {
                     //Create allocator repo. If it fails, return http error
-                    match create_allocator_repo(&model.owner, &model.repo).await {
+                    match create_allocator_repo(&owner, &repo).await {
                         Ok(files_list) => {
                             log::info!("Allocator repo created successfully: {:?}", files_list);
                             Ok(HttpResponse::Ok().json(allocator_model))
