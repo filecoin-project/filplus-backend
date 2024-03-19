@@ -691,21 +691,24 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
-        // Get multisig threshold from blockchain
-        let blockchain_threshold =
-            match get_multisig_threshold_for_actor(&signer.signing_address).await {
-                Ok(threshold) => Some(threshold),
-                Err(_) => None,
-            };
         // TODO: Convert DB errors to LDN Error
         // Get multisig threshold from the database
         let db_allocator = match get_allocator(&owner, &repo).await {
-            Ok(allocator) => allocator,
+            Ok(allocator) => allocator.unwrap(),
             Err(err) => {
                 return Err(LDNError::New(format!("Database: get_allocator: {}", err)));
             }
         };
-        let db_threshold: u64 = db_allocator.unwrap().multisig_threshold.unwrap_or(2) as u64;
+        let db_multisig_address = db_allocator.multisig_address.unwrap();
+
+        // Get multisig threshold from blockchain
+        let blockchain_threshold =
+            match get_multisig_threshold_for_actor(&db_multisig_address).await {
+                Ok(threshold) => Some(threshold),
+                Err(_) => None,
+            };
+
+        let db_threshold: u64 = db_allocator.multisig_threshold.unwrap_or(2) as u64;
 
         // If blockchain threshold is available and different from DB, update DB (placeholder for update logic)
         if let Some(blockchain_threshold) = blockchain_threshold {
@@ -808,34 +811,17 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
-        // Get multisig threshold from blockchain
-        let blockchain_threshold =
-            match get_multisig_threshold_for_actor(&signer.signing_address).await {
-                Ok(threshold) => Some(threshold),
-                Err(_) => None,
-            };
-
         // Get multisig threshold from the database
         let db_allocator = match get_allocator(&owner, &repo).await {
-            Ok(allocator) => allocator,
-            Err(err) => return Err(LDNError::New(format!("Database: get_allocator: {}", err))),
-        };
-        let db_threshold: u64 = db_allocator.unwrap().multisig_threshold.unwrap_or(2) as u64;
-
-        // If blockchain threshold is available and different from DB, update DB (placeholder for update logic)
-        if let Some(blockchain_threshold) = blockchain_threshold {
-            if blockchain_threshold != db_threshold {
-                match update_allocator_threshold(&owner, &repo, blockchain_threshold as i32).await {
-                    Ok(_) => log::info!("Database updated with new multisig threshold"),
-                    Err(e) => log::error!("Failed to update database: {}", e),
-                };
+            Ok(allocator) => allocator.unwrap(),
+            Err(err) => {
+                return Err(LDNError::New(format!("Database: get_allocator: {}", err)));
             }
-        }
-
-        // Use the blockchain threshold if available; otherwise, fall back to the database value
-        let threshold_to_use = blockchain_threshold.unwrap_or(db_threshold);
+        };
+        let threshold_to_use = db_allocator.multisig_threshold.unwrap_or(2) as usize;
 
         let app_state = self.app_state().await?;
+
         if app_state != AppState::StartSignDatacap
             && !(threshold_to_use == 1 && app_state == AppState::ReadyToSign)
         {
@@ -844,6 +830,7 @@ impl LDNApplication {
                 self.application_id
             )));
         }
+
         let app_file: ApplicationFile = self.file().await?;
         let app_lifecycle = app_file.lifecycle.finish_approval();
 
@@ -879,10 +866,6 @@ impl LDNApplication {
             request_id.clone(),
             app_lifecycle,
         );
-        // If the number of current signers plus this one is less than the threshold, return early
-        if current_signers.len() + 1 < multisig_threshold_usize as usize {
-            return Ok(app_file);
-        }
 
         let file_content = serde_json::to_string_pretty(&app_file).unwrap();
         let commit_result = LDNPullRequest::add_commit_to(
@@ -1652,63 +1635,30 @@ impl LDNApplication {
                                 return Ok(false);
                             }
                         };
-                    let signers: application::file::Verifiers = active_request.signers.clone();
-                    let num_signers = signers.0.len();
-                    // Default to first signer for validation
-                    let mut signer_index = 0;
 
-                    // If there are multiple signers, fetch the multisig threshold to determine which signer to validate
-                    if num_signers > 1 {
-                        let blockchain_threshold =
-                            get_multisig_threshold_for_actor(&signers.0[0].signing_address).await;
-                        let multisig_threshold = match blockchain_threshold {
-                            Ok(threshold) => threshold as usize,
-                            Err(_) => {
-                                let db_allocator =
-                                    get_allocator(&owner, &repo).await.map_err(|e| {
-                                        LDNError::Load(format!("Database error: {}", e))
-                                    })?;
-                                db_allocator
-                                    .as_ref()
-                                    .and_then(|allocator| allocator.multisig_threshold)
-                                    .unwrap_or(2) as usize
-                            }
-                        };
-                        // Adjust signer index based on multisig threshold
-                        signer_index = if multisig_threshold <= 1 { 0 } else { 1 };
-                    }
-                    
-                    let signer = signers.0.get(signer_index).unwrap();
-
-                    // Try getting the multisig threshold from the blockchain
-                    let blockchain_threshold =
-                        get_multisig_threshold_for_actor(&signer.signing_address).await;
-
-                    // Fallback to database value if blockchain query fails
-                    let multisig_threshold = match blockchain_threshold {
-                        Ok(threshold) => threshold as usize,
-                        Err(_) => {
-                            let db_allocator = get_allocator(&owner, &repo)
-                                .await
-                                .map_err(|e| LDNError::Load(format!("Database error: {}", e)))?;
-                            db_allocator
-                                .as_ref()
-                                .and_then(|allocator| allocator.multisig_threshold)
-                                .unwrap_or(2) as usize
+                    let db_allocator = match get_allocator(&owner, &repo).await {
+                        Ok(allocator) => allocator.unwrap(),
+                        Err(err) => {
+                            return Err(LDNError::New(format!("Database: get_allocator: {}", err)));
                         }
                     };
+                    let db_multisig_threshold = db_allocator.multisig_threshold.unwrap_or(2) as usize;
+                    let signers: application::file::Verifiers = active_request.signers.clone();
 
                     // Check if the number of signers meets or exceeds the multisig threshold
-                    if signers.0.len() < multisig_threshold {
+                    if signers.0.len() < db_multisig_threshold {
                         log::warn!("Not enough signers for approval");
                         return Ok(false);
                     }
-                    let signer_index = if multisig_threshold <= 1 { 0 } else { 1 };
+                    let signer_index = if db_multisig_threshold <= 1 { 0 } else { 1 };
 
                     let signer = signers.0.get(signer_index).unwrap();
                     let signer_gh_handle = signer.github_username.clone();
+
                     let valid_verifiers: ValidVerifierList =
                         Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
+
+                        
                     if valid_verifiers.is_valid(&signer_gh_handle) {
                         log::info!("Val Approval (G)- Validated!");
                         Self::issue_datacap_request_signature(

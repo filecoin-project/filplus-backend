@@ -1,8 +1,8 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
 use fplus_database::database::allocators as allocators_db;
-use fplus_lib::core::{allocator::{
+use fplus_lib::{core::{allocator::{
     create_allocator_repo, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic
-}, AllocatorUpdateInfo, ChangedAllocator, InstallationIdUpdateInfo};
+}, AllocatorUpdateInfo, ChangedAllocator, InstallationIdUpdateInfo}, external_services::filecoin::get_multisig_threshold_for_actor};
 
 /**
  * Get all allocators
@@ -47,6 +47,12 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
             };
             let owner = model.owner.clone().unwrap_or_default().to_string();
             let repo = model.repo.clone().unwrap_or_default().to_string();
+            
+            let blockchain_threshold =
+            match get_multisig_threshold_for_actor(&model.pathway_addresses.msig).await {
+                Ok(threshold) => Some(threshold as i32),
+                Err(_) => None,
+            };
 
             let allocator_model = match allocators_db::create_or_update_allocator(
                 owner.clone(),
@@ -54,7 +60,7 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
                 None,
                 Some(model.pathway_addresses.msig),      
                 verifiers_gh_handles,
-                model.multisig_threshold
+                blockchain_threshold
             ).await {
                 Ok(allocator_model) => allocator_model,
                 Err(e) => return Ok(HttpResponse::BadRequest().body(e.to_string())),
