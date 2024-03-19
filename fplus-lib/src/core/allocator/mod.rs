@@ -56,7 +56,11 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
 
     match decode_allocator_model(&cleaned_content) {
         Some(mut model) => {
-            let owner_repo_parts: Vec<&str> = model.application.allocation_bookkeeping.split('/').collect();
+            let mut owner_repo_parts: Vec<&str> = model.application.allocation_bookkeeping.split('/').collect();
+            // If last part is empty, remove it
+            if owner_repo_parts[owner_repo_parts.len() - 1].is_empty() {
+                owner_repo_parts.pop();
+            }
             if owner_repo_parts.len() < 2 {
                 log::error!("Failed to parse allocator model");
                 return Err(LDNError::Load("Failed to parse allocator model".to_string()));
