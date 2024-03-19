@@ -3,14 +3,16 @@ use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AllocatorModel {
     pub application: Application,
-    #[serde(rename = "multisig_threshold")]
     pub multisig_threshold: Option<i32>,
-    pub pathway_addresses: AllocatorModelPathwayAddresses
+    pub pathway_addresses: AllocatorModelPathwayAddresses,
+    pub owner: Option<String>,
+    pub repo: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AllocatorModelPathwayAddresses {
     pub msig: String,
+    pub signer: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

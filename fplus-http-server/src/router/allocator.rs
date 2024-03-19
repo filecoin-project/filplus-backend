@@ -45,14 +45,12 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
             } else {
                 Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
             };
-
-            let owner_repo_parts: Vec<&str> = model.application.allocation_bookkeeping.split('/').collect();
-            let owner = parts[owner_repo_parts.len() - 2];
-            let repo = parts[owner_repo_parts.len() - 1];
+            let owner = model.owner.clone().unwrap_or_default().to_string();
+            let repo = model.repo.clone().unwrap_or_default().to_string();
 
             let allocator_model = match allocators_db::create_or_update_allocator(
-                owner.to_string(),
-                repo.to_string(),
+                owner.clone(),
+                repo.clone(),
                 None,
                 Some(model.pathway_addresses.msig),      
                 verifiers_gh_handles,
@@ -62,11 +60,11 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
                 Err(e) => return Ok(HttpResponse::BadRequest().body(e.to_string())),
             };
 
-            match is_allocator_repo_created(&model.owner, &model.repo).await {
+            match is_allocator_repo_created(&owner, &repo).await {
                 Ok(true) => Ok(HttpResponse::Ok().json(allocator_model)),
                 Ok(false) => {
                     //Create allocator repo. If it fails, return http error
-                    match create_allocator_repo(&model.owner, &model.repo).await {
+                    match create_allocator_repo(&owner, &repo).await {
                         Ok(files_list) => {
                             log::info!("Allocator repo created successfully: {:?}", files_list);
                             Ok(HttpResponse::Ok().json(allocator_model))
