@@ -47,12 +47,6 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
             };
             let owner = model.owner.clone().unwrap_or_default().to_string();
             let repo = model.repo.clone().unwrap_or_default().to_string();
-            
-            let blockchain_threshold =
-            match get_multisig_threshold_for_actor(&model.pathway_addresses.msig).await {
-                Ok(threshold) => Some(threshold as i32),
-                Err(_) => None,
-            };
 
             let allocator_model = match allocators_db::create_or_update_allocator(
                 owner.clone(),
@@ -60,7 +54,7 @@ pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::R
                 None,
                 Some(model.pathway_addresses.msig),      
                 verifiers_gh_handles,
-                blockchain_threshold
+                model.multisig_threshold
             ).await {
                 Ok(allocator_model) => allocator_model,
                 Err(e) => return Ok(HttpResponse::BadRequest().body(e.to_string())),
