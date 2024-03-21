@@ -2,7 +2,7 @@ use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
 use fplus_database::database::allocators as allocators_db;
 use fplus_lib::core::{allocator::{
     create_allocator_repo, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic, force_update_allocators
-}, AllocatorUpdateInfo, ChangedAllocator, InstallationIdUpdateInfo, AllocatorUpdateForceInfo};
+}, AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo, AllocatorUpdateForceInfo};
 
 /**
  * Get all allocators
@@ -31,52 +31,75 @@ pub async fn allocators() -> impl Responder {
  * @return HttpResponse - The result of the operation
  */
 #[post("/allocator/create")]
-pub async fn create_from_json(file: web::Json<ChangedAllocator>) -> actix_web::Result<impl Responder> {
-    let file_name = &file.file_changed;
-    log::info!("Starting allocator creation on:  {}", file_name);
+pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web::Result<impl Responder> {
+    println!("Files: {:?}", files);
+    let mut error_response: Option<HttpResponse> = None;
 
-    match process_allocator_file(file_name).await {
-        Ok(model) => {
-            if model.pathway_addresses.msig.is_empty() {
-                return Ok(HttpResponse::BadRequest().body("Missing or invalid multisig_address"));
-            }
-            let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {
-                None
-            } else {
-                Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
-            };
-            let owner = model.owner.clone().unwrap_or_default().to_string();
-            let repo = model.repo.clone().unwrap_or_default().to_string();
+    for file_name in &files.files_changed {
+        log::info!("Starting allocator creation on: {}", file_name);
 
-            let allocator_model = match allocators_db::create_or_update_allocator(
-                owner.clone(),
-                repo.clone(),
-                None,
-                Some(model.pathway_addresses.msig),      
-                verifiers_gh_handles,
-                model.multisig_threshold
-            ).await {
-                Ok(allocator_model) => allocator_model,
-                Err(e) => return Ok(HttpResponse::BadRequest().body(e.to_string())),
-            };
+        match process_allocator_file(file_name).await {
+            Ok(model) => {
+                if model.pathway_addresses.msig.is_empty() {
+                    error_response = Some(HttpResponse::BadRequest().body("Missing or invalid multisig_address"));
+                    break
+                }
+                let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {
+                    None
+                } else {
+                    Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
+                };
+                let owner = model.owner.clone().unwrap_or_default().to_string();
+                let repo = model.repo.clone().unwrap_or_default().to_string();
 
-            match is_allocator_repo_created(&owner, &repo).await {
-                Ok(true) => Ok(HttpResponse::Ok().json(allocator_model)),
-                Ok(false) => {
-                    //Create allocator repo. If it fails, return http error
-                    match create_allocator_repo(&owner, &repo).await {
-                        Ok(files_list) => {
-                            log::info!("Allocator repo created successfully: {:?}", files_list);
-                            Ok(HttpResponse::Ok().json(allocator_model))
+                let allocator_creation_result = allocators_db::create_or_update_allocator(
+                    owner.clone(),
+                    repo.clone(),
+                    None,
+                    Some(model.pathway_addresses.msig),      
+                    verifiers_gh_handles,
+                    model.multisig_threshold
+                ).await;
+
+
+
+                match allocator_creation_result {
+                    Ok(_) => {
+                        match is_allocator_repo_created(&owner, &repo).await {
+                            Ok(true) => (),
+                            Ok(false) => {
+                                match create_allocator_repo(&owner, &repo).await {
+                                    Ok(_) => (),
+                                    Err(e) => {
+                                        error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
+                                        break;
+                                    }
+                                }
+                            },
+                            Err(e) => {
+                                error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
+                                break;
+                            },
                         }
-                        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
-                    }
-                },
-                Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
-            }
-        },
-        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+                    },
+                    Err(e) => {
+                        error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
+                        break;
+                    },
+                }
+            },
+            Err(e) => {
+                error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
+                break;
+            },
+        }
     }
+
+    if let Some(response) = error_response {
+        return Ok(response);
+    }
+
+    Ok(HttpResponse::Ok().body("All files processed successfully"))
 }
 
 
