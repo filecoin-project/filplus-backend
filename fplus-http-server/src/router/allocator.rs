@@ -1,8 +1,8 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
 use fplus_database::database::allocators as allocators_db;
-use fplus_lib::{core::{allocator::{
-    create_allocator_repo, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic
-}, AllocatorUpdateInfo, ChangedAllocator, InstallationIdUpdateInfo}, external_services::filecoin::get_multisig_threshold_for_actor};
+use fplus_lib::core::{allocator::{
+    create_allocator_repo, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic, force_update_allocators
+}, AllocatorUpdateInfo, ChangedAllocator, InstallationIdUpdateInfo, AllocatorUpdateForceInfo};
 
 /**
  * Get all allocators
@@ -180,6 +180,29 @@ pub async fn update_single_installation_id(query: web::Query<InstallationIdUpdat
         Ok(results) => HttpResponse::Ok().json(results),
         Err(e) => {
             log::error!("Failed to fetch installation ids: {}", e);
+            HttpResponse::InternalServerError().body(format!("{}", e))
+        }
+    }
+}
+
+/**
+ * Force updating allocator files from template.
+ * It receives a list of changed files and allocators to update.
+ * If allocators is not provided, it will update all allocators as long as they have an installation id.
+ * 
+ * # Arguments
+ * @param AllocatorUpdateForceInfo - The list of changed JSON file names and allocators to update
+ */
+#[post("/allocator/update/force")]
+pub async fn update_allocator_force(body: web::Json<AllocatorUpdateForceInfo>) -> impl Responder {
+    // First we need to deconstruct the body
+    let AllocatorUpdateForceInfo { files, allocators: affected_allocators } = body.into_inner();
+
+    // Logic will be implemented in allocator::update_allocator_force
+    match force_update_allocators(files, affected_allocators).await {
+        Ok(results) => HttpResponse::Ok().json(results),
+        Err(e) => {
+            log::error!("Failed to update allocators: {}", e);
             HttpResponse::InternalServerError().body(format!("{}", e))
         }
     }

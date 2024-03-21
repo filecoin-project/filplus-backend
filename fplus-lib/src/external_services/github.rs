@@ -427,6 +427,24 @@ impl GithubWrapper {
         Ok(iid)
     }
 
+    pub async fn update_file (
+        &self,
+        path: &str,
+        message: &str,
+        content: &str,
+        branch: &str,
+        file_sha: &str,
+     ) -> Result<FileUpdate, OctocrabError> {
+        let iid = self
+            .inner
+            .repos(&self.owner, &self.repo)
+            .update_file(path, message, content, file_sha)
+            .branch(branch)
+            .send()
+            .await?;
+        Ok(iid)
+    }
+
     pub async fn get_pull_request_by_number(
         &self,
         number: u64,
