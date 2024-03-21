@@ -118,9 +118,9 @@ pub struct Allocator {
     pub verifiers_gh_handles: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub struct ChangedAllocator {
-    pub file_changed: String,
+#[derive(Deserialize, Debug)]
+pub struct ChangedAllocators {
+    pub files_changed: Vec<String>,
 }
 
 #[derive(Deserialize)]
