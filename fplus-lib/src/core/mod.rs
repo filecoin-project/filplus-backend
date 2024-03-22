@@ -124,6 +124,12 @@ pub struct ChangedAllocators {
 }
 
 #[derive(Deserialize)]
+pub struct AllocatorUpdateForceInfo {
+    pub files: Vec<String>,
+    pub allocators: Option<Vec<GithubQueryParams>>
+}
+
+#[derive(Deserialize)]
 pub struct AllocatorUpdateInfo {
     pub installation_id: Option<i64>,
     pub multisig_address: Option<String>,

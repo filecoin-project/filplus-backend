@@ -1,6 +1,8 @@
-use fplus_database::database::allocators::create_or_update_allocator;
+use fplus_database::database::allocators::{create_or_update_allocator, get_allocators,};
+use fplus_database::models::allocators::Model;
+
 use octocrab::auth::create_jwt;
-use octocrab::models::repos::ContentItems;
+use octocrab::models::repos::{ContentItems, Content};
 
 use crate::config::get_env_var_or_default;
 use crate::external_services::filecoin::get_multisig_threshold_for_actor;
@@ -14,6 +16,8 @@ use self::file::{AccessTokenResponse, AllocatorModel, Installation, Installation
 use jsonwebtoken::EncodingKey;
 use reqwest::{Client, header};
 use anyhow::Result;
+
+use super::GithubQueryParams;
 
 pub mod file;
 
@@ -110,6 +114,52 @@ pub async fn is_allocator_repo_created(owner: &str, repo: &str) -> Result<bool, 
     }
 }
 
+pub async fn create_file_in_repo(gh: &GithubWrapper, file: &Content, force: bool) -> Result<(), LDNError> {
+    let file_path = file.path.clone();
+    let file_sha = file.sha.clone();
+    let file = reqwest::Client::new()
+        .get(&file.download_url.clone().unwrap())
+        .send()
+        .await
+        .map_err(|e| LDNError::Load(format!("here {}", e)))?;
+    let file = file
+        .text()
+        .await
+        .map_err(|e| LDNError::Load(format!("here1 {}", e)))?;
+
+    //Get file from target repo. If file does not exist or fails to retrieve, create it
+    let target_file = gh.get_file(&file_path, "main").await.map_err(|e| {
+        LDNError::Load(format!("Failed to retrieve file from GitHub. Reason: {} in file {}", e, file_path))
+    });
+
+    match target_file {
+        Ok(target_file) => {
+            if target_file.items.is_empty() {
+                log::info!("Creating file in target repo: {}", file_path);
+                gh.add_file(&file_path, &file, "first commit", "main").await.map_err(|e| {
+                    LDNError::Load(format!("Failed to create file in GitHub repo {}/{}. Reason: {} in file {}", gh.owner.clone(), gh.repo.clone(), e, file_path))
+                })?;
+            } else if !force {
+                log::info!("File already exists in target repo {}/{}: {}", gh.owner.clone(), gh.repo.clone(), file_path);
+            } else if target_file.items[0].sha.clone() != file_sha {
+                log::info!("Force creating file in target repo {}/{}: {}", gh.owner.clone(), gh.repo.clone(), file_path);
+                let file_sha = target_file.items[0].sha.clone();
+                gh.update_file(&file_path,"Update", &file, "main", &file_sha).await.map_err(|e| {
+                    LDNError::Load(format!("Failed to update file in GitHub repo {}/{}. Reason: {} in file {}", gh.owner.clone(), gh.repo.clone(), e, file_path))
+                })?;
+            }
+        },
+        Err(_) => {
+            log::info!("Creating file in target repo: {}", file_path);
+            gh.add_file(&file_path, &file, "first commit", "main").await.map_err(|e| {
+                LDNError::Load(format!("Failed to create file in GitHub repo {}/{}. Reason: {} in file {}", gh.owner.clone(), gh.repo.clone(), e, file_path))
+            })?;
+        },
+    }
+
+    Ok(())
+}
+
 pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNError> {
     let gh = github_async_new(owner.to_string(), repo.to_string()).await;
     let mut dirs = Vec::new();
@@ -133,39 +183,7 @@ pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNErr
                 dirs.push(file_path);
                 continue;
             }
-            let file = reqwest::Client::new()
-            .get(&file.download_url.clone().unwrap())
-            .send()
-            .await
-            .map_err(|e| LDNError::Load(format!("here {}", e)))?;
-            let file = file
-                .text()
-                .await
-                .map_err(|e| LDNError::Load(format!("here1 {}", e)))?;
-
-            //Get file from target repo. If file does not exist or fails to retrieve, create it
-            let target_file = gh.get_file(&file_path, "main").await.map_err(|e| {
-                LDNError::Load(format!("Failed to retrieve file from GitHub. Reason: {} in file {}", e, file_path))
-            });
-
-            match target_file {
-                Ok(target_file) => {
-                    if target_file.items.is_empty() {
-                        log::info!("Creating file in target repo: {}", file_path);
-                        gh.add_file(&file_path, &file, "first commit", "main").await.map_err(|e| {
-                            LDNError::Load(format!("Failed to create file in GitHub. Reason: {} in file {}", e, file_path))
-                        })?;
-                    } else {
-                        log::info!("File already exists in target repo: {}", file_path);
-                    }
-                },
-                Err(_) => {
-                    log::info!("Creating file in target repo: {}", file_path);
-                    gh.add_file(&file_path, &file, "first commit", "main").await.map_err(|e| {
-                        LDNError::Load(format!("Failed to create file in GitHub. Reason: {} in file {}", e, file_path))
-                    })?;
-                },
-            }
+            self::create_file_in_repo(&gh, &file, false).await?;
         }
     }
 
@@ -293,4 +311,76 @@ pub async fn update_single_installation_id_logic(installation_id: String) -> Res
     let installation = InstallationRepositories { installation_id: installation_id.parse().unwrap(), repositories };
     update_installation_ids_in_db(installation.clone()).await;
     return Ok(installation);
+}
+
+pub async fn force_update_allocators(files: Vec<String>, affected_allocators: Option<Vec<GithubQueryParams>>) -> Result<(), LDNError> {
+    // first get all allocators from db and filter by affected_allocators
+    let allocators = get_allocators()
+        .await
+        .map_err(|e| LDNError::Load(e.to_string()))?;
+
+    //filter allocators that have installation_id and msig_address
+    let allocators: Vec<Model> = allocators
+        .iter()
+        .filter(|a| a.installation_id.is_some() && a.multisig_address.is_some())
+        .cloned() // Clone the elements before collecting them
+        .collect();
+
+    // if affected_allocators is provided, filter allocators by owner and repo
+    let allocators: Vec<Model> = match affected_allocators {
+        Some(affected_allocators) => {
+            allocators
+                .iter()
+                .filter(|a| {
+                    affected_allocators
+                        .iter()
+                        .any(|aa| aa.owner == a.owner && aa.repo == a.repo)
+                })
+                .cloned()
+                .collect()
+        }
+        None => allocators,
+    };
+
+    //If no allocators return
+    if allocators.is_empty() {
+        log::info!("No allocators to update");
+        return Ok(());
+    }
+    
+    let branch = match get_env_var_or_default("FILPLUS_ENV").as_str() {
+        "staging" => "staging",
+        "production" => "main",
+        _ => "main"
+    };
+
+    //now iterate over allocators and files
+    for allocator in allocators {
+        let gh = GithubWrapper::new(
+            allocator.owner, 
+            allocator.repo, 
+            allocator.installation_id.unwrap().to_string()
+        );
+
+        for file in files.iter() {
+
+            match gh.get_files_from_public_repo("fidlabs", "allocator-template", branch, Some(&file)).await {
+                Ok(content) => {
+                    match create_file_in_repo(&gh, &content.items[0], true).await {
+                        Ok(_) => {
+                            log::info!("File {} updated successfully", file);
+                        },
+                        Err(e) => {
+                            log::error!("{}", e);
+                        }
+                    }
+                },
+                Err(e) => {
+                    log::error!("{}", e);
+                }
+            }
+        }
+    }    
+    
+    Ok(())
 }
