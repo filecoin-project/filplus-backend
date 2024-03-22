@@ -35,12 +35,9 @@ pub enum ParsedApplicationDataFields {
     // Datacap Info
     DatacapGroup,
     Type,
-    UnitTotalRequestedAmount,
     TotalRequestedAmount,
-    UnitSingleSizeDataset,
     SingleSizeDataset,
     Replicas,
-    UnitWeeklyAllocation,
     WeeklyAllocation,
     CustomMultisig,
     Identifier,
@@ -104,12 +101,9 @@ impl From<String> for ParsedApplicationDataFields {
 	  // Datacap info
 	  "Group" => ParsedApplicationDataFields::DatacapGroup,
 	  "Type" => ParsedApplicationDataFields::Type,
-	  "Unit for total amount of DataCap being requested" => ParsedApplicationDataFields::UnitTotalRequestedAmount,
 	  "Total amount of DataCap being requested" => ParsedApplicationDataFields::TotalRequestedAmount,
-	  "Unit for expected size of single dataset" => ParsedApplicationDataFields::UnitSingleSizeDataset,
 	  "Expected size of single dataset (one copy)" => ParsedApplicationDataFields::SingleSizeDataset,
 	  "Number of replicas to store" => ParsedApplicationDataFields::Replicas,
-	  "Unit for weekly allocation of DataCap requested" => ParsedApplicationDataFields::UnitWeeklyAllocation,
 	  "Weekly allocation of DataCap requested" => ParsedApplicationDataFields::WeeklyAllocation,
 	  "Custom multisig" => ParsedApplicationDataFields::CustomMultisig,
 	  "Identifier" => ParsedApplicationDataFields::Identifier,
@@ -285,46 +279,17 @@ impl From<IssueValidData> for Datacap {
                 ParsedApplicationDataFields::Type => {
                     datacap.data_type = DataType::from_str(&value.0).unwrap();
                 }
-                ParsedApplicationDataFields::UnitTotalRequestedAmount => {
-                    datacap.total_requested_amount =
-                        format!("{}{}", datacap.total_requested_amount, value.0);
-                }
                 ParsedApplicationDataFields::TotalRequestedAmount => {
-                    match value.0.parse::<f64>() {
-                        Ok(num) => datacap.total_requested_amount = format!("{}{}", num, datacap.total_requested_amount),
-                        Err(_) => {
-                            log::debug!("Failed to parse TotalRequestedAmount: {}", value.0);
-                            datacap.total_requested_amount = "0".to_string();
-                        }
-                    }
-                }
-                ParsedApplicationDataFields::UnitSingleSizeDataset => {
-                    datacap.single_size_dataset =
-                        format!("{}{}", datacap.single_size_dataset, value.0);
+                    datacap.total_requested_amount = value.0;
                 }
                 ParsedApplicationDataFields::SingleSizeDataset => {
-                    match value.0.parse::<f64>() {
-                        Ok(num) => datacap.single_size_dataset = num.to_string(),
-                        Err(_) => {
-                            log::debug!("Failed to parse SingleSizeDataset: {}", value.0);
-                            datacap.single_size_dataset = "0".to_string();
-                        }
-                    }
+                    datacap.single_size_dataset = value.0;
                 }
                 ParsedApplicationDataFields::Replicas => {
                     datacap.replicas = value.0.parse::<u8>().unwrap();
                 }
-                ParsedApplicationDataFields::UnitWeeklyAllocation => {
-                    datacap.weekly_allocation = format!("{}{}", datacap.weekly_allocation, value.0);
-                }
                 ParsedApplicationDataFields::WeeklyAllocation => {
-                    match value.0.parse::<f64>() {
-                        Ok(num) => datacap.weekly_allocation = num.to_string(),
-                        Err(_) => {
-                            log::debug!("Failed to parse WeeklyAllocation: {}", value.0);
-                            datacap.weekly_allocation = "0".to_string();
-                        }
-                    }
+                    datacap.weekly_allocation = value.0;
                 }
                 ParsedApplicationDataFields::CustomMultisig => {
                     datacap.custom_multisig = value.0;
