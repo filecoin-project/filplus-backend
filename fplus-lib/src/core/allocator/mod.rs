@@ -168,12 +168,14 @@ pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNErr
         "production" => "main",
         _ => "main",
     };
+    let allocator_template_owner = get_env_var_or_default("ALLOCATOR_TEMPLATE_OWNER");
+    let allocator_template_repo = get_env_var_or_default("ALLOCATOR_TEMPLATE_REPO");
 
     dirs.push("".to_string());
     
     while dirs.len() > 0 {
         let dir = dirs.pop().unwrap();
-        let files_list = gh.get_files_from_public_repo("fidlabs", "allocator-template", branch, Some(&dir)).await.map_err(|e| {
+        let files_list = gh.get_files_from_public_repo(&allocator_template_owner, &allocator_template_repo, branch, Some(&dir)).await.map_err(|e| {
             LDNError::Load(format!("Failed to retrieve all files from GitHub. Reason: {}", e))
         })?;
 
@@ -353,6 +355,8 @@ pub async fn force_update_allocators(files: Vec<String>, affected_allocators: Op
         "production" => "main",
         _ => "main"
     };
+    let allocator_template_owner = get_env_var_or_default("ALLOCATOR_TEMPLATE_OWNER");
+    let allocator_template_repo = get_env_var_or_default("ALLOCATOR_TEMPLATE_REPO");
 
     //now iterate over allocators and files
     for allocator in allocators {
@@ -364,7 +368,7 @@ pub async fn force_update_allocators(files: Vec<String>, affected_allocators: Op
 
         for file in files.iter() {
 
-            match gh.get_files_from_public_repo("fidlabs", "allocator-template", branch, Some(&file)).await {
+            match gh.get_files_from_public_repo(&allocator_template_owner, &allocator_template_repo, branch, Some(&file)).await {
                 Ok(content) => {
                     match create_file_in_repo(&gh, &content.items[0], true).await {
                         Ok(_) => {
