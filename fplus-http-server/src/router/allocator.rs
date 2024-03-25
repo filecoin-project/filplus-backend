@@ -1,8 +1,8 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
-use fplus_database::database::allocators as allocators_db;
-use fplus_lib::{core::{allocator::{
+use fplus_database::database::allocators::{self as allocators_db, get_allocator};
+use fplus_lib::{config::get_env_var_or_default, core::{allocator::{
     create_allocator_repo, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic
-}, AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo}, external_services::filecoin::get_multisig_threshold_for_actor};
+}, AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo}, error::LDNError};
 
 /**
  * Get all allocators
@@ -38,6 +38,21 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
     for file_name in &files.files_changed {
         log::info!("Starting allocator creation on: {}", file_name);
 
+        let owner = get_env_var_or_default("ALLOCATOR_GOVERNANCE_OWNER");
+        let repo = get_env_var_or_default("ALLOCATOR_GOVERNANCE_REPO");
+        
+        let db_allocator = match get_allocator(&owner, &repo).await {
+            Ok(Some(allocator)) => allocator,
+            Ok(None) => {
+                error_response = Some(HttpResponse::BadRequest().body(format!("Allocator not found for owner: {}, repo: {}", owner, repo)));
+                break;
+            },
+            Err(err) => {
+                error_response = Some(HttpResponse::BadRequest().body(format!("Database error: {}", err)));
+                break;
+            }
+        };
+        
         match process_allocator_file(file_name).await {
             Ok(model) => {
                 if model.pathway_addresses.msig.is_empty() {
@@ -47,8 +62,15 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                 let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {
                     None
                 } else {
-                    Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
+                    Some(model.application.verifiers_gh_handles.join(", "))
                 };
+
+                let signers = if model.pathway_addresses.signer.is_empty() {
+                    None
+                } else {
+                    Some(model.pathway_addresses.signer.join(", "))
+                };
+
                 let owner = model.owner.clone().unwrap_or_default().to_string();
                 let repo = model.repo.clone().unwrap_or_default().to_string();
 
@@ -58,7 +80,8 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                     None,
                     Some(model.pathway_addresses.msig),      
                     verifiers_gh_handles,
-                    model.multisig_threshold
+                    model.multisig_threshold,
+                    signers
                 ).await;
 
 

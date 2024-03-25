@@ -252,7 +252,7 @@ pub async fn update_installation_ids_in_db(installation: InstallationRepositorie
     for repo in installation.repositories.iter() {
         let owner = repo.owner.clone();
         let repo = repo.slug.clone();
-        let _ = create_or_update_allocator(owner, repo, Some(installation_id.try_into().unwrap()), None, None, None).await;
+        let _ = create_or_update_allocator(owner, repo, Some(installation_id.try_into().unwrap()), None, None, None, None).await;
     }
 }
 

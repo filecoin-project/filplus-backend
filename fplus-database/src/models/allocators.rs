@@ -15,6 +15,7 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub verifiers_gh_handles: Option<String>,
     pub multisig_threshold: Option<i32>,
+    pub signers: Option<String>
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
