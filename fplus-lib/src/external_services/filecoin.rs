@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use serde_json::json;
 
 use crate::{config::get_env_var_or_default, models::filecoin::StateReadStateResponse};
@@ -34,34 +35,30 @@ pub async fn get_multisig_signers_for_msig(actor_address: &str) -> Result<Vec<St
 pub async fn get_public_addresses_from_ids(signer_ids: Vec<String>) -> Result<Vec<String>, String> {
     let node_url = get_env_var_or_default("GLIF_NODE_URL");
     let client = reqwest::Client::new();
-    let mut public_addresses = Vec::new();
 
-    for id in signer_ids {
-        let body = json!({
-            "jsonrpc": "2.0",
-            "method": "Filecoin.StateAccountKey",
-            "params": [id, null],
-            "id": 1
-        });
+    let futures = signer_ids.into_iter().map(|id| {
+        let client = client.clone();
+        let node_url = node_url.clone();
+        async move {
+            let body = json!({
+                "jsonrpc": "2.0",
+                "method": "Filecoin.StateAccountKey",
+                "params": [id, null],
+                "id": 1
+            });
 
-        let response = match client.post(&node_url)
-            .json(&body)
-            .send().await {
-                Ok(resp) => resp,
-                Err(_) => return Err("Failed to send request".to_string()),
-            };
-
-        let response_body = match response.json::<serde_json::Value>().await {
-            Ok(body) => body,
-            Err(_) => return Err("Failed to parse response".to_string()),
-        };
-
-        if let Some(address) = response_body["result"].as_str() {
-            public_addresses.push(address.to_string());
-        } else {
-            return Err("Failed to get public address".to_string());
+            match client.post(&node_url)
+                .json(&body)
+                .send().await {
+                    Ok(resp) => match resp.json::<serde_json::Value>().await {
+                        Ok(body) => body["result"].as_str().map(|s| s.to_string()),
+                        Err(_) => None,
+                    },
+                    Err(_) => None,
+                }
         }
-    }
+    });
 
-    Ok(public_addresses)
+    let results = join_all(futures).await;
+    results.into_iter().collect::<Option<Vec<_>>>().ok_or_else(|| "Failed to get public addresses".to_string())
 }

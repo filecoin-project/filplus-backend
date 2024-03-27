@@ -1,5 +1,6 @@
 use fplus_database::database::allocators::create_or_update_allocator;
 use octocrab::auth::create_jwt;
+use octocrab::models::issues::Issue;
 use octocrab::models::repos::ContentItems;
 
 use crate::config::get_env_var_or_default;
@@ -293,4 +294,33 @@ pub async fn update_single_installation_id_logic(installation_id: String) -> Res
     let installation = InstallationRepositories { installation_id: installation_id.parse().unwrap(), repositories };
     update_installation_ids_in_db(installation.clone()).await;
     return Ok(installation);
+}
+
+pub async fn create_issue_for_multisig_change(
+    owner: String,
+    repo: String,
+    msig_address: &str,
+    old_signers: Vec<String>,
+    new_signers: Vec<String>,
+) -> Result<Issue, LDNError> {
+    let gh = github_async_new(owner.clone(), repo.clone()).await;
+
+    let title = format!("Multisig Change Detected for {}", msig_address);
+    let body = format!(
+        "A change in the signatories of the multisig wallet {} has been detected.\n\n\
+        **Old Signers:**\n{}\n\n\
+        **New Signers:**\n{}",
+        msig_address,
+        old_signers.join("\n"),
+        new_signers.join("\n")
+    );
+
+    gh.create_issue(&title, &body)
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error creating issue in repo {}///{}: {}",
+                owner, repo, e
+            ));
+        })
 }
