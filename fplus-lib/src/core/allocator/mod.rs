@@ -69,9 +69,15 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
                 log::error!("Failed to parse allocator model");
                 return Err(LDNError::Load("Failed to parse allocator model".to_string()));
             }
+
+            //If repo ends with .git, remove it
+            let mut repo = owner_repo_parts[owner_repo_parts.len() - 1].to_string();
+            if repo.ends_with(".git") {
+                repo = repo[..repo.len() - 4].to_string();
+            }
             
             model.owner = Some(owner_repo_parts[owner_repo_parts.len() - 2].to_string());
-            model.repo = Some(owner_repo_parts[owner_repo_parts.len() - 1].to_string());
+            model.repo = Some(repo);
             
             log::info!("Parsed allocator model successfully");
             Ok(model)
