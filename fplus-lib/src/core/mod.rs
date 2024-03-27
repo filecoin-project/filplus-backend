@@ -1062,7 +1062,7 @@ impl LDNApplication {
         }
 
         if verifiers_handles.is_empty() {
-            return Err(LDNError::Load("No governance team found".into()));
+            return Err(LDNError::Load("No review team found".into()));
         }
 
         Ok(ValidVerifierList {
@@ -1560,7 +1560,7 @@ impl LDNApplication {
             match LDNPullRequest::add_commit_to(
                 ldn_application.file_name.clone(),
                 ldn_application.branch_name.clone(),
-                format!("Move application back to governance review"),
+                format!("Move application back to review"),
                 serde_json::to_string_pretty(&app_file).unwrap(),
                 ldn_application.file_sha.clone(),
                 owner.clone(),
@@ -1800,7 +1800,7 @@ impl LDNApplication {
         let gh = github_async_new(owner, repo).await;
         gh.add_comment_to_issue(
             issue_number.parse().unwrap(),
-            "Application is waiting for governance review",
+            "Application is waiting for allocator review",
         )
         .await
         .map_err(|e| {
@@ -2090,7 +2090,7 @@ Your Datacap Allocation Request has been {} by the Notary
             .await
             .map_err(|e| {
                 return LDNError::New(format!(
-                    "Error adding labels t to issue {} /// {}",
+                    "Error adding labels to issue {} /// {}",
                     issue_number, e
                 ));
             })
@@ -2420,7 +2420,7 @@ impl LDNPullRequest {
 
     pub(super) fn application_move_to_proposal_commit(actor: &str) -> String {
         format!(
-            "Governance Team User {} Moved Application to Proposal State from Governance Review State",
+            "User {} Moved Application to Proposal State from Allocator Review State",
             actor
         )
     }
@@ -2528,7 +2528,7 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
 //                 }
 //             };
 
-//         log::info!("Completing governance review");
+//         log::info!("Completing allocator review");
 //         if let Err(e) = ldn_application_before_trigger
 //             .complete_governance_review(
 //                 "actor_address".to_string(),
@@ -2536,7 +2536,7 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
 //                 REPO.to_string())
 //             .await
 //         {
-//             log::error!("Failed o complete governance review: {}", e);
+//             log::error!("Failed to complete allocator review: {}", e);
 //             return;
 //         }
 
