@@ -100,6 +100,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::allocator::create_from_json)
             .service(router::allocator::update_single_installation_id)
             .service(router::allocator::update_allocator_force)
+            // .service(router::allocator::get_installation_ids)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

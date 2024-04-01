@@ -1,9 +1,12 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
 use fplus_database::database::allocators as allocators_db;
 use fplus_database::database::allocation_amounts as allocation_amounts_db;
+use fplus_lib::core::allocator::fetch_installation_ids;
+use fplus_lib::core::allocator::generate_github_app_jwt;
 use fplus_lib::core::{allocator::{
     create_allocator_repo, force_update_allocators, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic, validate_amount_type_and_options
 }, AllocatorUpdateForceInfo, AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo};
+use reqwest::Client;
 
 /**
  * Get all allocators
@@ -100,19 +103,20 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                         break;
                     },
                 }
+
+                let allocator_id = allocator_creation_result.unwrap().id;
+
+                 // Delete all old allocation amounts by allocator id
+                 match allocation_amounts_db::delete_allocation_amounts_by_allocator_id(allocator_id).await {
+                    Ok(_) => (),
+                    Err(err) => {
+                        error_response = Some(HttpResponse::BadRequest().body(err.to_string()));
+                        break;
+                    }
+                }
     
                 if let Some(allocation_amount) = model.application.allocation_amount.clone() {
-                    let allocator_id = allocator_creation_result.unwrap().id;
                     let allocation_amounts = allocation_amount.quantity_options.unwrap();
-
-                    // Delete all old allocation amounts by allocator id
-                    match allocation_amounts_db::delete_allocation_amounts_by_allocator_id(allocator_id).await {
-                        Ok(_) => (),
-                        Err(err) => {
-                            error_response = Some(HttpResponse::BadRequest().body(err.to_string()));
-                            break;
-                        }
-                    }
 
                     for allocation_amount in allocation_amounts {
                         let parsed_allocation_amount = allocation_amount.replace("%", "");
@@ -265,6 +269,29 @@ pub async fn update_allocator_force(body: web::Json<AllocatorUpdateForceInfo>) -
         Err(e) => {
             log::error!("Failed to update allocators: {}", e);
             HttpResponse::InternalServerError().body(format!("{}", e))
+        }
+    }
+}
+
+#[get("/get_installation_ids")]
+pub async fn get_installation_ids() -> impl Responder {
+    let client = Client::new();
+    let jwt = match generate_github_app_jwt().await {
+        Ok(jwt) => jwt,
+        Err(e) => {
+            log::error!("Failed to generate GitHub App JWT: {}", e);
+            return HttpResponse::InternalServerError().finish(); // Ensure to call .finish()
+        }
+    };
+
+    match fetch_installation_ids(&client, &jwt).await {
+        Ok(ids) => {
+            // Assuming `ids` can be serialized directly; adjust based on your actual data structure
+            HttpResponse::Ok().json(ids)
+        },
+        Err(e) => {
+            log::error!("Failed to fetch installation IDs: {}", e);
+            HttpResponse::InternalServerError().finish()
         }
     }
 }
