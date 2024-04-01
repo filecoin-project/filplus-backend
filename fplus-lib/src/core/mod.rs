@@ -28,6 +28,8 @@ use fplus_database::database::{
     self,
     allocators::{get_allocator, update_allocator_threshold},
 };
+use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
+
 use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
@@ -156,6 +158,11 @@ pub struct ApplicationQueryParams {
 }
 
 #[derive(Deserialize)]
+pub struct CompleteGovernanceReviewInfo {
+    pub allocation_amount: String
+}
+
+#[derive(Deserialize)]
 pub struct VerifierActionsQueryParams {
     pub github_username: String,
     pub id: String,
@@ -177,6 +184,19 @@ pub struct ApplicationGithubInfo {
     pub sha: String,
     pub path: String,
 }
+
+#[derive(Debug, Serialize)]
+pub struct ApplicationWithAllocation {
+    application_file: ApplicationFile, // Assuming ApplicationFile is the type for app_file
+    allocation: AllocationObject
+}
+
+#[derive(Debug, Serialize)]
+pub struct AllocationObject {
+    allocation_amount_type: String,
+    allocation_amount_quantity_options: Vec<String>,
+}
+
 
 impl LDNApplication {
     pub async fn single_active(
@@ -246,46 +266,73 @@ impl LDNApplication {
         )))
     }
 
+    async fn get_application_model(
+        application_id: String,
+        owner: String,
+        repo: String,
+    ) -> Result<ApplicationModel, LDNError> {
+        let app_model_result = database::applications::get_application(application_id, owner, repo, None).await;
+        match app_model_result {
+            Ok(model) => Ok(model),
+            Err(e) => Err(LDNError::Load(format!("Database error: {}", e))),
+        }
+    }
+
     pub async fn load_from_db(
         application_id: String,
         owner: String,
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
-        // Try to get the application model from the database.
-        let app_model_result =
-            database::applications::get_application(application_id.clone(), owner, repo, None)
-                .await;
+        let app_model = Self::get_application_model(application_id.clone(), owner.clone(), repo.clone()).await?;
 
-        // First handle the Result to see if there was an error in the query.
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!("Application {} does not have an application field", application_id))
+        })?;
+    
+        ApplicationFile::from_str(&app_str).map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))
+    }
+
+    pub async fn application_with_allocation_amount(
+        application_id: String,
+        owner: String,
+        repo: String,
+    ) -> Result<ApplicationWithAllocation, LDNError> {
+        let app_model_result = database::applications::get_application(application_id.clone(), owner.clone(), repo.clone(), None).await;
+    
         let app_model = match app_model_result {
             Ok(model) => model,
             Err(e) => return Err(LDNError::Load(format!("Database error: {}", e))),
         };
+    
+        // Check if the application field is present and parse it
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!("Application {} does not have an application field", application_id))
+        })?;
+    
+        let app_file = ApplicationFile::from_str(&app_str).map_err(|e| {
+            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+        })?;
 
-        // Now, app_model is directly a Model, not an Option<Model>.
-        // Check if the application field is present.
-        let app_str = match app_model.application {
-            Some(app_str) => app_str,
-            None => {
-                return Err(LDNError::Load(format!(
-                    "Application {} does not have an application field",
-                    application_id
-                )))
+        let db_allocator = match get_allocator(&owner, &repo).await {
+            Ok(allocator) => allocator.unwrap(),
+            Err(err) => {
+                return Err(LDNError::New(format!("Database: get_allocator: {}", err)));
             }
         };
 
-        // Try to convert the application string to an ApplicationFile structure.
-        let app = match ApplicationFile::from_str(&app_str) {
-            Ok(app) => app,
-            Err(e) => {
-                return Err(LDNError::Load(format!(
-                    "Failed to parse application file from DB /// {}",
-                    e
-                )));
-            }
-        };
+        let allocation_amount_type = db_allocator.allocation_amount_type.unwrap_or("".to_string());
 
-        Ok(app)
+        let allocation_amount_quantity_options = get_allocation_quantity_options(db_allocator.id).await.unwrap();
+
+        Ok(ApplicationWithAllocation {
+            allocation: {
+                AllocationObject {
+                    allocation_amount_type,
+                    allocation_amount_quantity_options
+                }
+            },
+            application_file: app_file,
+        })
     }
 
     pub async fn load(
@@ -615,6 +662,7 @@ impl LDNApplication {
         actor: String,
         owner: String,
         repo: String,
+        allocation_amount: String
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
@@ -625,7 +673,7 @@ impl LDNApplication {
                         actor.clone(),
                         uuid,
                         AllocationRequestType::First,
-                        app_file.datacap.weekly_allocation.clone(),
+                        allocation_amount,
                     );
                     let app_file = app_file.complete_governance_review(actor.clone(), request);
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();

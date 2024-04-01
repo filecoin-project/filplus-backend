@@ -29,8 +29,8 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     let path = file_name.to_string();
 
     let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id.clone());
-    let content_items = gh.get_files_from_public_repo(&owner, &repo, branch, Some(&path)).await.map_err(|e| LDNError::Load(e.to_string()))?;
-    let mut model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
+    let content_items: ContentItems = gh.get_files_from_public_repo(&owner, &repo, branch, Some(&path)).await.map_err(|e| LDNError::Load(e.to_string()))?;
+    let mut model: AllocatorModel = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
 
     // Get multisig threshold from the blockchain if multisig address is available
     if let Ok(blockchain_threshold) = get_multisig_threshold_for_actor(&model.pathway_addresses.msig).await {
@@ -272,7 +272,7 @@ pub async fn update_installation_ids_in_db(installation: InstallationRepositorie
     for repo in installation.repositories.iter() {
         let owner = repo.owner.clone();
         let repo = repo.slug.clone();
-        let _ = create_or_update_allocator(owner, repo, Some(installation_id.try_into().unwrap()), None, None, None).await;
+        let _ = create_or_update_allocator(owner, repo, Some(installation_id.try_into().unwrap()), None, None, None, None).await;
     }
 }
 
@@ -387,4 +387,40 @@ pub async fn force_update_allocators(files: Vec<String>, affected_allocators: Op
     }    
     
     Ok(())
+}
+
+
+pub fn validate_amount_type_and_options(amount_type: &str, amount_options: &[String]) -> Result<(), String> {
+    match amount_type {
+        "fixed" => validate_fixed_amount_options(amount_options),
+        "percentage" => validate_percentage_amount_options(amount_options),
+        _ => Err("Invalid amount type".into()),
+    }
+}
+
+pub fn validate_fixed_amount_options(amount_options: &[String]) -> Result<(), String> {
+    for option in amount_options {
+        if !is_valid_fixed_option(option) {
+            return Err(format!("Invalid fixed amount option: {}", option));
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_percentage_amount_options(amount_options: &[String]) -> Result<(), String> {
+    for option in amount_options {
+        let no_percentage_option = option.replace("%", "");
+        if !no_percentage_option.parse::<i32>().is_ok() {
+            return Err(format!("Invalid percentage amount option: {}", option));
+        }
+    }
+    Ok(())
+}
+
+pub fn is_valid_fixed_option(option: &str) -> bool {
+    let allowed_units = ["GiB", "TiB", "PiB"];
+    let number_part = option.trim_end_matches(|c: char| !c.is_digit(10));
+    let unit_part = option.trim_start_matches(|c: char| c.is_digit(10));
+
+    number_part.parse::<i32>().is_ok() && allowed_units.contains(&unit_part)
 }

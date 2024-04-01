@@ -1,10 +1,8 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-        application::file::VerifierInput, ApplicationQueryParams,
-        CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo,
-        GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData,
-        VerifierActionsQueryParams, BranchDeleteInfo,
+        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
     };
+
 
 #[post("/application")]
 pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
@@ -20,7 +18,9 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
 }
 
 #[get("/application")]
-pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder {
+pub async fn single(
+    query: web::Query<ApplicationQueryParams>,
+) -> impl Responder {
     let ApplicationQueryParams { id, owner, repo } = query.into_inner();
 
     match LDNApplication::load_from_db(id, owner, repo).await {
@@ -31,8 +31,23 @@ pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder
     };
 }
 
+#[get("/application/with-allocation-amount")]
+pub async fn application_with_allocation_amount_handler(
+    query: web::Query<ApplicationQueryParams>,
+) -> impl Responder {
+    let ApplicationQueryParams { id, owner, repo } = query.into_inner();
+    
+    match LDNApplication::application_with_allocation_amount(id, owner, repo).await {
+        Ok(result) => HttpResponse::Ok().json(result),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}
+
 #[post("/application/trigger")]
-pub async fn trigger(query: web::Query<VerifierActionsQueryParams>) -> impl Responder {
+pub async fn trigger(
+    query: web::Query<VerifierActionsQueryParams>,
+    info: web::Json<CompleteGovernanceReviewInfo>,
+) -> impl Responder {
     let ldn_application =
         match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
         {
@@ -42,11 +57,13 @@ pub async fn trigger(query: web::Query<VerifierActionsQueryParams>) -> impl Resp
             }
         };
     dbg!(&ldn_application);
+    let CompleteGovernanceReviewInfo { allocation_amount } = info.into_inner();
     match ldn_application
         .complete_governance_review(
             query.github_username.clone(),
             query.owner.clone(),
             query.repo.clone(),
+            allocation_amount
         )
         .await
     {

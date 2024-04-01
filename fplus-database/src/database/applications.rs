@@ -257,7 +257,7 @@ pub async fn update_application(id: String, owner: String, repo: String, pr_numb
 
     match get_application(id.clone(), owner.clone(), repo.clone(), Some(pr_number)).await {
         Ok(existing_application) => {
-            let mut active_application = existing_application.into_active_model();
+            let mut active_application: ActiveModel = existing_application.into_active_model();
             active_application.application = Set(Some(app_file));
             // If sha and path are provided, update them as well
             if let Some(sha) = sha {
