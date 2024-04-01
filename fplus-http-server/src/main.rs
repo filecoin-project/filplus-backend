@@ -83,6 +83,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::refill)
             .service(router::application::total_dc_reached)
             .service(router::application::single)
+            .service(router::application::application_with_allocation_amount_handler)
             .service(router::application::validate_application_flow)
             .service(router::application::validate_application_trigger)
             .service(router::application::validate_application_proposal)
@@ -99,6 +100,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::allocator::create_from_json)
             .service(router::allocator::update_single_installation_id)
             .service(router::allocator::update_allocator_force)
+            // .service(router::allocator::get_installation_ids)
     })
     .bind(("0.0.0.0", 8080))?
     .run()
