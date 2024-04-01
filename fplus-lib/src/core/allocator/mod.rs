@@ -418,7 +418,7 @@ pub fn validate_percentage_amount_options(amount_options: &[String]) -> Result<(
 }
 
 pub fn is_valid_fixed_option(option: &str) -> bool {
-    let allowed_units = ["GiB", "TiB", "PiB"];
+    let allowed_units = ["GiB", "TiB", "PiB", "GB", "TB", "PB"];
     let number_part = option.trim_end_matches(|c: char| !c.is_digit(10));
     let unit_part = option.trim_start_matches(|c: char| c.is_digit(10));
 
