@@ -1,10 +1,12 @@
-use fplus_database::database::allocators::create_or_update_allocator;
+use std::env;
+
+use fplus_database::database::allocators::{create_or_update_allocator, get_allocators};
 use octocrab::auth::create_jwt;
 use octocrab::models::issues::Issue;
 use octocrab::models::repos::ContentItems;
 
 use crate::config::get_env_var_or_default;
-use crate::external_services::filecoin::get_multisig_threshold_for_actor;
+use crate::external_services::filecoin::{get_multisig_signers_for_msig, get_multisig_threshold_for_actor};
 use crate::external_services::github::{github_async_new, GithubWrapper};
 use crate::{
     base64::decode_allocator_model, error::LDNError,
@@ -297,13 +299,15 @@ pub async fn update_single_installation_id_logic(installation_id: String) -> Res
 }
 
 pub async fn create_issue_for_multisig_change(
-    owner: String,
-    repo: String,
     msig_address: &str,
     old_signers: Vec<String>,
     new_signers: Vec<String>,
 ) -> Result<Issue, LDNError> {
-    let gh = github_async_new(owner.clone(), repo.clone()).await;
+    let owner = get_env_var_or_default("ALLOCATOR_GOVERNANCE_OWNER");
+    let repo = get_env_var_or_default("ALLOCATOR_GOVERNANCE_REPO");
+    let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID");
+
+    let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id);
 
     let title = format!("Multisig Change Detected for {}", msig_address);
     let body = format!(
@@ -323,4 +327,105 @@ pub async fn create_issue_for_multisig_change(
                 owner, repo, e
             ));
         })
+}
+
+/**
+ * Check for multisig changes in the blockchain and create an issue if any changes are detected
+ *
+ * # Arguments
+ * 
+ * # Returns
+ * @return Result<(), LDNError> - The result of the operation
+ */
+pub async fn check_for_msig_changes() -> Result<()>{
+    let allocators = get_allocators().await.unwrap_or_default();
+    for allocator in allocators.iter() {
+        let owner = allocator.owner.clone();
+        let repo = allocator.repo.clone();
+        let msig_address = allocator.multisig_address.clone();
+        let signers = allocator.signers.clone();
+
+        if let (Some(msig_address), Some(signers)) = (msig_address, signers) {
+            println!("Checking for multisig changes for msig_address in owner {} and repo {}: {}", owner, repo, msig_address);
+            match get_multisig_signers_for_msig(&msig_address).await {
+                Ok(blockchain_signers) => {
+                    let check_signers = signers.clone().split(", ").map(|s| s.chars().skip(1).collect::<String>()).collect::<Vec<String>>().join(", ");
+                    let check_blockchain_signers = blockchain_signers.clone().iter().map(|s| s.chars().skip(1).collect::<String>()).collect::<Vec<String>>();
+
+                    if !check_blockchain_signers.iter().all(|s| check_signers.contains(s)) || 
+                        !check_signers.split(", ").all(|s| check_blockchain_signers.contains(&s.to_string())
+                    ){
+                        let result = manage_msig_change_issue(
+                            &msig_address,
+                            signers.split(", ").map(|s| s.to_string()).collect(),
+                            blockchain_signers,
+                        )
+                        .await;
+                        match result {
+                            Ok(_) => (),
+                            Err(e) => {
+                                log::error!("Failed to manage multisig change issue: {}", e);
+                            }
+                        }
+                    }
+                },
+                Err(e) => {
+                    log::error!("Error fetching signers from blockchain for msig_address {}: {}", msig_address, e);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/**
+ * Manage the multisig change issue. If the issue does not exist, create it.
+ *  
+ * # Arguments
+ * @param msig_address: &str - The multisig address
+ * @param old_signers: Vec<String> - The old signers
+ * @param new_signers: Vec<String> - The new signers
+ * 
+ * # Returns
+ * @return Result<(), LDNError> - The result of the operation
+ */
+pub async fn manage_msig_change_issue(
+    msig_address: &str,
+    old_signers: Vec<String>,
+    new_signers: Vec<String>,
+) -> Result<(), LDNError> {
+    // Check for an open issue with title "Multisig Change Detected for {msig_address}" in allocator registry repo
+    let allocator_registry_owner = get_env_var_or_default("ALLOCATOR_GOVERNANCE_OWNER");
+    let allocator_registry_repo = get_env_var_or_default("ALLOCATOR_GOVERNANCE_REPO");
+    let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID");
+
+    let gh = GithubWrapper::new(allocator_registry_owner.clone(), allocator_registry_repo.clone(), installation_id);
+    let title = format!("Multisig Change Detected for {}", msig_address);
+
+    // Check if issue exists
+    let issues = gh.get_issues_from_public_repo(
+        &allocator_registry_owner, 
+        &allocator_registry_repo
+    ).await.map_err(|e| {
+        println!("Error: {:?}", e);
+        LDNError::Load(e.to_string())
+    })?;
+    let mut issue_id = None;
+    for issue in issues {
+        if issue.title == title {
+            issue_id = Some(issue.number);
+            break;
+        }
+    }
+
+    // If issue does not exist, create it.
+    if issue_id.is_none() {
+        match create_issue_for_multisig_change(msig_address, old_signers, new_signers).await {
+            Ok(_) => (),
+            Err(e) => {
+                log::error!("Failed to create issue for multisig change: {}", e);
+            }
+        }
+    } 
+    Ok(())
 }

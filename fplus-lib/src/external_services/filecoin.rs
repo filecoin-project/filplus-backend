@@ -29,7 +29,10 @@ pub async fn get_multisig_signers_for_msig(actor_address: &str) -> Result<Vec<St
     let actor_state_info = state_get_state(actor_address).await.map_err(|e| e.to_string())?;
     let signer_ids = actor_state_info.result.state.signers;
 
-    get_public_addresses_from_ids(signer_ids).await
+    match get_public_addresses_from_ids(signer_ids).await {
+        Ok(signers) => Ok(signers),
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn get_public_addresses_from_ids(signer_ids: Vec<String>) -> Result<Vec<String>, String> {
@@ -51,8 +54,15 @@ pub async fn get_public_addresses_from_ids(signer_ids: Vec<String>) -> Result<Ve
                 .json(&body)
                 .send().await {
                     Ok(resp) => match resp.json::<serde_json::Value>().await {
-                        Ok(body) => body["result"].as_str().map(|s| s.to_string()),
-                        Err(_) => None,
+                        Ok(body) => {
+                            println!("Got public address from ID {}: {:?}", id, body);
+                            body["result"].as_str().map(|s| s.to_string())
+                        },
+
+                        Err(err) => {
+                            print!( "Error getting public address from ID {}: {:?}", id, err);
+                            None
+                        },
                     },
                     Err(_) => None,
                 }

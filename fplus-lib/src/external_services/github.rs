@@ -732,4 +732,16 @@ impl GithubWrapper {
         
         Ok(contents_items)
     }
+
+    pub async fn get_issues_from_public_repo(
+        &self,
+        owner: &str,
+        repo: &str,
+    ) -> Result<Vec<Issue>, OctocrabError> {
+        let octocrab = Octocrab::builder().build()?;
+        let gh = octocrab.issues(owner, repo);
+
+        let iid = gh.list().state(State::Open).send().await?;
+        Ok(iid.into_iter().map(|i: Issue| i).collect())
+    }
 }

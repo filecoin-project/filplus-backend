@@ -3,7 +3,8 @@ use fplus_database::database::allocators::{self as allocators_db};
 use fplus_lib::{
     core::{
         allocator::{
-            create_allocator_repo, create_issue_for_multisig_change, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic
+            create_allocator_repo, create_issue_for_multisig_change, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic,
+            check_for_msig_changes
         },
         AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo,
     },
@@ -75,8 +76,6 @@ pub async fn create_from_json(
                         if !blockchain_signers.iter().all(|s| model_signers.contains(s)) {
                             // Creating an issue instead of commenting
                             if let Err(err) = create_issue_for_multisig_change(
-                                owner.clone(),
-                                repo.clone(),
                                 &model.pathway_addresses.msig,
                                 model_signers,
                                 blockchain_signers,
@@ -239,6 +238,17 @@ pub async fn update_single_installation_id(
     query: web::Query<InstallationIdUpdateInfo>,
 ) -> impl Responder {
     match update_single_installation_id_logic(query.installation_id.to_string()).await {
+        Ok(results) => HttpResponse::Ok().json(results),
+        Err(e) => {
+            log::error!("Failed to fetch installation ids: {}", e);
+            HttpResponse::InternalServerError().body(format!("{}", e))
+        }
+    }
+}
+
+#[post("/allocator/signersCheck")]
+pub async fn signers_check() -> impl Responder {
+    match check_for_msig_changes().await {
         Ok(results) => HttpResponse::Ok().json(results),
         Err(e) => {
             log::error!("Failed to fetch installation ids: {}", e);
