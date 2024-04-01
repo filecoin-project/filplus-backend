@@ -49,7 +49,7 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                         break;
                     }
 
-                    let amount_type = allocation_amount.amount_type.clone().unwrap(); // Assuming you still want to unwrap here
+                    let amount_type = allocation_amount.amount_type.clone().unwrap().to_lowercase(); // Assuming you still want to unwrap here
                     let quantity_options = allocation_amount.quantity_options.unwrap(); // Assuming unwrap is desired
 
                     match validate_amount_type_and_options(&amount_type, &quantity_options) {

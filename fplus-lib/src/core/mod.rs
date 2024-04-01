@@ -32,10 +32,10 @@ use fplus_database::database::allocation_amounts::get_allocation_quantity_option
 
 use fplus_database::models::applications::Model as ApplicationModel;
 
-use self::application::file::{
+use self::application::{allocation, file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
     VerifierInput,
-};
+}};
 use crate::core::application::file::Allocation;
 use std::collections::HashSet;
 
@@ -1871,6 +1871,12 @@ impl LDNApplication {
         let client_address = application_file.lifecycle.client_on_chain_address.clone();
         let total_requested = application_file.datacap.total_requested_amount.clone();
         let weekly_allocation = application_file.datacap.weekly_allocation.clone();
+        let allocation_amount = application_file
+            .allocation
+            .0
+            .iter()
+            .find(|obj| Some(&obj.id) == application_file.lifecycle.active_request.as_ref()).unwrap().amount.clone();
+
 
         let issue_number = application_file.issue_number.clone();
 
@@ -1882,9 +1888,12 @@ impl LDNApplication {
 **Expected weekly DataCap usage rate**
 > {}
 
+**DataCap Amount - First Tranche**
+> {}
+
 **Client address**
 > {}",
-            total_requested, weekly_allocation, client_address
+            total_requested, weekly_allocation, allocation_amount, client_address
         );
 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)

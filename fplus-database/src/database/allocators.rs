@@ -132,8 +132,8 @@ pub async fn create_or_update_allocator(
             allocator_active_model.multisig_threshold = Set(multisig_threshold);
         }
 
-        if allocation_amount_type.is_some() {
-            allocator_active_model.allocation_amount_type = Set(allocation_amount_type);
+        if let Some(allocation_amount_type) = allocation_amount_type {
+            allocator_active_model.allocation_amount_type = Set(Some(allocation_amount_type.to_lowercase()));
         } else {
             allocator_active_model.allocation_amount_type = Set(None);
         }
@@ -164,8 +164,8 @@ pub async fn create_or_update_allocator(
             new_allocator.multisig_threshold = Set(multisig_threshold);
         }
 
-        if allocation_amount_type.is_some() {
-            new_allocator.allocation_amount_type = Set(allocation_amount_type);
+        if let Some(allocation_amount_type) = allocation_amount_type {
+            new_allocator.allocation_amount_type = Set(Some(allocation_amount_type.to_lowercase()));
         } else {
             new_allocator.allocation_amount_type = Set(None);
         }
