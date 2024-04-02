@@ -27,14 +27,15 @@ use crate::{
 use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 use fplus_database::database::{
     self,
-    allocators::{get_allocator, update_allocator_threshold}};
+    allocators::{get_allocator, update_allocator_threshold},
+};
 
 use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
-        AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
-        VerifierInput,
-    };
+    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
+    VerifierInput,
+};
 use crate::core::application::file::Allocation;
 use std::collections::HashSet;
 
@@ -588,25 +589,32 @@ impl LDNApplication {
                     parsed_ldn.datacap,
                 )
                 .await;
-                // If application exists, comment on the issue
-                let (db_check_result, original_issue_number) = Self::check_application_exists(
-                    parsed_ldn.id.clone(),
+
+                let app_model = Self::get_application_model(
+                    application_id.clone(),
                     info.owner.clone(),
                     info.repo.clone(),
-                )
-                .await?;
+                ).await?;
                 
-                if db_check_result {
-                    // The application already exists in the database
+                // Check if application already exists in our db
+                let exists = Self::check_application_exists(
+                    app_model.clone(),
+                    application_id.clone(),
+                ).await?;
+
+                if exists {
+                    // Add a comment to the GitHub issue
                     Self::issue_pathway_mismatch_comment(
                         issue_number.clone(),
                         info.owner.clone(),
                         info.repo.clone(),
-                        original_issue_number.clone(),
+                        app_model, 
                     )
                     .await?;
+                    
+                    // Return an error as the application already exists
                     return Err(LDNError::New(
-                        "Pathway mismatch: Application already exists".to_string(),
+                        "Pathway mismatch: Allocator already assigned".to_string(),
                     ));
                 }
 
@@ -1051,18 +1059,23 @@ impl LDNApplication {
     }
 
     pub async fn check_application_exists(
+        app_model: ApplicationModel,
         application_id: String,
-        owner: String,
-        repo: String,
-    ) -> Result<(bool, String), LDNError> {
-        let db_application = Self::load_from_db(application_id.clone(), owner.clone(), repo.clone()).await?;
-        let original_issue_number = db_application.issue_number.clone();
+    ) -> Result<bool, LDNError> {
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                application_id
+            ))
+        })?;
     
-        let db_application_id = db_application.id;
-        if db_application_id == application_id {
-            Ok((true, original_issue_number))  // Return both boolean result and original issue number
+        let db_application: ApplicationFile = ApplicationFile::from_str(&app_str)
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))?;
+        
+        if db_application.id == application_id {
+            Ok(true)  // It exists
         } else {
-            Ok((false, "".to_string()))  // Return false if application doesn't exist and empty string for issue number
+            Ok(false) // Return false if application doesn't exist
         }
     }
 
@@ -1919,16 +1932,26 @@ impl LDNApplication {
 
     async fn issue_pathway_mismatch_comment(
         issue_number: String,
-        owner: String,
-        repo: String,
-        original_issue_number: String,
+        info_owner: String,
+        info_repo: String,
+        db_model: ApplicationModel,
     ) -> Result<bool, LDNError> {
-        let gh = github_async_new(owner.clone(), repo.clone()).await;
-        let comment = format!(
-            "This wallet address already exists in another application: http://github.com/{}/{}/issues/{}",
-            owner, repo, original_issue_number
-        );
-
+        let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
+    
+        let comment = if db_model.owner == info_owner && db_model.repo == info_repo {
+            // Application already exists in the same repository
+            format!(
+                "This wallet address already exists in another application: #{}",
+                db_model.pr_number
+            )
+        } else {
+            // Application exists in a different repository
+            format!(
+                "This wallet address already exists in another application: http://github.com/{}/{}/issues/{}",
+                db_model.owner, db_model.repo, db_model.pr_number
+            )
+        };
+    
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
@@ -1937,7 +1960,7 @@ impl LDNApplication {
                     issue_number, e
                 ));
             })?;
-
+    
         Ok(true)
     }
 
