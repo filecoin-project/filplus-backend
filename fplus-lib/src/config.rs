@@ -13,8 +13,10 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("RUST_LOG", "info");
         m.insert("RUST_BACKTRACE", "1");
         m.insert("DB_URL", "");
-        m.insert("ALLOCATOR_GOVERNANCE_REPO", "Allocator-Governance-Staging");
         m.insert("ALLOCATOR_GOVERNANCE_OWNER", "fidlabs");
+        m.insert("ALLOCATOR_GOVERNANCE_REPO", "Allocator-Governance-Staging");
+        m.insert("ALLOCATOR_TEMPLATE_OWNER", "fidlabs");
+        m.insert("ALLOCATOR_TEMPLATE_REPO", "allocator-template");
         m.insert("BOT_USER", "filplus-allocators-staging-bot[bot]");
         m.insert("BACKEND_URL", "https://fp-core.dp04sa0tdc6pk.us-east-1.cs.amazonlightsail.com");
         m.insert("FILPLUS_ENV", "staging");

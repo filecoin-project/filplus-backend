@@ -15,9 +15,26 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub verifiers_gh_handles: Option<String>,
     pub multisig_threshold: Option<i32>,
+    pub allocation_amount_type: Option<String>,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+#[derive(Copy, Clone, Debug, EnumIter)]
+pub enum Relation {
+    AllocationAmounts,
+}
+
+impl RelationTrait for Relation {
+    fn def(&self) -> RelationDef {
+        match self {
+            Self::AllocationAmounts => Entity::has_many(super::allocation_amounts::Entity).into(),
+        }
+    }
+}
+
+impl Related<super::allocation_amounts::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::AllocationAmounts.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

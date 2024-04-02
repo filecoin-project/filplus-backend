@@ -59,7 +59,9 @@ jobs:
               "DB_URL": "${{secrets.DB_URL}}",
               "GLIF_NODE_URL": "${{vars.GLIF_NODE_URL}}",
               "ALLOCATOR_GOVERNANCE_OWNER": "${{vars.ALLOCATOR_GOVERNANCE_OWNER}}",
-              "ALLOCATOR_GOVERNANCE_REPO": "${{vars.ALLOCATOR_GOVERNANCE_REPO}}"
+              "ALLOCATOR_GOVERNANCE_REPO": "${{vars.ALLOCATOR_GOVERNANCE_REPO}}",
+              "ALLOCATOR_TEMPLATE_OWNER": "${{vars.ALLOCATOR_TEMPLATE_OWNER}}",
+              "ALLOCATOR_TEMPLATE_REPO": "${{vars.ALLOCATOR_TEMPLATE_REPO}}"
             }
           }
         }' > containers.json

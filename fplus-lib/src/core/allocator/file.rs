@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllocatorModel {
     pub application: Application,
     pub multisig_threshold: Option<i32>,
@@ -9,17 +9,24 @@ pub struct AllocatorModel {
     pub repo: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllocatorModelPathwayAddresses {
     pub msig: String,
     pub signer: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Application {
     #[serde(rename = "github_handles")]
     pub verifiers_gh_handles: Vec<String>,
     pub allocation_bookkeeping: String,
+    pub allocation_amount: Option<AllocationAmount>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AllocationAmount {
+    pub amount_type: Option<String>,
+    pub quantity_options: Option<Vec<String>>
 }
 
 #[derive(Debug, Serialize, Deserialize)]

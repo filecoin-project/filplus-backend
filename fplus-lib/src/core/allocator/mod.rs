@@ -29,8 +29,8 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     let path = file_name.to_string();
 
     let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id.clone());
-    let content_items = gh.get_files_from_public_repo(&owner, &repo, branch, Some(&path)).await.map_err(|e| LDNError::Load(e.to_string()))?;
-    let mut model = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
+    let content_items: ContentItems = gh.get_files_from_public_repo(&owner, &repo, branch, Some(&path)).await.map_err(|e| LDNError::Load(e.to_string()))?;
+    let mut model: AllocatorModel = content_items_to_allocator_model(content_items).map_err(|e| LDNError::Load(e.to_string()))?;
 
     // Get multisig threshold from the blockchain if multisig address is available
     if let Ok(blockchain_threshold) = get_multisig_threshold_for_actor(&model.pathway_addresses.msig).await {
@@ -69,9 +69,15 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
                 log::error!("Failed to parse allocator model");
                 return Err(LDNError::Load("Failed to parse allocator model".to_string()));
             }
+
+            //If repo ends with .git, remove it
+            let mut repo = owner_repo_parts[owner_repo_parts.len() - 1].to_string();
+            if repo.ends_with(".git") {
+                repo = repo[..repo.len() - 4].to_string();
+            }
             
             model.owner = Some(owner_repo_parts[owner_repo_parts.len() - 2].to_string());
-            model.repo = Some(owner_repo_parts[owner_repo_parts.len() - 1].to_string());
+            model.repo = Some(repo);
             
             log::info!("Parsed allocator model successfully");
             Ok(model)
@@ -168,12 +174,14 @@ pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNErr
         "production" => "main",
         _ => "main",
     };
+    let allocator_template_owner = get_env_var_or_default("ALLOCATOR_TEMPLATE_OWNER");
+    let allocator_template_repo = get_env_var_or_default("ALLOCATOR_TEMPLATE_REPO");
 
     dirs.push("".to_string());
     
     while dirs.len() > 0 {
         let dir = dirs.pop().unwrap();
-        let files_list = gh.get_files_from_public_repo("fidlabs", "allocator-template", branch, Some(&dir)).await.map_err(|e| {
+        let files_list = gh.get_files_from_public_repo(&allocator_template_owner, &allocator_template_repo, branch, Some(&dir)).await.map_err(|e| {
             LDNError::Load(format!("Failed to retrieve all files from GitHub. Reason: {}", e))
         })?;
 
@@ -270,7 +278,7 @@ pub async fn update_installation_ids_in_db(installation: InstallationRepositorie
     for repo in installation.repositories.iter() {
         let owner = repo.owner.clone();
         let repo = repo.slug.clone();
-        let _ = create_or_update_allocator(owner, repo, Some(installation_id.try_into().unwrap()), None, None, None).await;
+        let _ = create_or_update_allocator(owner, repo, Some(installation_id.try_into().unwrap()), None, None, None, None).await;
     }
 }
 
@@ -353,6 +361,8 @@ pub async fn force_update_allocators(files: Vec<String>, affected_allocators: Op
         "production" => "main",
         _ => "main"
     };
+    let allocator_template_owner = get_env_var_or_default("ALLOCATOR_TEMPLATE_OWNER");
+    let allocator_template_repo = get_env_var_or_default("ALLOCATOR_TEMPLATE_REPO");
 
     //now iterate over allocators and files
     for allocator in allocators {
@@ -364,7 +374,7 @@ pub async fn force_update_allocators(files: Vec<String>, affected_allocators: Op
 
         for file in files.iter() {
 
-            match gh.get_files_from_public_repo("fidlabs", "allocator-template", branch, Some(&file)).await {
+            match gh.get_files_from_public_repo(&allocator_template_owner, &allocator_template_repo, branch, Some(&file)).await {
                 Ok(content) => {
                     match create_file_in_repo(&gh, &content.items[0], true).await {
                         Ok(_) => {
@@ -383,4 +393,40 @@ pub async fn force_update_allocators(files: Vec<String>, affected_allocators: Op
     }    
     
     Ok(())
+}
+
+
+pub fn validate_amount_type_and_options(amount_type: &str, amount_options: &[String]) -> Result<(), String> {
+    match amount_type {
+        "fixed" => validate_fixed_amount_options(amount_options),
+        "percentage" => validate_percentage_amount_options(amount_options),
+        _ => Err("Invalid amount type".into()),
+    }
+}
+
+pub fn validate_fixed_amount_options(amount_options: &[String]) -> Result<(), String> {
+    for option in amount_options {
+        if !is_valid_fixed_option(option) {
+            return Err(format!("Invalid fixed amount option: {}", option));
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_percentage_amount_options(amount_options: &[String]) -> Result<(), String> {
+    for option in amount_options {
+        let no_percentage_option = option.replace("%", "");
+        if !no_percentage_option.parse::<i32>().is_ok() {
+            return Err(format!("Invalid percentage amount option: {}", option));
+        }
+    }
+    Ok(())
+}
+
+pub fn is_valid_fixed_option(option: &str) -> bool {
+    let allowed_units = ["GiB", "TiB", "PiB", "GB", "TB", "PB"];
+    let number_part = option.trim_end_matches(|c: char| !c.is_digit(10));
+    let unit_part = option.trim_start_matches(|c: char| c.is_digit(10));
+
+    number_part.parse::<i32>().is_ok() && allowed_units.contains(&unit_part)
 }

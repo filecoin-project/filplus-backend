@@ -107,7 +107,8 @@ pub async fn create_or_update_allocator(
     installation_id: Option<i64>,
     multisig_address: Option<String>,
     verifiers_gh_handles: Option<String>,
-    multisig_threshold: Option<i32>
+    multisig_threshold: Option<i32>,
+    allocation_amount_type: Option<String>
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
 
     let existing_allocator = get_allocator(&owner, &repo).await?;
@@ -129,6 +130,12 @@ pub async fn create_or_update_allocator(
     
         if multisig_threshold.is_some() {
             allocator_active_model.multisig_threshold = Set(multisig_threshold);
+        }
+
+        if let Some(allocation_amount_type) = allocation_amount_type {
+            allocator_active_model.allocation_amount_type = Set(Some(allocation_amount_type.to_lowercase()));
+        } else {
+            allocator_active_model.allocation_amount_type = Set(None);
         }
 
         let updated_model = allocator_active_model.update(&conn).await?;
@@ -157,8 +164,16 @@ pub async fn create_or_update_allocator(
             new_allocator.multisig_threshold = Set(multisig_threshold);
         }
 
+        if let Some(allocation_amount_type) = allocation_amount_type {
+            new_allocator.allocation_amount_type = Set(Some(allocation_amount_type.to_lowercase()));
+        } else {
+            new_allocator.allocation_amount_type = Set(None);
+        }
+
         let conn = get_database_connection().await.expect("Failed to get DB connection");
-        new_allocator.insert(&conn).await
+        let insert_result = new_allocator.insert(&conn).await;
+        println!("Allocator inserted: {:?}", insert_result);
+        Ok(insert_result.unwrap())
     }
 }
 
