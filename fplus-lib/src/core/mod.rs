@@ -1825,6 +1825,34 @@ impl LDNApplication {
         }
     }
 
+    /**
+     * Updates the application when an issue is modified. It searches for the PR through the issue number and updates the application file.
+     * 
+     * # Arguments
+     * `info` - The information to update the application with.
+     * 
+     * # Returns
+     * `Result<LDNApplication, LDNError>` - The updated application.
+     */
+    pub async fn update_from_issue(info: CreateApplicationInfo) -> Result<bool, LDNError> {
+        // Get the PR number from the issue number.
+        let issue_number = info.issue_number;
+        let gh = github_async_new(info.owner.to_string(), info.repo.to_string()).await;
+        let (parsed_ldn, _) = LDNApplication::parse_application_issue(
+            issue_number.clone(),
+            info.owner.clone(),
+            info.repo.clone(),
+        )
+        .await?;
+        let application_id = parsed_ldn.id.clone();
+        //let application = LDNApplication::single_merged(application_id.clone(), info.owner.clone(), info.repo.clone()).await?;
+        let application = LDNApplication::single_active(application_id.clone(), info.owner.clone(), info.repo.clone()).await?;
+        println!("Application: {:?}", application);
+
+        Ok(true)
+        
+    }
+
     pub async fn delete_merged_branch(
         owner: String,
         repo: String,

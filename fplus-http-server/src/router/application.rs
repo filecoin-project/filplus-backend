@@ -337,6 +337,14 @@ pub async fn cache_renewal(info: web::Json<GithubQueryParams>) -> impl Responder
     }
 }
 
+#[post("application/update-from-issue")]
+pub async fn update_from_issue(info: web::Json<CreateApplicationInfo>) -> impl Responder {
+    match LDNApplication::update_from_issue(info.into_inner()).await {
+        Ok(app) => HttpResponse::Ok().json(app),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}
+
 #[get("/health")]
 pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")
