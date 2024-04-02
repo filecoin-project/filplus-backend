@@ -27,6 +27,7 @@ use crate::{
 use fplus_database::database::{
     self,
     allocators::{get_allocator, update_allocator_threshold},
+    applications::get_application
 };
 use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 
@@ -557,6 +558,13 @@ impl LDNApplication {
         } else {
             "false".to_string()
         };
+        
+        // If application exists, comment on the issue
+        let db_check_result = Self::check_application_exists(parsed_ldn.id.clone(), info.owner.clone(), info.repo.clone()).await;
+        if let Ok(true) = db_check_result {
+            Self::issue_pathway_mismatch_comment(issue_number.clone(), info.owner.clone(), info.repo.clone()).await?;
+            return Err(LDNError::New("Pathway mismatch: Allocator already assigned".to_string()));
+        }
 
         match gh.get_file(&file_name, &branch_name).await {
             Err(_) => {
@@ -1009,6 +1017,15 @@ impl LDNApplication {
             )))
         }
     }
+
+    pub async fn check_application_exists(id: String, owner: String, repo: String) -> Result<bool, LDNError> {
+        match database::applications::get_application(id, owner, repo, None).await {
+            Ok(_application) => Ok(true),  
+            Err(_) => Ok(false)
+        }
+    }
+    
+    
 
     /// Return Application state
     async fn app_state(&self) -> Result<AppState, LDNError> {
@@ -1858,6 +1875,26 @@ impl LDNApplication {
             ));
         })?;
 
+        Ok(true)
+    }
+
+    async fn issue_pathway_mismatch_comment(
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner, repo).await;
+        let comment = "The Application has another allocator assigned. Please provide another address for the allocation";
+    
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+    
         Ok(true)
     }
 
