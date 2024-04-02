@@ -1,5 +1,4 @@
 use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
-use fplus_database::database::allocators::get_allocator;
 use fplus_database::database::allocators as allocators_db;
 use fplus_database::database::allocation_amounts as allocation_amounts_db;
 use fplus_lib::core::allocator::fetch_installation_ids;
