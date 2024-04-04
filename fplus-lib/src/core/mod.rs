@@ -1834,10 +1834,9 @@ impl LDNApplication {
      * # Returns
      * `Result<LDNApplication, LDNError>` - The updated application.
      */
-    pub async fn update_from_issue(info: CreateApplicationInfo) -> Result<bool, LDNError> {
+    pub async fn update_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNError> {
         // Get the PR number from the issue number.
-        let issue_number = info.issue_number;
-        let gh = github_async_new(info.owner.to_string(), info.repo.to_string()).await;
+        let issue_number = info.issue_number.clone();
         let (parsed_ldn, _) = LDNApplication::parse_application_issue(
             issue_number.clone(),
             info.owner.clone(),
@@ -1845,12 +1844,26 @@ impl LDNApplication {
         )
         .await?;
         let application_id = parsed_ldn.id.clone();
-        //let application = LDNApplication::single_merged(application_id.clone(), info.owner.clone(), info.repo.clone()).await?;
-        let application = LDNApplication::single_active(application_id.clone(), info.owner.clone(), info.repo.clone()).await?;
-        println!("Application: {:?}", application);
 
-        Ok(true)
+        let application_model = match Self::get_application_model(application_id.clone(), info.owner.clone(), info.repo.clone()).await {
+            Ok(app) => app,
+            Err(e) =>  {
+                log::warn!("Failed to get application model: {}", e);
+
+                //Application Id has not been found. That means the user has modified the wallet address
+                // TODO: Post a comment on the issue that the wallet address has been updated
+                return Err(LDNError::New(format!("Failed to get application model: {}", e)));
+            
+            }
+        };
         
+        //Application was merged (It is granted). Let's create a new PR with the updated application file, as if it was a new application
+        if application_model.pr_number == 0 {
+            return Self::new_from_issue(info).await;
+        }
+
+
+        return Err(LDNError::New(format!("Not implemented")));
     }
 
     pub async fn delete_merged_branch(
