@@ -17,10 +17,9 @@ use crate::{
     config::get_env_var_or_default,
     error::LDNError,
     external_services::{
-        filecoin::get_multisig_threshold_for_actor,
-        github::{
+        blockchain::{self, BlockchainData}, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
-        },
+        }
     },
     parsers::ParsedIssue,
 };
@@ -616,6 +615,26 @@ impl LDNApplication {
                     return Err(LDNError::New(
                         "Pathway mismatch: Allocator already assigned".to_string(),
                     ));
+                } else {
+                    let blockchain = BlockchainData::new();
+
+                    // Check the allowance for the address
+                    match blockchain.get_allowance_for_address(&app_model.id).await {
+                        Ok(allowance) if allowance != "0" => {
+                            // If allowance is found and is not zero, issue the pathway mismatch comment
+                            Self::issue_pathway_mismatch_comment(
+                                issue_number.clone(),
+                                info.owner.clone(),
+                                info.repo.clone(),
+                                app_model, 
+                            ).await?;
+                            
+                            return Err(LDNError::New(
+                                "Pathway mismatch: Allocator already assigned with allowance".to_string(),
+                            ));
+                        },
+                        _ => {} // If no allowance is found, do nothing and let the function proceed
+                    }
                 }
 
                 let file_content = match serde_json::to_string_pretty(&application_file) {
