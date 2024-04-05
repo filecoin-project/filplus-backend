@@ -17,25 +17,24 @@ use crate::{
     config::get_env_var_or_default,
     error::LDNError,
     external_services::{
-        filecoin::get_multisig_threshold_for_actor,
-        github::{
+        blockchain::{self, BlockchainData}, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
-        },
+        }
     },
     parsers::ParsedIssue,
 };
+use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 use fplus_database::database::{
     self,
     allocators::{get_allocator, update_allocator_threshold},
 };
-use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 
 use fplus_database::models::applications::Model as ApplicationModel;
 
-use self::application::{allocation, file::{
+use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
     VerifierInput,
-}};
+};
 use crate::core::application::file::Allocation;
 use std::collections::HashSet;
 
@@ -128,7 +127,7 @@ pub struct ChangedAllocators {
 #[derive(Deserialize)]
 pub struct AllocatorUpdateForceInfo {
     pub files: Vec<String>,
-    pub allocators: Option<Vec<GithubQueryParams>>
+    pub allocators: Option<Vec<GithubQueryParams>>,
 }
 
 #[derive(Deserialize)]
@@ -159,7 +158,7 @@ pub struct ApplicationQueryParams {
 
 #[derive(Deserialize)]
 pub struct CompleteGovernanceReviewInfo {
-    pub allocation_amount: String
+    pub allocation_amount: String,
 }
 
 #[derive(Deserialize)]
@@ -188,7 +187,7 @@ pub struct ApplicationGithubInfo {
 #[derive(Debug, Serialize)]
 pub struct ApplicationWithAllocation {
     application_file: ApplicationFile, // Assuming ApplicationFile is the type for app_file
-    allocation: AllocationObject
+    allocation: AllocationObject,
 }
 
 #[derive(Debug, Serialize)]
@@ -196,7 +195,6 @@ pub struct AllocationObject {
     allocation_amount_type: String,
     allocation_amount_quantity_options: Vec<String>,
 }
-
 
 impl LDNApplication {
     pub async fn single_active(
@@ -271,7 +269,8 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<ApplicationModel, LDNError> {
-        let app_model_result = database::applications::get_application(application_id, owner, repo, None).await;
+        let app_model_result =
+            database::applications::get_application(application_id, owner, repo, None).await;
         match app_model_result {
             Ok(model) => Ok(model),
             Err(e) => Err(LDNError::Load(format!("Database error: {}", e))),
@@ -283,13 +282,19 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
-        let app_model = Self::get_application_model(application_id.clone(), owner.clone(), repo.clone()).await?;
+        let app_model =
+            Self::get_application_model(application_id.clone(), owner.clone(), repo.clone())
+                .await?;
 
         let app_str = app_model.application.ok_or_else(|| {
-            LDNError::Load(format!("Application {} does not have an application field", application_id))
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                application_id
+            ))
         })?;
-    
-        ApplicationFile::from_str(&app_str).map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))
+
+        ApplicationFile::from_str(&app_str)
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))
     }
 
     pub async fn application_with_allocation_amount(
@@ -297,18 +302,27 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<ApplicationWithAllocation, LDNError> {
-        let app_model_result = database::applications::get_application(application_id.clone(), owner.clone(), repo.clone(), None).await;
-    
+        let app_model_result = database::applications::get_application(
+            application_id.clone(),
+            owner.clone(),
+            repo.clone(),
+            None,
+        )
+        .await;
+
         let app_model = match app_model_result {
             Ok(model) => model,
             Err(e) => return Err(LDNError::Load(format!("Database error: {}", e))),
         };
-    
+
         // Check if the application field is present and parse it
         let app_str = app_model.application.ok_or_else(|| {
-            LDNError::Load(format!("Application {} does not have an application field", application_id))
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                application_id
+            ))
         })?;
-    
+
         let app_file = ApplicationFile::from_str(&app_str).map_err(|e| {
             LDNError::Load(format!("Failed to parse application file from DB: {}", e))
         })?;
@@ -320,15 +334,19 @@ impl LDNApplication {
             }
         };
 
-        let allocation_amount_type = db_allocator.allocation_amount_type.unwrap_or("".to_string());
+        let allocation_amount_type = db_allocator
+            .allocation_amount_type
+            .unwrap_or("".to_string());
 
-        let allocation_amount_quantity_options = get_allocation_quantity_options(db_allocator.id).await.unwrap();
+        let allocation_amount_quantity_options = get_allocation_quantity_options(db_allocator.id)
+            .await
+            .unwrap();
 
         Ok(ApplicationWithAllocation {
             allocation: {
                 AllocationObject {
                     allocation_amount_type,
-                    allocation_amount_quantity_options
+                    allocation_amount_quantity_options,
                 }
             },
             application_file: app_file,
@@ -570,6 +588,55 @@ impl LDNApplication {
                     parsed_ldn.datacap,
                 )
                 .await;
+
+                let app_model = Self::get_application_model(
+                    application_id.clone(),
+                    info.owner.clone(),
+                    info.repo.clone(),
+                ).await?;
+                
+                // Check if application already exists in our db
+                let exists = Self::check_application_exists(
+                    app_model.clone(),
+                    application_id.clone(),
+                ).await?;
+
+                if exists {
+                    // Add a comment to the GitHub issue
+                    Self::issue_pathway_mismatch_comment(
+                        issue_number.clone(),
+                        info.owner.clone(),
+                        info.repo.clone(),
+                        app_model, 
+                    )
+                    .await?;
+                    
+                    // Return an error as the application already exists
+                    return Err(LDNError::New(
+                        "Pathway mismatch: Allocator already assigned".to_string(),
+                    ));
+                } else {
+                    let blockchain = BlockchainData::new();
+
+                    // Check the allowance for the address
+                    match blockchain.get_allowance_for_address(&app_model.id).await {
+                        Ok(allowance) if allowance != "0" => {
+                            // If allowance is found and is not zero, issue the pathway mismatch comment
+                            Self::issue_pathway_mismatch_comment(
+                                issue_number.clone(),
+                                info.owner.clone(),
+                                info.repo.clone(),
+                                app_model, 
+                            ).await?;
+                            
+                            return Err(LDNError::New(
+                                "Pathway mismatch: Allocator already assigned with allowance".to_string(),
+                            ));
+                        },
+                        _ => {} // If no allowance is found, do nothing and let the function proceed
+                    }
+                }
+
                 let file_content = match serde_json::to_string_pretty(&application_file) {
                     Ok(f) => f,
                     Err(e) => {
@@ -648,10 +715,25 @@ impl LDNApplication {
                 })
             }
             Ok(_) => {
-                return Err(LDNError::New(format!(
-                    "Application issue {} already exists",
-                    application_id
-                )))
+                let app_model = Self::get_application_model(
+                    application_id.clone(),
+                    info.owner.clone(),
+                    info.repo.clone(),
+                ).await?;
+
+                // Add a comment to the GitHub issue
+                Self::issue_pathway_mismatch_comment(
+                    issue_number.clone(),
+                    info.owner.clone(),
+                    info.repo.clone(),
+                    app_model, 
+                )
+                .await?;
+                
+                // Return an error as the application already exists
+                return Err(LDNError::New(
+                    "Pathway mismatch: Allocator already assigned".to_string(),
+                ));
             }
         }
     }
@@ -662,7 +744,7 @@ impl LDNApplication {
         actor: String,
         owner: String,
         repo: String,
-        allocation_amount: String
+        allocation_amount: String,
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
@@ -1007,6 +1089,27 @@ impl LDNApplication {
                 "Failed to retrieve issue {} from GitHub. Reason: {}",
                 issue_number, "No body"
             )))
+        }
+    }
+
+    pub async fn check_application_exists(
+        app_model: ApplicationModel,
+        application_id: String,
+    ) -> Result<bool, LDNError> {
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                application_id
+            ))
+        })?;
+    
+        let db_application: ApplicationFile = ApplicationFile::from_str(&app_str)
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))?;
+        
+        if db_application.id == application_id {
+            Ok(true)  // It exists
+        } else {
+            Ok(false) // Return false if application doesn't exist
         }
     }
 
@@ -1437,11 +1540,11 @@ impl LDNApplication {
             log::info!("- Application is in a valid state!");
             return Ok(true);
         }
-        let bot_user = get_env_var_or_default("BOT_USER");
-        if author != bot_user {
-            log::warn!("- Author is not the bot user");
-            return Ok(false);
-        }
+        // let bot_user = get_env_var_or_default("BOT_USER");
+        // if author != bot_user {
+        //     log::warn!("- Author is not the bot user");
+        //     return Ok(false);
+        // }
 
         log::info!("- Application is in a valid state");
         return Ok(true);
@@ -1472,7 +1575,7 @@ impl LDNApplication {
             let app_state = application_file.lifecycle.get_state();
             let active_request_id = application_file.lifecycle.active_request.clone();
             let valid_verifier_list = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
-            let bot_user = get_env_var_or_default("BOT_USER");
+            // let bot_user = get_env_var_or_default("BOT_USER");
 
             let res: bool = match app_state {
                 AppState::Submitted => {
@@ -1506,12 +1609,14 @@ impl LDNApplication {
                                 "Val Trigger (RtS) - Not ready to sign - validated_by is empty"
                             );
                             false
-                        } else if actor != bot_user {
-                            log::warn!(
-                                "Val Trigger (RtS) - Not ready to sign - actor is not the bot user"
-                            );
-                            false
-                        } else if !valid_verifier_list.is_valid(&validated_by) {
+                        }
+                        // else if actor != bot_user {
+                        //     log::warn!(
+                        //         "Val Trigger (RtS) - Not ready to sign - actor is not the bot user"
+                        //     );
+                        //     false
+                        // } 
+                        else if !valid_verifier_list.is_valid(&validated_by) {
                             log::warn!("Val Trigger (RtS) - Not ready to sign - valid_verifier_list is not valid");
                             false
                         } else {
@@ -1696,7 +1801,8 @@ impl LDNApplication {
                             return Err(LDNError::New(format!("Database: get_allocator: {}", err)));
                         }
                     };
-                    let db_multisig_threshold = db_allocator.multisig_threshold.unwrap_or(2) as usize;
+                    let db_multisig_threshold =
+                        db_allocator.multisig_threshold.unwrap_or(2) as usize;
                     let signers: application::file::Verifiers = active_request.signers.clone();
 
                     // Check if the number of signers meets or exceeds the multisig threshold
@@ -1712,7 +1818,6 @@ impl LDNApplication {
                     let valid_verifiers: ValidVerifierList =
                         Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
 
-                        
                     if valid_verifiers.is_valid(&signer_gh_handle) {
                         log::info!("Val Approval (G)- Validated!");
                         Self::issue_datacap_request_signature(
@@ -1861,6 +1966,40 @@ impl LDNApplication {
         Ok(true)
     }
 
+    async fn issue_pathway_mismatch_comment(
+        issue_number: String,
+        info_owner: String,
+        info_repo: String,
+        db_model: ApplicationModel,
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
+    
+        let comment = if db_model.owner == info_owner && db_model.repo == info_repo {
+            // Application already exists in the same repository
+            format!(
+                "This wallet address already exists in another application: #{}",
+                db_model.pr_number
+            )
+        } else {
+            // Application exists in a different repository
+            format!(
+                "This wallet address already exists in another application: http://github.com/{}/{}/issues/{}",
+                db_model.owner, db_model.repo, db_model.pr_number
+            )
+        };
+    
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+    
+        Ok(true)
+    }
+
     async fn issue_datacap_request_trigger(
         application_file: ApplicationFile,
         owner: String,
@@ -1875,8 +2014,10 @@ impl LDNApplication {
             .allocation
             .0
             .iter()
-            .find(|obj| Some(&obj.id) == application_file.lifecycle.active_request.as_ref()).unwrap().amount.clone();
-
+            .find(|obj| Some(&obj.id) == application_file.lifecycle.active_request.as_ref())
+            .unwrap()
+            .amount
+            .clone();
 
         let issue_number = application_file.issue_number.clone();
 
