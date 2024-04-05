@@ -32,10 +32,10 @@ use fplus_database::database::allocation_amounts::get_allocation_quantity_option
 
 use fplus_database::models::applications::Model as ApplicationModel;
 
-use self::application::{allocation, file::{
+use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
     VerifierInput,
-}};
+};
 use crate::core::application::file::Allocation;
 use std::collections::HashSet;
 
@@ -607,7 +607,7 @@ impl LDNApplication {
                     application_file.issue_number.clone(),
                     &[
                         AppState::Submitted.as_str(),
-                        "waiting for governance review",
+                        "waiting for allocator review",
                     ],
                     info.owner.clone(),
                     info.repo.clone(),
@@ -1594,6 +1594,11 @@ impl LDNApplication {
                     log::warn!("Val Trigger (TDR) - Application state is Error");
                     return Ok(false);
                 }
+                //TODO: Remove this when merge with other changes
+                _ => {
+                    log::warn!("Val Trigger (TDR) - Application state is not valid");
+                    return Ok(false);
+                }
             };
 
             if res {
@@ -1859,11 +1864,130 @@ impl LDNApplication {
         
         //Application was merged (It is granted). Let's create a new PR with the updated application file, as if it was a new application
         if application_model.pr_number == 0 {
-            return Self::new_from_issue(info).await;
+            return Self::reopen_pr_from_issue(parsed_ldn, application_model).await;
         }
 
+        return Self::manage_open_pr_from_issue(parsed_ldn, application_model).await;
+       
+        //return Err(LDNError::New(format!("Not implemented")));
+    }
 
-        return Err(LDNError::New(format!("Not implemented")));
+    pub async fn manage_open_pr_from_issue(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
+        let pr_application = ApplicationFile::from_str(&application_model.application.unwrap())
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e))).unwrap();
+
+        let application_id = parsed_ldn.id.clone();
+        let application_file = ApplicationFile::edited(
+            pr_application.issue_number.clone(),
+            parsed_ldn.version,
+            application_id.clone(),
+            parsed_ldn.client.clone(),
+            parsed_ldn.project,
+            parsed_ldn.datacap,
+            pr_application.allocation.clone(),
+            pr_application.lifecycle.clone(),
+        ).await;
+
+        let file_content = match serde_json::to_string_pretty(&application_file) {
+            Ok(f) => f,
+            Err(e) => {
+                Self::add_error_label(
+                    application_file.issue_number.clone(),
+                    "".to_string(),
+                    application_model.owner.clone(),
+                    application_model.repo.clone(),
+                )
+                .await?;
+                return Err(LDNError::New(format!(
+                    "Application issue file is corrupted /// {}",
+                    e
+                )));
+            }
+        };
+
+        return Err(LDNError::New(format!(
+            "Not implemented",
+        )));
+    }
+
+    pub async fn reopen_pr_from_issue(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
+        let merged_application = ApplicationFile::from_str(&application_model.application.unwrap())
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e))).unwrap();
+
+        let application_id = parsed_ldn.id.clone();
+        
+        //Create new application file with updated info from issue
+        let application_file = ApplicationFile::edited(
+            merged_application.issue_number.clone(),
+            parsed_ldn.version,
+            application_id.clone(),
+            parsed_ldn.client.clone(),
+            parsed_ldn.project,
+            parsed_ldn.datacap,
+            merged_application.allocation.clone(),
+            merged_application.lifecycle.clone(),
+        ).await;
+
+        let file_content = match serde_json::to_string_pretty(&application_file) {
+            Ok(f) => f,
+            Err(e) => {
+                Self::add_error_label(
+                    application_file.issue_number.clone(),
+                    "".to_string(),
+                    application_model.owner.clone(),
+                    application_model.repo.clone(),
+                )
+                .await?;
+                return Err(LDNError::New(format!(
+                    "Application issue file is corrupted /// {}",
+                    e
+                )));
+            }
+        };
+
+        let file_name = LDNPullRequest::application_path(&application_id);
+        let branch_name = LDNPullRequest::application_branch_name(&application_id);
+        let uuid = uuidv4::uuid::v4();
+
+        LDNPullRequest::create_refill_pr(
+            application_id.clone(),
+            parsed_ldn.client.name.clone(),
+            file_content.clone(),
+            LDNPullRequest::application_path(&application_id),
+            uuid,
+            application_model.sha.clone().unwrap(),
+            application_model.owner.clone(),
+            application_model.repo.clone(),
+        )
+        .await?;
+
+        Self::issue_waiting_for_gov_review(
+            merged_application.issue_number.clone(),
+            application_model.owner.clone(),
+            application_model.repo.clone(),
+        )
+        .await?;
+
+        Self::update_issue_labels(
+            application_file.issue_number.clone(),
+            &[
+                AppState::ChangesRequested.as_str(),
+                "waiting for allocator review",
+            ],
+            application_model.owner.clone(),
+            application_model.repo.clone(),
+        )
+        .await?;
+        
+        let gh = github_async_new(application_model.owner.to_string(), application_model.repo.to_string()).await;
+
+        Ok(LDNApplication {
+            github: gh,
+            application_id,
+            file_sha: application_model.sha.clone().unwrap(),
+            file_name,
+            branch_name,
+        })
     }
 
     pub async fn delete_merged_branch(
@@ -2545,6 +2669,29 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
             Some(sha)
         }
         None => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_update_pr_from_isue() { 
+        let _ = fplus_database::setup_test_environment().await;
+        let info = CreateApplicationInfo {
+            issue_number: "28".to_string(),
+            owner: "clriesco".to_string(),
+            repo: "king-charles-staging".to_string(),
+        };
+        match LDNApplication::update_from_issue(info).await {
+            Ok(app) => {
+                log::info!("Application updated: {:?}", app);
+            }
+            Err(e) => {
+                log::error!("Failed to update application: {}", e);
+            }
+        }
     }
 }
 

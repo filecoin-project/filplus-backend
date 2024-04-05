@@ -227,7 +227,7 @@ impl GithubWrapper {
         new_labels: &[&str],
     ) -> Result<(), OctocrabError> {
         let search_labels = vec![
-            "waiting for governance review",
+            "waiting for allocator review",
             AppState::Submitted.as_str(),
             AppState::ReadyToSign.as_str(),
             AppState::StartSignDatacap.as_str(),

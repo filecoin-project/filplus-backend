@@ -340,7 +340,10 @@ pub async fn cache_renewal(info: web::Json<GithubQueryParams>) -> impl Responder
 #[post("application/update-from-issue")]
 pub async fn update_from_issue(info: web::Json<CreateApplicationInfo>) -> impl Responder {
     match LDNApplication::update_from_issue(info.into_inner()).await {
-        Ok(app) => HttpResponse::Ok().json(app),
+        Ok(app) =>HttpResponse::Ok().body(format!(
+            "Updated application for issue: {}",
+            app.application_id.clone()
+        )),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
