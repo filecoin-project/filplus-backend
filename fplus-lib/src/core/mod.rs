@@ -715,10 +715,25 @@ impl LDNApplication {
                 })
             }
             Ok(_) => {
-                return Err(LDNError::New(format!(
-                    "Application issue {} already exists",
-                    application_id
-                )))
+                let app_model = Self::get_application_model(
+                    application_id.clone(),
+                    info.owner.clone(),
+                    info.repo.clone(),
+                ).await?;
+
+                // Add a comment to the GitHub issue
+                Self::issue_pathway_mismatch_comment(
+                    issue_number.clone(),
+                    info.owner.clone(),
+                    info.repo.clone(),
+                    app_model, 
+                )
+                .await?;
+                
+                // Return an error as the application already exists
+                return Err(LDNError::New(
+                    "Pathway mismatch: Allocator already assigned".to_string(),
+                ));
             }
         }
     }
