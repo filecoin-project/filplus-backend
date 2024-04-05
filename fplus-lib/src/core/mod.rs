@@ -1525,11 +1525,11 @@ impl LDNApplication {
             log::info!("- Application is in a valid state!");
             return Ok(true);
         }
-        let bot_user = get_env_var_or_default("BOT_USER");
-        if author != bot_user {
-            log::warn!("- Author is not the bot user");
-            return Ok(false);
-        }
+        // let bot_user = get_env_var_or_default("BOT_USER");
+        // if author != bot_user {
+        //     log::warn!("- Author is not the bot user");
+        //     return Ok(false);
+        // }
 
         log::info!("- Application is in a valid state");
         return Ok(true);
@@ -1560,7 +1560,7 @@ impl LDNApplication {
             let app_state = application_file.lifecycle.get_state();
             let active_request_id = application_file.lifecycle.active_request.clone();
             let valid_verifier_list = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
-            let bot_user = get_env_var_or_default("BOT_USER");
+            // let bot_user = get_env_var_or_default("BOT_USER");
 
             let res: bool = match app_state {
                 AppState::Submitted => {
@@ -1594,12 +1594,14 @@ impl LDNApplication {
                                 "Val Trigger (RtS) - Not ready to sign - validated_by is empty"
                             );
                             false
-                        } else if actor != bot_user {
-                            log::warn!(
-                                "Val Trigger (RtS) - Not ready to sign - actor is not the bot user"
-                            );
-                            false
-                        } else if !valid_verifier_list.is_valid(&validated_by) {
+                        }
+                        // else if actor != bot_user {
+                        //     log::warn!(
+                        //         "Val Trigger (RtS) - Not ready to sign - actor is not the bot user"
+                        //     );
+                        //     false
+                        // } 
+                        else if !valid_verifier_list.is_valid(&validated_by) {
                             log::warn!("Val Trigger (RtS) - Not ready to sign - valid_verifier_list is not valid");
                             false
                         } else {
