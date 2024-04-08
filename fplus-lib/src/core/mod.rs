@@ -152,6 +152,8 @@ pub struct AllocatorUpdateInfo {
     pub multisig_address: Option<String>,
     pub verifiers_gh_handles: Option<String>,
     pub multisig_threshold: Option<i32>,
+    pub address: Option<String>,
+    pub tooling: Option<String>,
 }
 
 #[derive(Deserialize)]

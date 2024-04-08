@@ -74,6 +74,11 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                 } else {
                     Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
                 };
+                let tooling = if model.application.tooling.is_empty() {
+                    None
+                } else {
+                    Some(model.application.tooling.join(", "))
+                };
                 let owner = model.owner.clone().unwrap_or_default().to_string();
                 let repo = model.repo.clone().unwrap_or_default().to_string();
 
@@ -84,7 +89,9 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                     Some(model.pathway_addresses.msig),      
                     verifiers_gh_handles,
                     model.multisig_threshold,
-                    model.application.allocation_amount.clone().map(|a| a.amount_type.clone()).flatten() // Flattens Option<Option<String>> to Option<String>
+                    model.application.allocation_amount.clone().map(|a| a.amount_type.clone()).flatten(), // Flattens Option<Option<String>> to Option<String>
+                    model.address,
+                    tooling,
                 ).await;
 
                 match allocator_creation_result {
@@ -175,7 +182,9 @@ pub async fn update(
         None,
         info.multisig_address.clone(),
         info.verifiers_gh_handles.clone(),
-        info.multisig_threshold
+        info.multisig_threshold,
+        info.address.clone(),
+        info.tooling.clone(),
     ).await {
         Ok(allocator_model) => HttpResponse::Ok().json(allocator_model),
         Err(e) => {

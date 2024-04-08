@@ -105,6 +105,8 @@ mod tests {
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
         let multisig_threshold = Some(2);
         let amount_type = Some("Fixed".to_string());
+        let address = Some("0x1234567890".to_string());
+        let tooling = Some("common_ui, smart_contract_allocator".to_string());
 
         let result = database::allocators::create_or_update_allocator(
             owner,
@@ -113,7 +115,9 @@ mod tests {
             multisig_address,
             verifiers_gh_handles,
             multisig_threshold,
-            amount_type
+            amount_type,
+            address,
+            tooling
         ).await;
         assert!(result.is_ok());
     }
@@ -156,6 +160,8 @@ mod tests {
             let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
             let multisig_threshold = Some(2);
             let amount_type = Some("Fixed".to_string());
+            let address = Some("0x1234567890".to_string());
+            let tooling = Some("common_ui, smart_contract_allocator".to_string());
 
             let result = database::allocators::create_or_update_allocator(
                 owner.clone(),
@@ -164,7 +170,9 @@ mod tests {
                 multisig_address,
                 verifiers_gh_handles,
                 multisig_threshold,
-                amount_type
+                amount_type,
+                address,
+                tooling,
             ).await;
             assert!(result.is_ok());
         }
@@ -175,6 +183,8 @@ mod tests {
         let multisig_address = Some("0x0987654321".to_string());
         let verifiers_gh_handles = Some("test_verifier_3, test_verifier_4".to_string());
         let multisig_threshold = Some(1);
+        let address = Some("0xababababa".to_string());
+        let tooling = Some("common_ui".to_string());
 
         let result = database::allocators::update_allocator(
             &owner,
@@ -182,7 +192,9 @@ mod tests {
             installation_id,
             multisig_address,
             verifiers_gh_handles,
-            multisig_threshold
+            multisig_threshold,
+            address,
+            tooling
         ).await;
         assert!(result.is_ok());
     }
@@ -229,6 +241,8 @@ mod tests {
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
         let multisig_threshold = Some(2);
         let amount_type = Some("Fixed".to_string());
+        let address = Some("0x1234567890".to_string());
+        let tooling = Some("common_ui, smart_contract_allocator".to_string());
 
         let result = database::allocators::create_or_update_allocator(
             owner.clone(),
@@ -237,7 +251,9 @@ mod tests {
             multisig_address,
             verifiers_gh_handles,
             multisig_threshold,
-            amount_type
+            amount_type,
+            address,
+            tooling,
         ).await;
 
         assert!(result.is_ok());

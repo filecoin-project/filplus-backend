@@ -23,6 +23,8 @@ pub async fn get_allocators() ->Result<Vec<AllocatorModel>, sea_orm::DbErr> {
  * @param multisig_address: Option<String> - The multisig address
  * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
  * @param multisig_threshold: Option<i32> - The multisig threshold
+ * @param address: Option<String> - Address of the Allocator
+ * @param tooling: Option<String> - Supported tooling
  * 
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
@@ -33,7 +35,9 @@ pub async fn update_allocator(
     installation_id: Option<i64>,
     multisig_address: Option<String>,
     verifiers_gh_handles: Option<String>,
-    multisig_threshold: Option<i32>
+    multisig_threshold: Option<i32>,
+    address: Option<String>,
+    tooling: Option<String>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
@@ -45,7 +49,7 @@ pub async fn update_allocator(
         if Some(installation_id) != None {
             allocator_active_model.installation_id = Set(installation_id);
         }
-        
+
         if Some(multisig_address.clone()) != None {
             allocator_active_model.multisig_address = Set(multisig_address);
         }
@@ -56,6 +60,14 @@ pub async fn update_allocator(
 
         if Some(multisig_threshold) != None {
             allocator_active_model.multisig_threshold = Set(multisig_threshold);
+        }
+
+        if address.is_some() {
+            allocator_active_model.address = Set(address);
+        }
+
+        if tooling.is_some() {
+            allocator_active_model.tooling = Set(tooling);
         }
 
         let updated_model = allocator_active_model.update(&conn).await?;
@@ -97,6 +109,8 @@ pub async fn get_allocator(
  * @param installation_id: Option<i64> - The installation ID
  * @param multisig_address: Option<String> - The multisig address
  * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
+ * @param address: Option<String> - Address of the Allocator
+ * @param tooling: Option<String> - Supported tooling
  * 
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
@@ -108,7 +122,9 @@ pub async fn create_or_update_allocator(
     multisig_address: Option<String>,
     verifiers_gh_handles: Option<String>,
     multisig_threshold: Option<i32>,
-    allocation_amount_type: Option<String>
+    allocation_amount_type: Option<String>,
+    address: Option<String>,
+    tooling: Option<String>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
 
     let existing_allocator = get_allocator(&owner, &repo).await?;
@@ -136,6 +152,14 @@ pub async fn create_or_update_allocator(
             allocator_active_model.allocation_amount_type = Set(Some(allocation_amount_type.to_lowercase()));
         } else {
             allocator_active_model.allocation_amount_type = Set(None);
+        }
+
+        if address.is_some() {
+            allocator_active_model.address = Set(address);
+        }
+
+        if tooling.is_some() {
+            allocator_active_model.tooling = Set(tooling);
         }
 
         let updated_model = allocator_active_model.update(&conn).await?;
@@ -168,6 +192,14 @@ pub async fn create_or_update_allocator(
             new_allocator.allocation_amount_type = Set(Some(allocation_amount_type.to_lowercase()));
         } else {
             new_allocator.allocation_amount_type = Set(None);
+        }
+
+        if address.is_some() {
+            new_allocator.address = Set(address);
+        }
+
+        if tooling.is_some() {
+            new_allocator.tooling = Set(tooling);
         }
 
         let conn = get_database_connection().await.expect("Failed to get DB connection");

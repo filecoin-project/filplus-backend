@@ -16,6 +16,8 @@ pub struct Model {
     pub verifiers_gh_handles: Option<String>,
     pub multisig_threshold: Option<i32>,
     pub allocation_amount_type: Option<String>,
+    pub address: Option<String>,
+    pub tooling: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
