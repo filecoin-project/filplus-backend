@@ -7,6 +7,7 @@ pub struct AllocatorModel {
     pub pathway_addresses: AllocatorModelPathwayAddresses,
     pub owner: Option<String>,
     pub repo: Option<String>,
+    pub address: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -21,6 +22,7 @@ pub struct Application {
     pub verifiers_gh_handles: Vec<String>,
     pub allocation_bookkeeping: String,
     pub allocation_amount: Option<AllocationAmount>,
+    pub tooling: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
