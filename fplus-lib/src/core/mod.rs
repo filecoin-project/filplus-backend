@@ -24,18 +24,21 @@ use crate::{
     },
     parsers::ParsedIssue,
 };
+use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 use fplus_database::database::{
     self,
     allocators::{get_allocator, update_allocator_threshold},
 };
-use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 
 use fplus_database::models::applications::Model as ApplicationModel;
 
-use self::application::{allocation, file::{
-    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
-    VerifierInput,
-}};
+use self::application::{
+    allocation,
+    file::{
+        AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
+        VerifierInput,
+    },
+};
 use crate::core::application::file::Allocation;
 use std::collections::HashSet;
 
@@ -128,7 +131,7 @@ pub struct ChangedAllocators {
 #[derive(Deserialize)]
 pub struct AllocatorUpdateForceInfo {
     pub files: Vec<String>,
-    pub allocators: Option<Vec<GithubQueryParams>>
+    pub allocators: Option<Vec<GithubQueryParams>>,
 }
 
 #[derive(Deserialize)]
@@ -159,7 +162,12 @@ pub struct ApplicationQueryParams {
 
 #[derive(Deserialize)]
 pub struct CompleteGovernanceReviewInfo {
-    pub allocation_amount: String
+    pub allocation_amount: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct DeclineApplicationInfo {
+    pub reason: String,
 }
 
 #[derive(Deserialize)]
@@ -188,7 +196,7 @@ pub struct ApplicationGithubInfo {
 #[derive(Debug, Serialize)]
 pub struct ApplicationWithAllocation {
     application_file: ApplicationFile, // Assuming ApplicationFile is the type for app_file
-    allocation: AllocationObject
+    allocation: AllocationObject,
 }
 
 #[derive(Debug, Serialize)]
@@ -196,7 +204,6 @@ pub struct AllocationObject {
     allocation_amount_type: String,
     allocation_amount_quantity_options: Vec<String>,
 }
-
 
 impl LDNApplication {
     pub async fn single_active(
@@ -271,7 +278,8 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<ApplicationModel, LDNError> {
-        let app_model_result = database::applications::get_application(application_id, owner, repo, None).await;
+        let app_model_result =
+            database::applications::get_application(application_id, owner, repo, None).await;
         match app_model_result {
             Ok(model) => Ok(model),
             Err(e) => Err(LDNError::Load(format!("Database error: {}", e))),
@@ -283,13 +291,19 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<ApplicationFile, LDNError> {
-        let app_model = Self::get_application_model(application_id.clone(), owner.clone(), repo.clone()).await?;
+        let app_model =
+            Self::get_application_model(application_id.clone(), owner.clone(), repo.clone())
+                .await?;
 
         let app_str = app_model.application.ok_or_else(|| {
-            LDNError::Load(format!("Application {} does not have an application field", application_id))
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                application_id
+            ))
         })?;
-    
-        ApplicationFile::from_str(&app_str).map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))
+
+        ApplicationFile::from_str(&app_str)
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))
     }
 
     pub async fn application_with_allocation_amount(
@@ -297,18 +311,27 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<ApplicationWithAllocation, LDNError> {
-        let app_model_result = database::applications::get_application(application_id.clone(), owner.clone(), repo.clone(), None).await;
-    
+        let app_model_result = database::applications::get_application(
+            application_id.clone(),
+            owner.clone(),
+            repo.clone(),
+            None,
+        )
+        .await;
+
         let app_model = match app_model_result {
             Ok(model) => model,
             Err(e) => return Err(LDNError::Load(format!("Database error: {}", e))),
         };
-    
+
         // Check if the application field is present and parse it
         let app_str = app_model.application.ok_or_else(|| {
-            LDNError::Load(format!("Application {} does not have an application field", application_id))
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                application_id
+            ))
         })?;
-    
+
         let app_file = ApplicationFile::from_str(&app_str).map_err(|e| {
             LDNError::Load(format!("Failed to parse application file from DB: {}", e))
         })?;
@@ -320,15 +343,19 @@ impl LDNApplication {
             }
         };
 
-        let allocation_amount_type = db_allocator.allocation_amount_type.unwrap_or("".to_string());
+        let allocation_amount_type = db_allocator
+            .allocation_amount_type
+            .unwrap_or("".to_string());
 
-        let allocation_amount_quantity_options = get_allocation_quantity_options(db_allocator.id).await.unwrap();
+        let allocation_amount_quantity_options = get_allocation_quantity_options(db_allocator.id)
+            .await
+            .unwrap();
 
         Ok(ApplicationWithAllocation {
             allocation: {
                 AllocationObject {
                     allocation_amount_type,
-                    allocation_amount_quantity_options
+                    allocation_amount_quantity_options,
                 }
             },
             application_file: app_file,
@@ -656,13 +683,55 @@ impl LDNApplication {
         }
     }
 
+    // Move application from Submitted to Declined
+    pub async fn decline_governance_review(
+        &self,
+        validator: String,
+        reason: String,
+        owner: String,
+        repo: String
+    ) -> Result<ApplicationFile, LDNError> {
+        let mut app_file = self
+            .file()
+            .await
+            .map_err(|e| LDNError::Load(e.to_string()))?;
+
+        // Ensure the application is currently under governance review
+        if app_file.lifecycle.state != AppState::Submitted {
+            return Err(LDNError::New(format!(
+                "State transition to 'Declined' not allowed from current state: {:?}",
+                app_file.lifecycle.state
+            )));
+        }
+        let file_content = serde_json::to_string_pretty(&app_file)
+            .map_err(|e| LDNError::New(format!("Failed to serialize application file: {}", e)))?;
+        match LDNPullRequest::add_commit_to(
+            self.file_name.to_string(),
+            self.branch_name.clone(),
+            LDNPullRequest::application_move_to_declined(&validator),
+            file_content,
+            self.file_sha.clone(),
+            owner.clone(),
+            repo.clone(),
+        ).await {
+            Some(()) => {
+                // Commit was successful
+            },
+            None => {
+                // Handle the case where commit failed
+            }
+        }
+        app_file.lifecycle = app_file.lifecycle.finish_decline(validator.clone());
+        Ok(app_file)
+    }
+
     /// Move application from Governance Review to Proposal
     pub async fn complete_governance_review(
         &self,
         actor: String,
         owner: String,
         repo: String,
-        allocation_amount: String
+        allocation_amount: String,
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
@@ -1479,6 +1548,12 @@ impl LDNApplication {
                     log::warn!("Val Trigger (RtS) - Application state is Submitted");
                     return Ok(false);
                 }
+                AppState::Declined => {
+                    log::warn!(
+                        "Val Trigger (G) - AppState: Granted, validation failed: validated_by is empty"
+                    );
+                    return Ok(false);
+                }
                 AppState::ReadyToSign => {
                     if application_file.allocation.0.is_empty() {
                         log::warn!("Val Trigger (RtS) - No allocations found");
@@ -1696,7 +1771,8 @@ impl LDNApplication {
                             return Err(LDNError::New(format!("Database: get_allocator: {}", err)));
                         }
                     };
-                    let db_multisig_threshold = db_allocator.multisig_threshold.unwrap_or(2) as usize;
+                    let db_multisig_threshold =
+                        db_allocator.multisig_threshold.unwrap_or(2) as usize;
                     let signers: application::file::Verifiers = active_request.signers.clone();
 
                     // Check if the number of signers meets or exceeds the multisig threshold
@@ -1712,7 +1788,6 @@ impl LDNApplication {
                     let valid_verifiers: ValidVerifierList =
                         Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
 
-                        
                     if valid_verifiers.is_valid(&signer_gh_handle) {
                         log::info!("Val Approval (G)- Validated!");
                         Self::issue_datacap_request_signature(
@@ -1875,8 +1950,10 @@ impl LDNApplication {
             .allocation
             .0
             .iter()
-            .find(|obj| Some(&obj.id) == application_file.lifecycle.active_request.as_ref()).unwrap().amount.clone();
-
+            .find(|obj| Some(&obj.id) == application_file.lifecycle.active_request.as_ref())
+            .unwrap()
+            .amount
+            .clone();
 
         let issue_number = application_file.issue_number.clone();
 
@@ -2473,6 +2550,13 @@ impl LDNPullRequest {
 
     pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
         format!("Start Application: {}-{}", owner_name, application_id)
+    }
+
+    pub(super) fn application_move_to_declined(actor: &str) -> String {
+        format!(
+            "User {} completed the governance review, it has been denied",
+            actor
+        )
     }
 
     pub(super) fn application_move_to_proposal_commit(actor: &str) -> String {

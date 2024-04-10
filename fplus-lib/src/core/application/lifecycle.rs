@@ -6,6 +6,7 @@ impl AppState {
     pub fn as_str(&self) -> &str {
         match *self {
             AppState::Submitted => "validated",
+            AppState::Declined => "declined",
             AppState::ReadyToSign => "ready to sign",
             AppState::StartSignDatacap => "start sign datacap",
             AppState::Granted => "granted",
@@ -27,6 +28,15 @@ impl LifeCycle {
             active_request: Some(empty),
             client_on_chain_address,
             multisig_address,
+        }
+    }
+
+    pub fn finish_decline(&self, governor: String) -> Self {
+        LifeCycle {
+            state: AppState::Declined,
+            validated_by: governor,
+            updated_at: Utc::now().to_string(),
+            ..self.clone()
         }
     }
 

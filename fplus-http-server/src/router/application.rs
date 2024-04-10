@@ -1,6 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
+        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, DeclineApplicationInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
     };
 
 
@@ -42,6 +42,33 @@ pub async fn application_with_allocation_amount_handler(
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
+
+#[post("/application/decline")]
+pub async fn decline_application(
+    query: web::Query<VerifierActionsQueryParams>,
+    info: web::Json<DeclineApplicationInfo>,
+) -> impl Responder {
+    let ldn_application = match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await {
+        Ok(app) => app,
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    };
+    
+    let DeclineApplicationInfo { reason } = info.into_inner();
+
+    match ldn_application
+        .decline_governance_review(
+            query.github_username.clone(),
+            reason,
+            query.owner.clone(),
+            query.repo.clone()
+        )
+        .await
+    {
+        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(format!("Failed to decline application: {}", e)),
+    }
+}
+
 
 #[post("/application/trigger")]
 pub async fn trigger(
