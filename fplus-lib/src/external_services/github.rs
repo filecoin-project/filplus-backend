@@ -99,6 +99,10 @@ pub async fn github_async_new(owner: String, repo: String) -> GithubWrapper {
         }
     };
 
+    if allocator.is_none() {
+        log::error!("No allocator found for owner: {}, repo: {}", owner, repo);
+    }
+
     let installation_id = allocator.unwrap().installation_id.unwrap_or(0).to_string();
 
     return GithubWrapper::new(owner, repo, installation_id);

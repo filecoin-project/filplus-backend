@@ -9,7 +9,7 @@ pub struct BlockchainData {
 /// BlockchainDataError is an error type for BlockchainData.
 #[derive(Debug)]
 pub enum BlockchainDataError {
-    ReqwestError(reqwest::Error),
+   Err(String),
 }
 
 impl BlockchainData {
@@ -42,14 +42,14 @@ impl BlockchainData {
             Ok(res) => res,
             Err(e) => {
                 println!("Error: {}", e);
-                return Err(BlockchainDataError::ReqwestError(e));
+                return Err(BlockchainDataError::Err(e.to_string()))
             }
         };
         let body = match res.text().await {
             Ok(body) => body,
             Err(e) => {
-                println!("Error: {}", e);
-                return Err(BlockchainDataError::ReqwestError(e));
+                log::error!("Error: {}", e);
+                return Err(BlockchainDataError::Err(e.to_string()))
             }
         };
         return Ok(body);
@@ -65,12 +65,29 @@ impl BlockchainData {
         let res = match self.client.get(url).send().await {
             Ok(res) => res,
             Err(e) => {
-                println!("Error: {}", e);
-                return Err(BlockchainDataError::ReqwestError(e));
+                log::error!("Error: {}", e);
+                return Err(BlockchainDataError::Err(e.to_string()))
             }
         };
         let body = res.text().await.unwrap();
-        return Ok(body);
+
+        //Body json structure is {"type": "verifiedClient" | "error", ["allowance"]: string value, ["message"]: string value}
+        // Let's parse the json and return the allowance value if the type is verifiedClient
+        let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+        match json["type"].as_str() {
+            Some("verifiedClient") => {
+                let allowance = json["allowance"].as_str().unwrap_or("");
+                Ok(allowance.to_string())
+            }
+            Some("error") => {
+                let message = json["message"].as_str().unwrap_or("");
+                Err(BlockchainDataError::Err(message.to_string()))
+            }
+            _ => {
+                Err(BlockchainDataError::Err("Unknown error".to_string()))
+            }
+        }
+
     }
 
     /// Build URL
