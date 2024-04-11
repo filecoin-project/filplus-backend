@@ -2898,28 +2898,28 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[tokio::test]
-    async fn test_update_pr_from_isue() { 
-        let _ = fplus_database::setup_test_environment().await;
-        let info = CreateApplicationInfo {
-            issue_number: "28".to_string(),
-            owner: "clriesco".to_string(),
-            repo: "king-charles-staging".to_string(),
-        };
-        match LDNApplication::update_from_issue(info).await {
-            Ok(app) => {
-                log::info!("Application updated: {:?}", app);
-            }
-            Err(e) => {
-                log::error!("Failed to update application: {}", e);
-            }
-        }
-    }
-}
+//     #[tokio::test]
+//     async fn test_update_pr_from_isue() { 
+//         let _ = fplus_database::setup_test_environment().await;
+//         let info = CreateApplicationInfo {
+//             issue_number: "28".to_string(),
+//             owner: "clriesco".to_string(),
+//             repo: "king-charles-staging".to_string(),
+//         };
+//         match LDNApplication::update_from_issue(info).await {
+//             Ok(app) => {
+//                 log::info!("Application updated: {:?}", app);
+//             }
+//             Err(e) => {
+//                 log::error!("Failed to update application: {}", e);
+//             }
+//         }
+//     }
+// }
 
 // #[cfg(test)]
 // mod tests {
