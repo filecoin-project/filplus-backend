@@ -14,10 +14,9 @@ use serde_json::from_str;
 
 use crate::{
     base64,
-    config::get_env_var_or_default,
     error::LDNError,
     external_services::{
-        blockchain::{self, BlockchainData}, filecoin::get_multisig_threshold_for_actor, github::{
+        blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         }
     },
@@ -566,6 +565,7 @@ impl LDNApplication {
             info.repo.clone(),
         )
         .await?;
+        
         let application_id = parsed_ldn.id.clone();
         let file_name = LDNPullRequest::application_path(&application_id);
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
@@ -577,7 +577,9 @@ impl LDNApplication {
         };
 
         match gh.get_file(&file_name, &branch_name).await {
+            // If the file does not exist, create a new application file
             Err(_) => {
+                log::info!("File not found, creating new application file");
                 let application_file = ApplicationFile::new(
                     issue_number.clone(),
                     multisig_address,
@@ -589,48 +591,44 @@ impl LDNApplication {
                 )
                 .await;
 
-                let app_model = Self::get_application_model(
-                    application_id.clone(),
-                    info.owner.clone(),
-                    info.repo.clone(),
-                ).await?;
-                
-                // Check if application already exists in our db
-                let exists = Self::check_application_exists(
-                    app_model.clone(),
-                    application_id.clone(),
-                ).await?;
+                let applications = database::applications::get_applications().await.unwrap();
 
-                if exists {
+                //check if id is in applications vector
+                let app_model = applications.iter().find(|app| app.id == application_id);
+                
+                if let Some(app_model) = app_model {
                     // Add a comment to the GitHub issue
+                    log::info!("Application already exists in the database");
                     Self::issue_pathway_mismatch_comment(
                         issue_number.clone(),
                         info.owner.clone(),
                         info.repo.clone(),
-                        app_model, 
+                        Some(app_model.clone()),
                     )
                     .await?;
                     
                     // Return an error as the application already exists
                     return Err(LDNError::New(
-                        "Pathway mismatch: Allocator already assigned".to_string(),
+                        "Pathway mismatch: Application already exists".to_string(),
                     ));
                 } else {
+                    log::info!("Application does not exist in the database");
                     let blockchain = BlockchainData::new();
-
+                
                     // Check the allowance for the address
-                    match blockchain.get_allowance_for_address(&app_model.id).await {
+                    match blockchain.get_allowance_for_address(&application_id).await {
                         Ok(allowance) if allowance != "0" => {
+                            log::info!("Allowance found and is not zero. Value is {}", allowance);
                             // If allowance is found and is not zero, issue the pathway mismatch comment
                             Self::issue_pathway_mismatch_comment(
                                 issue_number.clone(),
                                 info.owner.clone(),
                                 info.repo.clone(),
-                                app_model, 
+                                None, 
                             ).await?;
                             
                             return Err(LDNError::New(
-                                "Pathway mismatch: Allocator already assigned with allowance".to_string(),
+                                "Pathway mismatch: Application has already received datacap".to_string(),
                             ));
                         },
                         _ => {} // If no allowance is found, do nothing and let the function proceed
@@ -714,19 +712,28 @@ impl LDNApplication {
                     branch_name,
                 })
             }
+
+            // If the file already exists, return an error
             Ok(_) => {
-                let app_model = Self::get_application_model(
+                let app_model = match Self::get_application_model(
                     application_id.clone(),
                     info.owner.clone(),
                     info.repo.clone(),
-                ).await?;
+                ).await {
+                    Ok(model) => Some(model),
+                    Err(_) => {
+                        return Err(LDNError::New(
+                            "Original application file not found in db, but GH file exists".to_string(),
+                        ))
+                    },
+                };
 
                 // Add a comment to the GitHub issue
                 Self::issue_pathway_mismatch_comment(
                     issue_number.clone(),
                     info.owner.clone(),
                     info.repo.clone(),
-                    app_model, 
+                    Some(app_model.unwrap()), 
                 )
                 .await?;
                 
@@ -1970,24 +1977,32 @@ impl LDNApplication {
         issue_number: String,
         info_owner: String,
         info_repo: String,
-        db_model: ApplicationModel,
+        db_model: Option<ApplicationModel>,
     ) -> Result<bool, LDNError> {
+        let mut comment = "This wallet address has already received datacap in other application".to_string();
+
+        if let Some(db_model) = db_model {
+            //Load application from db_model.application string json
+            let application = ApplicationFile::from_str(&db_model.application.unwrap())
+                .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))?;
+        
+            comment = if db_model.owner == info_owner && db_model.repo == info_repo {
+                // Application already exists in the same repository
+                format!(
+                    "This wallet address already exists in another application: #{}",
+                    application.issue_number
+                )
+            } else {
+                // Application exists in a different repository
+                format!(
+                    "This wallet address already exists in another application: http://github.com/{}/{}/issues/{}",
+                    db_model.owner, db_model.repo, application.issue_number
+                )
+            };
+        } 
+    
+        dbg!(&comment);
         let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
-    
-        let comment = if db_model.owner == info_owner && db_model.repo == info_repo {
-            // Application already exists in the same repository
-            format!(
-                "This wallet address already exists in another application: #{}",
-                db_model.pr_number
-            )
-        } else {
-            // Application exists in a different repository
-            format!(
-                "This wallet address already exists in another application: http://github.com/{}/{}/issues/{}",
-                db_model.owner, db_model.repo, db_model.pr_number
-            )
-        };
-    
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
