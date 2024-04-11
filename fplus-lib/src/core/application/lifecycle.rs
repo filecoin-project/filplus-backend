@@ -6,6 +6,7 @@ impl AppState {
     pub fn as_str(&self) -> &str {
         match *self {
             AppState::Submitted => "validated",
+            AppState::ChangesRequested => "changes requested",
             AppState::ReadyToSign => "ready to sign",
             AppState::StartSignDatacap => "start sign datacap",
             AppState::Granted => "granted",
@@ -27,6 +28,7 @@ impl LifeCycle {
             active_request: Some(empty),
             client_on_chain_address,
             multisig_address,
+            edited: Some(false)
         }
     }
 

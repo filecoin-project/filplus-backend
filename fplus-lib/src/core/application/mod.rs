@@ -31,6 +31,33 @@ impl file::ApplicationFile {
         }
     }
 
+    pub async fn edited(
+        issue_number: String,
+        version: u8,
+        id: String,
+        client: file::Client,
+        project: file::Project,
+        datacap: file::Datacap,
+        allocation: file::Allocations,
+        lifecycle: file::LifeCycle,
+    ) -> Self {
+        //set lifecycle.edited = true
+        let lifecycle =  LifeCycle {
+            edited: Some(true),
+            ..lifecycle
+        };
+        Self {
+            version,
+            issue_number,
+            id,
+            client,
+            project,
+            datacap,
+            lifecycle,
+            allocation,
+        }
+    }
+
     pub fn reached_total_datacap(&self) -> Self {
         let new_life_cycle = self.lifecycle.clone().reached_total_datacap();
         Self {
