@@ -252,17 +252,19 @@ pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_numb
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn update_application(id: String, owner: String, repo: String, pr_number: u64, app_file: String, sha: Option<String>, path: Option<String>) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn update_application(id: String, owner: String, repo: String, pr_number: u64, app_file: String, path: Option<String>) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
     match get_application(id.clone(), owner.clone(), repo.clone(), Some(pr_number)).await {
         Ok(existing_application) => {
             let mut active_application: ActiveModel = existing_application.into_active_model();
-            active_application.application = Set(Some(app_file));
-            // If sha and path are provided, update them as well
-            if let Some(sha) = sha {
-                active_application.sha = Set(Some(sha));
-            }
+            active_application.application = Set(Some(app_file.clone()));
+            //Calculate SHA
+            let mut hasher = Sha1::new();
+            let application = format!("blob {}\x00{}", app_file.len(), app_file);
+            hasher.update(application.as_bytes());
+            let file_sha = format!("{:x}", hasher.finalize());  
+            active_application.sha = Set(Some(file_sha));
             if let Some(path) = path {
                 active_application.path = Set(Some(path));
             }

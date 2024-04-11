@@ -652,7 +652,7 @@ impl LDNApplication {
                     }
                 };
                 let app_id = parsed_ldn.id.clone();
-                let file_sha = LDNPullRequest::create_pr(
+                let file_sha = LDNPullRequest::create_pr_for_new_application(
                     issue_number.clone(),
                     parsed_ldn.client.name.clone(),
                     branch_name.clone(),
@@ -796,7 +796,6 @@ impl LDNApplication {
                                             repo,
                                             number,
                                             serde_json::to_string_pretty(&app_file).unwrap(),
-                                            Some(self.file_sha.clone()),
                                             Some(app_path.clone()),
                                         )
                                         .await;
@@ -917,7 +916,6 @@ impl LDNApplication {
                                             repo,
                                             number,
                                             serde_json::to_string_pretty(&app_file).unwrap(),
-                                            Some(self.file_sha.clone()),
                                             Some(self.file_name.clone()),
                                         )
                                         .await;
@@ -1038,7 +1036,6 @@ impl LDNApplication {
                                 repo,
                                 number,
                                 serde_json::to_string_pretty(&app_file).unwrap(),
-                                Some(self.file_sha.clone()),
                                 Some(self.file_name.clone()),
                             )
                             .await
@@ -1150,7 +1147,7 @@ impl LDNApplication {
                 repo.clone(),
             )
             .await?;
-            LDNPullRequest::create_refill_pr(
+            LDNPullRequest::create_pr_for_existing_application(
                 app.id.clone(),
                 app.client.name.clone(),
                 serde_json::to_string_pretty(&app).unwrap(),
@@ -1343,7 +1340,7 @@ impl LDNApplication {
                 refill_info.repo.clone(),
             )
             .await?;
-            LDNPullRequest::create_refill_pr(
+            LDNPullRequest::create_pr_for_existing_application(
                 app.id.clone(),
                 app.client.name.clone(),
                 serde_json::to_string_pretty(&app_file).unwrap(),
@@ -1748,7 +1745,6 @@ impl LDNApplication {
                                     repo,
                                     number,
                                     serde_json::to_string_pretty(&app_file).unwrap(),
-                                    Some(ldn_application.file_sha.clone()),
                                     Some(ldn_application.file_name.clone()),
                                 )
                                 .await;
@@ -1968,28 +1964,41 @@ impl LDNApplication {
                 log::warn!("Failed to get application model: {}", e);
 
                 //Application Id has not been found. That means the user has modified the wallet address
-                // TODO: Post a comment on the issue that the wallet address has been updated
+                LDNApplication::issue_error(
+                    issue_number.clone(),
+                    info.owner.clone(),
+                    info.repo.clone(),
+                    "Application not found. If you have modified the wallet address, please create a new application."
+                ).await?;
+                LDNApplication::add_error_label(
+                    issue_number.clone(),
+                    "".to_string(),
+                    info.owner.clone(),
+                    info.repo.clone(),
+                ).await?;
                 return Err(LDNError::New(format!("Failed to get application model: {}", e)));
             
             }
         };
         
-        //Application was merged (It is granted). Let's create a new PR with the updated application file, as if it was a new application
+        //Application was granted. Create a new PR with the updated application file, as if it was a new application
         if application_model.pr_number == 0 {
-            return Self::reopen_pr_from_issue(parsed_ldn, application_model).await;
+            return Self::create_pr_from_issue_modification(parsed_ldn, application_model).await;
         }
-
-        return Self::manage_open_pr_from_issue(parsed_ldn, application_model).await;
-       
-        //return Err(LDNError::New(format!("Not implemented")));
+        
+        //Application was in another state. Update PR and add "edited = true" to the application file
+        return Self::edit_pr_from_issue_modification(parsed_ldn, application_model).await;
     }
 
-    pub async fn manage_open_pr_from_issue(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
+    pub async fn edit_pr_from_issue_modification(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
+        //Get existing application file
         let pr_application = ApplicationFile::from_str(&application_model.application.unwrap())
             .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e))).unwrap();
 
         let application_id = parsed_ldn.id.clone();
-        let application_file = ApplicationFile::edited(
+        
+        //Edit the application file with the new info from the issue
+        let app_file = ApplicationFile::edited(
             pr_application.issue_number.clone(),
             parsed_ldn.version,
             application_id.clone(),
@@ -2000,11 +2009,11 @@ impl LDNApplication {
             pr_application.lifecycle.clone(),
         ).await;
 
-        let file_content = match serde_json::to_string_pretty(&application_file) {
+        let file_content = match serde_json::to_string_pretty(&app_file) {
             Ok(f) => f,
             Err(e) => {
                 Self::add_error_label(
-                    application_file.issue_number.clone(),
+                    app_file.issue_number.clone(),
                     "".to_string(),
                     application_model.owner.clone(),
                     application_model.repo.clone(),
@@ -2017,12 +2026,55 @@ impl LDNApplication {
             }
         };
 
-        return Err(LDNError::New(format!(
-            "Not implemented",
-        )));
+        //Create a new commit with the updated application file
+        let gh = github_async_new(application_model.owner.to_string(), application_model.repo.to_string()).await;
+        let branch_name = gh.get_branch_name_from_pr(application_model.pr_number as u64).await.unwrap();
+        match LDNPullRequest::add_commit_to(
+            application_model.path.clone().unwrap(),
+            branch_name.clone(),
+            format!("Update application from issue #{}", pr_application.issue_number),
+            file_content.clone(),
+            application_model.sha.clone().unwrap(),
+            application_model.owner.clone(),
+            application_model.repo.clone(),
+        ).await {
+            Some(()) => {
+                match gh.get_pull_request_by_head(&branch_name).await {
+                    Ok(prs) => {
+                        if let Some(pr) = prs.get(0) {
+                            let number = pr.number;
+
+                            let _ = database::applications::update_application(
+                                app_file.id.clone(),
+                                application_model.owner.clone(),
+                                application_model.repo.clone(),
+                                number as u64,
+                                serde_json::to_string_pretty(&app_file).unwrap(),
+                                Some(application_model.path.clone().unwrap()),
+                            )
+                            .await;
+                        }
+                    }
+                    Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                };
+                return Ok(LDNApplication {
+                    github: gh,
+                    application_id,
+                    file_sha: application_model.sha.clone().unwrap(),
+                    file_name: application_model.path.clone().unwrap(),
+                    branch_name,
+                })
+            }
+            None => {
+                return Err(LDNError::New(format!(
+                    "Application issue {} cannot be modified",
+                    app_file.issue_number
+                )))
+            }
+        }
     }
 
-    pub async fn reopen_pr_from_issue(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
+    pub async fn create_pr_from_issue_modification(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
         let merged_application = ApplicationFile::from_str(&application_model.application.unwrap())
             .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e))).unwrap();
 
@@ -2061,7 +2113,7 @@ impl LDNApplication {
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
         let uuid = uuidv4::uuid::v4();
 
-        LDNPullRequest::create_refill_pr(
+        LDNPullRequest::create_pr_for_existing_application(
             application_id.clone(),
             parsed_ldn.client.name.clone(),
             file_content.clone(),
@@ -2395,6 +2447,7 @@ Your Datacap Allocation Request has been {} by the Notary
         .unwrap();
         Ok(true)
     }
+    
     async fn issue_granted(
         issue_number: String,
         owner: String,
@@ -2445,6 +2498,25 @@ Your Datacap Allocation Request has been {} by the Notary
     ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Completed")
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn issue_error(
+        issue_number: String,
+        owner: String,
+        repo: String,
+        message: &str
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner, repo).await;
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), message)
             .await
             .map_err(|e| {
                 return LDNError::New(format!(
@@ -2525,7 +2597,6 @@ Your Datacap Allocation Request has been {} by the Notary
                         db_app.pr_number as u64,
                         serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
                         None,
-                        None,
                     )
                     .await
                     .unwrap();
@@ -2596,7 +2667,6 @@ Your Datacap Allocation Request has been {} by the Notary
                         repo.clone(),
                         0,
                         serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
-                        Some(gh_app.sha.clone()),
                         Some(gh_app.path.clone()),
                     )
                     .await
@@ -2651,7 +2721,7 @@ pub struct LDNPullRequest {
 }
 
 impl LDNPullRequest {
-    async fn create_pr(
+    async fn create_pr_for_new_application(
         application_id: String,
         owner_name: String,
         app_branch_name: String,
@@ -2693,7 +2763,7 @@ impl LDNPullRequest {
         Ok(file_sha)
     }
 
-    async fn create_refill_pr(
+    async fn create_pr_for_existing_application(
         application_id: String,
         owner_name: String,
         file_content: String,
