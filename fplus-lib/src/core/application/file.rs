@@ -354,7 +354,9 @@ pub struct ValidVerifierList {
 
 impl ValidVerifierList {
     pub fn is_valid(&self, member: &str) -> bool {
-        self.verifiers.contains(&member.to_string())
+        let lowercased_verifiers: Vec<String> = self.verifiers.iter().map(|v| v.to_lowercase()).collect();
+        let lowercased_member = member.to_lowercase();
+        lowercased_verifiers.contains(&lowercased_member)
     }
 }
 
