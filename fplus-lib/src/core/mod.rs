@@ -2196,7 +2196,7 @@ impl LDNApplication {
         info_repo: String,
         db_model: Option<ApplicationModel>,
     ) -> Result<bool, LDNError> {
-        let mut comment = "This wallet address has already received datacap in other application".to_string();
+        let mut comment = "The wallet address in this application has previously received datacap from another source. Please update the application to use a new client wallet address, so that it is clear that datacap usage is associated with this application.".to_string();
 
         if let Some(db_model) = db_model {
             //Load application from db_model.application string json
@@ -2206,13 +2206,13 @@ impl LDNApplication {
             comment = if db_model.owner == info_owner && db_model.repo == info_repo {
                 // Application already exists in the same repository
                 format!(
-                    "This wallet address already exists in another application: #{}",
+                    "This wallet address was already used in application #{} for this pathway. Please continue in that application instead.",
                     application.issue_number
                 )
             } else {
                 // Application exists in a different repository
                 format!(
-                    "This wallet address already exists in another application: http://github.com/{}/{}/issues/{}",
+                    "This client address has also applied for datacap at http://github.com/{}/{}/issues/{} - Please use a new, distinct client address for this application, so that usage can be clearly understood as relating to this application.",
                     db_model.owner, db_model.repo, application.issue_number
                 )
             };
