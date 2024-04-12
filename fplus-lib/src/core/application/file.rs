@@ -237,6 +237,7 @@ pub struct Provider {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub enum AppState {
     Submitted,
+    ChangesRequested,
     ReadyToSign,
     StartSignDatacap,
     Granted,
@@ -262,6 +263,7 @@ pub struct LifeCycle {
     pub client_on_chain_address: String,
     #[serde(rename = "Multisig Address")]
     pub multisig_address: String,
+    pub edited: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
