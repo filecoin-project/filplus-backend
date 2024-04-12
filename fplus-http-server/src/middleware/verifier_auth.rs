@@ -109,6 +109,8 @@ use actix_web::{
               }
   
               if github_username != user_handle {
+                // comment this for testing
+                println!("Sent GitHub handle different than auth token owner.");
                   return Err(actix_web::error::ErrorBadRequest("Sent GitHub handle different than auth token owner."))
               }
   

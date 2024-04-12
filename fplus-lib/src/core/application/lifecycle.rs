@@ -6,7 +6,7 @@ impl AppState {
     pub fn as_str(&self) -> &str {
         match *self {
             AppState::Submitted => "validated",
-            AppState::ChangesRequested => "changes requested",
+            AppState::ChangesRequested => "application changes requested",
             AppState::ReadyToSign => "ready to sign",
             AppState::StartSignDatacap => "start sign datacap",
             AppState::Granted => "granted",
