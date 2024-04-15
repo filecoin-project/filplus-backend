@@ -13,14 +13,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
 use crate::{
-    base64,
-    error::LDNError,
-    external_services::{
+    base64, config::get_env_var_or_default, core::application::file::Allocations, error::LDNError, external_services::{
         blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         }
-    },
-    parsers::ParsedIssue,
+    }, parsers::ParsedIssue
 };
 use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 use fplus_database::database::{
@@ -32,8 +29,9 @@ use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
     AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
-    VerifierInput,
+    VerifierInput, DeepCompare
 };
+
 use crate::core::application::file::Allocation;
 use std::collections::HashSet;
 
@@ -66,6 +64,13 @@ pub struct ApplicationProposalApprovalSignerInfo {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CompleteNewApplicationProposalInfo {
+    pub signer: ApplicationProposalApprovalSignerInfo,
+    pub request_id: String,
+    pub new_allocation_amount: Option<String>
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct CompleteNewApplicationApprovalInfo {
     pub signer: ApplicationProposalApprovalSignerInfo,
     pub request_id: String,
 }
@@ -195,6 +200,12 @@ pub struct AllocationObject {
     allocation_amount_quantity_options: Vec<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ApproveChangesObject {
+    pr_number: u64,
+}
+
+
 impl LDNApplication {
     pub async fn single_active(
         pr_number: u64,
@@ -224,13 +235,13 @@ impl LDNApplication {
         }
     }
 
-    async fn load_pr_files(
-        pr: PullRequest,
+    async fn get_pr_files_and_app(
         owner: String,
         repo: String,
-    ) -> Result<Option<(String, String, ApplicationFile, PullRequest)>, LDNError> {
+        pr_number: u64
+    ) -> Result<Option<((u64, Vec<octocrab::models::pulls::FileDiff>), ApplicationFile)>, LDNError> {
         let gh = github_async_new(owner, repo).await;
-        let files = match gh.get_pull_request_files(pr.number).await {
+        let files = match gh.get_pull_request_files(pr_number).await {
             Ok(files) => files,
             Err(_) => return Ok(None),
         };
@@ -255,12 +266,29 @@ impl LDNApplication {
                 return Ok(None);
             }
         };
+
         Ok(Some((
-            files.1.get(0).unwrap().sha.clone(),
-            files.1.get(0).unwrap().filename.clone(),
+            files,
             app,
-            pr.clone(),
         )))
+    }
+
+    async fn load_pr_files(
+        pr: PullRequest,
+        owner: String,
+        repo: String,
+    ) -> Result<Option<(String, String, ApplicationFile, PullRequest)>, LDNError> {
+        let result: Result<Option<((u64, Vec<octocrab::models::pulls::FileDiff>), ApplicationFile)>, LDNError> = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr.number).await;
+        if let Some((files, app)) = result? {
+            Ok(Some((
+                files.1.get(0).unwrap().sha.clone(),
+                files.1.get(0).unwrap().filename.clone(),
+                app,
+                pr.clone(),
+            )))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn get_application_model(
@@ -678,7 +706,6 @@ impl LDNApplication {
                     info.repo.clone(),
                 )
                 .await?;
-
                 match gh.get_pull_request_by_head(&branch_name).await {
                     Ok(prs) => {
                         if let Some(pr) = prs.get(0) {
@@ -792,13 +819,34 @@ impl LDNApplication {
                                         let number = pr.number;
                                         let _ = database::applications::update_application(
                                             app_file.id.clone(),
-                                            owner,
-                                            repo,
+                                            owner.clone(),
+                                            repo.clone(),
                                             number,
                                             serde_json::to_string_pretty(&app_file).unwrap(),
                                             Some(app_path.clone()),
                                         )
                                         .await;
+
+                                        Self::issue_datacap_allocation_requested(
+                                            app_file.clone(),
+                                            app_file.get_active_allocation(),
+                                            owner.clone(),
+                                            repo.clone(),
+                                        )
+                                        .await?;
+                                        Self::update_issue_labels(
+                                            app_file.issue_number.clone(),
+                                            &[AppState::ReadyToSign.as_str()],
+                                            owner.clone(),
+                                            repo.clone(),
+                                        )
+                                        .await?;
+                                        Self::issue_ready_to_sign(
+                                            app_file.issue_number.clone(),
+                                            owner.clone(),
+                                            repo.clone(),
+                                        )
+                                        .await?;
                                     }
                                 }
                                 Err(e) => log::warn!("Failed to get pull request by head: {}", e),
@@ -832,6 +880,7 @@ impl LDNApplication {
         request_id: String,
         owner: String,
         repo: String,
+        new_allocation_amount: Option<String>,
     ) -> Result<ApplicationFile, LDNError> {
         // TODO: Convert DB errors to LDN Error
         // Get multisig threshold from the database
@@ -867,7 +916,7 @@ impl LDNApplication {
         // Rest of your function logic remains unchanged...
         if threshold_to_use < 2 {
             return self
-                .complete_new_application_approval(signer, request_id, owner, repo)
+                .complete_new_application_approval(signer, request_id, owner, repo, new_allocation_amount)
                 .await;
         }
 
@@ -882,11 +931,15 @@ impl LDNApplication {
                         )));
                     }
                     let app_lifecycle = app_file.lifecycle.finish_proposal();
-                    let app_file = app_file.add_signer_to_allocation(
+                    let mut app_file = app_file.add_signer_to_allocation(
                         signer.clone().into(),
                         request_id,
                         app_lifecycle,
                     );
+                    if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
+                        let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
+                    }
+                    
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     match LDNPullRequest::add_commit_to(
                         self.file_name.to_string(),
@@ -912,13 +965,33 @@ impl LDNApplication {
                                         let number = pr.number;
                                         let _ = database::applications::update_application(
                                             app_file.id.clone(),
-                                            owner,
-                                            repo,
+                                            owner.clone(),
+                                            repo.clone(),
                                             number,
                                             serde_json::to_string_pretty(&app_file).unwrap(),
                                             Some(self.file_name.clone()),
                                         )
                                         .await;
+                                        Self::issue_start_sign_dc(
+                                            app_file.issue_number.clone(),
+                                            owner.clone(),
+                                            repo.clone(),
+                                        )
+                                        .await?;
+                                        Self::issue_datacap_request_signature(
+                                            app_file.clone(),
+                                            "proposed".to_string(),
+                                            owner.clone(),
+                                            repo.clone(),
+                                        )
+                                        .await?;
+                                        Self::update_issue_labels(
+                                            app_file.issue_number.clone(),
+                                            &[AppState::StartSignDatacap.as_str()],
+                                            owner.clone(),
+                                            repo.clone(),
+                                        )
+                                        .await?;
                                     }
                                 }
                                 Err(e) => log::warn!("Failed to get pull request by head: {}", e),
@@ -951,6 +1024,7 @@ impl LDNApplication {
         request_id: String,
         owner: String,
         repo: String,
+        new_allocation_amount: Option<String>
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from the database
         let db_allocator = match get_allocator(&owner, &repo).await {
@@ -972,7 +1046,7 @@ impl LDNApplication {
             )));
         }
 
-        let app_file: ApplicationFile = self.file().await?;
+        let mut app_file: ApplicationFile = self.file().await?;
         let app_lifecycle = app_file.lifecycle.finish_approval();
 
         // Find the signers that already signed
@@ -983,7 +1057,7 @@ impl LDNApplication {
             .find(|&alloc| alloc.id == request_id && alloc.is_active)
             .map_or(vec![], |alloc| alloc.signers.0.clone());
 
-        // Check if the signer has already signed
+        // // Check if the signer has already signed
         if current_signers
             .iter()
             .any(|s| s.signing_address == signer.signing_address)
@@ -993,6 +1067,7 @@ impl LDNApplication {
                 signer.signing_address
             )));
         }
+
         // Check if the number of signers meets or exceeds the multisig threshold
         let multisig_threshold_usize = threshold_to_use as usize;
         if current_signers.len() >= multisig_threshold_usize {
@@ -1001,6 +1076,11 @@ impl LDNApplication {
                     .to_string(),
             ));
         }
+
+        if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
+            let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
+        }
+
         // Add signer to signers array
         let app_file = app_file.add_signer_to_allocation_and_complete(
             signer.clone().into(),
@@ -1032,8 +1112,8 @@ impl LDNApplication {
                             let number = pr.number;
                             if let Err(e) = database::applications::update_application(
                                 app_file.id.clone(),
-                                owner,
-                                repo,
+                                owner.clone(),
+                                repo.clone(),
                                 number,
                                 serde_json::to_string_pretty(&app_file).unwrap(),
                                 Some(self.file_name.clone()),
@@ -1046,6 +1126,27 @@ impl LDNApplication {
                                     self.application_id
                                 )));
                             }
+
+                            Self::issue_datacap_request_signature(
+                                app_file.clone(),
+                                "approved".to_string(),
+                                owner.clone(),
+                                repo.clone(),
+                            )
+                            .await?;
+                            Self::update_issue_labels(
+                                app_file.issue_number.clone(),
+                                &[AppState::Granted.as_str()],
+                                owner.clone(),
+                                repo.clone(),
+                            )
+                            .await?;
+                            Self::issue_granted(
+                                app_file.issue_number.clone(),
+                                owner.clone(),
+                                repo.clone(),
+                            )
+                            .await?;
                         }
                         Ok(app_file)
                     }
@@ -1383,6 +1484,7 @@ impl LDNApplication {
         // 1. Application is in Granted state
         // 2. Application has Validated by and Validated at fields set
         // 3. Application doesn't have an active request
+        // 4. Application does not have edited = true in lifecycle object
         if application.lifecycle.get_state() == AppState::Granted {
             if application.lifecycle.validated_by.is_empty() {
                 log::warn!("- Application has not been validated");
@@ -1395,6 +1497,10 @@ impl LDNApplication {
             let active_request = application.allocation.active();
             if active_request.is_some() {
                 log::warn!("- Application has an active request");
+                return Ok(false);
+            }
+            if application.lifecycle.edited.unwrap_or(false) == true {
+                log::warn!("Val Trigger - Application has been edited");
                 return Ok(false);
             }
             log::info!("- Application is in a valid state!");
@@ -1577,13 +1683,21 @@ impl LDNApplication {
             let validated_by = application_file.lifecycle.validated_by.clone();
             let validated_at = application_file.lifecycle.validated_at.clone();
             let app_state = application_file.lifecycle.get_state();
-            let active_request_id = application_file.lifecycle.active_request.clone();
             let valid_verifier_list = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
             // let bot_user = get_env_var_or_default("BOT_USER");
+
+            if application_file.lifecycle.edited.unwrap_or(false) == true {
+                log::warn!("Val Trigger - Application has been edited");
+                return Ok(false);
+            }
 
             let res: bool = match app_state {
                 AppState::Submitted => {
                     log::warn!("Val Trigger (RtS) - Application state is Submitted");
+                    return Ok(false);
+                }
+                AppState::ChangesRequested => {
+                    log::warn!("Val Trigger (RtS) - Application state is ChangesRequested");
                     return Ok(false);
                 }
                 AppState::ReadyToSign => {
@@ -1591,11 +1705,7 @@ impl LDNApplication {
                         log::warn!("Val Trigger (RtS) - No allocations found");
                         false
                     } else {
-                        let active_allocation = application_file
-                            .allocation
-                            .0
-                            .iter()
-                            .find(|obj| Some(&obj.id) == active_request_id.as_ref());
+                        let active_allocation = application_file.get_active_allocation();
 
                         if active_allocation.is_none() {
                             log::warn!("Val Trigger (RtS) - Active allocation not found");
@@ -1625,26 +1735,6 @@ impl LDNApplication {
                             false
                         } else {
                             log::info!("Val Trigger (RtS) - Validated!");
-                            Self::issue_datacap_allocation_requested(
-                                application_file.clone(),
-                                active_allocation.clone(),
-                                owner.clone(),
-                                repo.clone(),
-                            )
-                            .await?;
-                            Self::update_issue_labels(
-                                application_file.issue_number.clone(),
-                                &[AppState::ReadyToSign.as_str()],
-                                owner.clone(),
-                                repo.clone(),
-                            )
-                            .await?;
-                            Self::issue_ready_to_sign(
-                                application_file.issue_number.clone(),
-                                owner.clone(),
-                                repo.clone(),
-                            )
-                            .await?;
                             true
                         }
                     }
@@ -1763,6 +1853,310 @@ impl LDNApplication {
         Ok(false)
     }
 
+    async fn update_and_commit_application_state(
+        self,
+        new_state: AppState,
+        mut db_application_file: ApplicationFile,
+        owner: String,
+        repo: String,
+        sha: String,
+        branch_name: String,
+        filename: String,
+        commit_message: String,
+        remove_allocation: bool
+    ) -> Result<(), LDNError> {
+        // Update the state
+        db_application_file.lifecycle.state = new_state.clone();
+        db_application_file.lifecycle.edited = Some(false);
+
+        if remove_allocation == true {
+            db_application_file.remove_active_allocation();
+        }
+    
+        // Serialize the updated application file
+        let file_content = match serde_json::to_string_pretty(&db_application_file) {
+            Ok(f) => f,
+            Err(e) => {
+                Self::add_error_label(
+                    db_application_file.issue_number.clone(),
+                    "".to_string(),
+                    owner.clone(),
+                    repo.clone(),
+                )
+                .await?;
+                return Err(LDNError::New(format!(
+                    "Application issue file is corrupted /// {}",
+                    e
+                )));
+            }
+        };
+    
+        // Commit the changes to the branch
+        match LDNPullRequest::add_commit_to(
+            filename.clone(),
+            branch_name.clone(),
+            commit_message,
+            file_content,
+            sha.clone(),
+            owner.clone(),
+            repo.clone()
+        )
+        .await
+        {
+            Some(()) => {
+                // Retrieve and update the pull request
+                match self.github.get_pull_request_by_head(&branch_name).await {
+                    Ok(prs) => {
+                        if let Some(pr) = prs.get(0) {
+                            let number = pr.number;
+                            let _ = database::applications::update_application(
+                                db_application_file.id.clone(),
+                                owner.clone(),
+                                repo.clone(),
+                                number,
+                                serde_json::to_string_pretty(&db_application_file).unwrap(),
+                                Some(filename.clone()),
+                            )
+                            .await;
+                        }
+                    }
+                    Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                };
+            }
+            None => {
+                return Err(LDNError::New("Adding commit in approve changes failed".to_string()));
+            }
+        }
+
+        Self::issue_changes_approved(db_application_file.issue_number.clone(), owner.clone(), repo.clone(), new_state).await?;
+    
+        Ok(())
+    }
+
+    pub async fn approve_changes(
+        self,
+        owner: String,
+        repo: String
+    ) -> Result<String, LDNError> {
+        let sha: String = self.file_sha.clone();
+        let filename: String = self.file_name.clone();
+        let branch_name: String = self.branch_name.clone();
+        let application_id: String = self.application_id.clone();
+
+
+        let db_application_file_str_result = database::applications::get_application(application_id, owner.clone(), repo.clone(), None).await;
+        let db_application_file_str = match db_application_file_str_result {
+            Ok(file) => file.application.unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
+            Err(e) => {
+                return Err(LDNError::New(format!(
+                    "Failed to fetch application data from the database: {}",
+                    e
+                )));
+            },
+        };
+
+        let db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
+        let application_state = db_application_file.lifecycle.state.clone();
+
+        if application_state != AppState::ChangesRequested {
+            return Err(LDNError::New(format!(
+                "Application is not in the correct state",
+            )));
+        }
+    
+        let allocation_count = db_application_file.allocation.0.len();
+    
+        if allocation_count == 0 {
+            return Err(LDNError::New(format!(
+                "Application does not have any allocations",
+            )));
+        }
+    
+        let active_allocation = db_application_file.allocation.active();
+        let mut remove_allocation = false;
+        let new_app_state: AppState;
+    
+        let active_allocation_ref = match active_allocation.as_ref() {
+            Some(allocation) => allocation,
+            None => {
+                new_app_state = AppState::Granted;
+                // case with no active allocation but more or equal to 1  - something not clear ask Alex
+                Self::update_and_commit_application_state(
+                    self,
+                    new_app_state,
+                    db_application_file,
+                    owner.clone(),
+                    repo.clone(),
+                    sha.clone(),
+                    branch_name.clone(),
+                    filename.clone(),
+                    "Changes approved".to_string(),
+                    remove_allocation
+                ).await?;
+                return Ok("Changes approved".to_string()); // or return an error if appropriate
+            }
+        };
+    
+        if allocation_count == 1 && active_allocation_ref.signers.0.is_empty() {
+            // case with exactly ONE allocation which is active, but not signed yet
+            remove_allocation = true;
+            new_app_state = AppState::Submitted
+        } else if active_allocation_ref.signers.0.is_empty() {
+            // case with more than one allocations one of which is active, but not signed yet
+            remove_allocation = true;
+            new_app_state = AppState::Granted
+        } else {
+            // case with more than one allocations one of which is active and signed, and the number of signatures is 2 because otherwise there'd be no active one
+            new_app_state = AppState::StartSignDatacap
+        };
+
+        Self::update_and_commit_application_state(
+            self,
+            new_app_state,
+            db_application_file,
+            owner.clone(),
+            repo.clone(),
+            sha.clone(),
+            branch_name.clone(),
+            filename.clone(),
+            "Changes approved".to_string(),
+            remove_allocation
+        ).await?;
+
+        Ok("Changes approved".to_string())
+    }
+
+    pub async fn check_for_changes(
+        pr_number: u64,
+        author: &str,
+        owner: String,
+        repo: String,
+    ) -> Result<String, LDNError> {
+        log::info!("Starting check_for_changes:");
+
+        let bot_user = get_env_var_or_default("BOT_USER");
+        if author != bot_user {
+            log::warn!("- Author is not the bot user");
+            return Err(LDNError::New("PR File edited by user".to_string()));
+        }
+
+        let gh: GithubWrapper = github_async_new(owner.clone(), repo.clone()).await;
+        let result = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr_number).await;
+
+        let sha: String;
+        let filename: String;
+        let mut application_file: ApplicationFile;
+
+        match result {
+            Ok(Some(((_, files), app))) => {
+                if let Some(file) = files.get(0) {
+                    sha = file.sha.clone(); 
+                    filename = file.filename.clone();
+                    application_file = app;
+                } else {
+                    return Err(LDNError::New("No files found in the pull request".to_string()));
+                }
+            },
+            Ok(None) => {
+                return Err(LDNError::New("Failed to fetch PR files or application file".to_string()));
+            },
+            Err(e) => {
+                return Err(e);
+            },
+        };
+
+        if application_file.lifecycle.edited.unwrap_or(false) == false {
+            log::warn!("Val Trigger - Application has not been edited");
+            return Ok("true".to_string());
+        }
+
+        let allocation_count = application_file.allocation.0.len();
+        
+        if allocation_count == 0 {
+            return Err(LDNError::New(format!(
+                "Application does not have any allocations",
+            )));
+        }
+
+        let application_id: String = application_file.id.clone();
+
+        let db_application_file_str_result = database::applications::get_application(application_file.id.clone(), owner.clone(), repo.clone(), None).await;
+        let db_application_file_str = match db_application_file_str_result {
+            Ok(file) => file.application.unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
+            Err(e) => {
+                return Err(LDNError::New(format!(
+                    "Failed to fetch application data from the database: {}",
+                    e
+                )));
+            },
+        };
+        let db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
+        
+        let commit_message;
+
+        if allocation_count == 1 && application_file.allocation.active().is_some() && application_file.allocation.active().unwrap().signers.0.is_empty() {
+            application_file.lifecycle.state = AppState::Submitted;
+            application_file.lifecycle.edited = Some(false);
+            application_file.allocation = Allocations(Vec::new());
+            commit_message = "Updated application state to Verifier Review due to changes requested on the issue and no signed allocations."
+        } else {
+            application_file.lifecycle.state = AppState::ChangesRequested;
+            commit_message = "Updated application state to Changes Requested due to changes requested on the issue and at leasts one partially or fully signed allocation."
+        }
+        let file_content = match serde_json::to_string_pretty(&application_file) {
+            Ok(f) => f,
+            Err(e) => {
+                Self::add_error_label(
+                    application_file.issue_number.clone(),
+                    "".to_string(),
+                    owner.clone(),
+                    repo.clone(),
+                )
+                .await?;
+                return Err(LDNError::New(format!(
+                    "Application issue file is corrupted /// {}",
+                    e
+                )));
+            }
+        };
+        let branch_name = match gh.get_branch_name_from_pr(pr_number).await {
+            Ok(branch_name) => {
+                log::info!("- Branch name: {}", branch_name);
+                branch_name
+            }
+            Err(err) => {
+                log::error!(
+                    "- Failed to get branch name from pull request. Reason: {}",
+                    err
+                );
+                return Err(LDNError::Load(format!(
+                    "Failed to get branch name from pull request. Reason: {}",
+                    err
+                )));
+            }
+        };
+
+        let _ = database::applications::update_application(application_id, owner.clone(), repo.clone(), pr_number.clone(), file_content.clone(), Some(filename.clone())).await;
+
+        gh.update_file(&filename,commit_message,&file_content, &branch_name, &sha).await.map_err(|e| {
+            LDNError::Load(format!("Failed to update file in GitHub repo {}/{}. Reason: {} in file {}", gh.owner.clone(), gh.repo.clone(), e, filename))
+        })?;
+
+        if allocation_count == 1 && application_file.allocation.active().is_some() && application_file.allocation.active().unwrap().signers.0.is_empty() {
+            let differences = application_file.compare(&db_application_file);
+    
+            Self::issue_changes_requested(
+                application_file.clone(),
+                owner.clone(),
+                repo.clone(),
+                differences
+            )
+            .await?;
+        }
+        
+        return Ok(db_application_file_str);
+    }
+
     pub async fn validate_approval(
         pr_number: u64,
         owner: String,
@@ -1828,26 +2222,6 @@ impl LDNApplication {
 
                     if valid_verifiers.is_valid(&signer_gh_handle) {
                         log::info!("Val Approval (G)- Validated!");
-                        Self::issue_datacap_request_signature(
-                            application_file.clone(),
-                            "approved".to_string(),
-                            owner.clone(),
-                            repo.clone(),
-                        )
-                        .await?;
-                        Self::update_issue_labels(
-                            application_file.issue_number.clone(),
-                            &[AppState::Granted.as_str()],
-                            owner.clone(),
-                            repo.clone(),
-                        )
-                        .await?;
-                        Self::issue_granted(
-                            application_file.issue_number.clone(),
-                            owner.clone(),
-                            repo.clone(),
-                        )
-                        .await?;
                         return Ok(true);
                     }
 
@@ -1900,27 +2274,6 @@ impl LDNApplication {
                     let valid_verifiers =
                         Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
                     if valid_verifiers.is_valid(&signer_gh_handle) {
-                        Self::issue_start_sign_dc(
-                            application_file.issue_number.clone(),
-                            owner.clone(),
-                            repo.clone(),
-                        )
-                        .await?;
-                        Self::issue_datacap_request_signature(
-                            application_file.clone(),
-                            "proposed".to_string(),
-                            owner.clone(),
-                            repo.clone(),
-                        )
-                        .await?;
-                        Self::update_issue_labels(
-                            application_file.issue_number.clone(),
-                            &[AppState::StartSignDatacap.as_str()],
-                            owner.clone(),
-                            repo.clone(),
-                        )
-                        .await?;
-
                         log::info!("Val Proposal (SSD) - Validated!");
                         return Ok(true);
                     }
@@ -2039,24 +2392,6 @@ impl LDNApplication {
             application_model.repo.clone(),
         ).await {
             Some(()) => {
-                match gh.get_pull_request_by_head(&branch_name).await {
-                    Ok(prs) => {
-                        if let Some(pr) = prs.get(0) {
-                            let number = pr.number;
-
-                            let _ = database::applications::update_application(
-                                app_file.id.clone(),
-                                application_model.owner.clone(),
-                                application_model.repo.clone(),
-                                number as u64,
-                                serde_json::to_string_pretty(&app_file).unwrap(),
-                                Some(application_model.path.clone().unwrap()),
-                            )
-                            .await;
-                        }
-                    }
-                    Err(e) => log::warn!("Failed to get pull request by head: {}", e),
-                };
                 return Ok(LDNApplication {
                     github: gh,
                     application_id,
@@ -2120,24 +2455,6 @@ impl LDNApplication {
             LDNPullRequest::application_path(&application_id),
             uuid,
             application_model.sha.clone().unwrap(),
-            application_model.owner.clone(),
-            application_model.repo.clone(),
-        )
-        .await?;
-
-        Self::issue_waiting_for_gov_review(
-            merged_application.issue_number.clone(),
-            application_model.owner.clone(),
-            application_model.repo.clone(),
-        )
-        .await?;
-
-        Self::update_issue_labels(
-            application_file.issue_number.clone(),
-            &[
-                AppState::ChangesRequested.as_str(),
-                "waiting for allocator review",
-            ],
             application_model.owner.clone(),
             application_model.repo.clone(),
         )
@@ -2278,6 +2595,77 @@ impl LDNApplication {
                 ));
             })
             .unwrap();
+        Ok(true)
+    }
+
+    async fn issue_changes_requested(
+        application_file: ApplicationFile,
+        owner: String,
+        repo: String,
+        differences: Vec<String>
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner.clone(), repo.clone()).await;
+
+        let issue_number = application_file.issue_number.clone();
+
+        let comment = format!(
+            "### Issue has been modified. Changes below:
+
+_(OLD vs NEW)_
+
+\n>{}",
+            differences.join("\n>")
+        );
+
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+
+        Self::update_issue_labels(
+            application_file.issue_number.clone(),
+            &[AppState::ChangesRequested.as_str()],
+            owner,
+            repo,
+        )
+        .await?;
+        Ok(true)
+    }
+
+    async fn issue_changes_approved(
+        issue_number: String,
+        owner: String,
+        repo: String,
+        new_state: AppState
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner.clone(), repo.clone()).await;
+
+        let comment = format!(
+            "#### Issue information change request has been approved."
+        );
+
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+
+        Self::update_issue_labels(
+            issue_number,
+            &[new_state.as_str()],
+            owner,
+            repo,
+        )
+        .await?;
         Ok(true)
     }
 
@@ -2731,7 +3119,7 @@ impl LDNPullRequest {
         repo: String,
     ) -> Result<String, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
-        let gh = github_async_new(owner.to_string(), repo.to_string()).await;
+        let gh: GithubWrapper = github_async_new(owner.to_string(), repo.to_string()).await;
         let head_hash = gh.get_main_branch_sha().await.unwrap();
         let create_ref_request = gh
             .build_create_ref_request(app_branch_name.clone(), head_hash)
@@ -2798,22 +3186,6 @@ impl LDNPullRequest {
             .await
         {
             Ok(pr) => {
-                database::applications::create_application(
-                    application_id.clone(),
-                    owner,
-                    repo,
-                    pr.0.number,
-                    file_content,
-                    file_sha,
-                    file_name,
-                )
-                .await
-                .map_err(|e| {
-                    return LDNError::New(format!(
-                        "Application issue {} cannot create application in DB /// {}",
-                        application_id, e
-                    ));
-                })?;
                 pr
             }
             Err(e) => {
