@@ -1,6 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
+        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
     };
 
 
@@ -107,7 +107,7 @@ pub async fn propose(
     info: web::Json<CompleteNewApplicationProposalInfo>,
     query: web::Query<VerifierActionsQueryParams>,
 ) -> impl Responder {
-    let CompleteNewApplicationProposalInfo { signer, request_id } = info.into_inner();
+    let CompleteNewApplicationProposalInfo { signer, request_id, new_allocation_amount } = info.into_inner();
     let ldn_application =
         match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
         {
@@ -128,6 +128,7 @@ pub async fn propose(
             request_id,
             query.owner.clone(),
             query.repo.clone(),
+            new_allocation_amount
         )
         .await
     {
@@ -141,9 +142,9 @@ pub async fn propose(
 #[post("/application/approve")]
 pub async fn approve(
     query: web::Query<VerifierActionsQueryParams>,
-    info: web::Json<CompleteNewApplicationProposalInfo>,
+    info: web::Json<CompleteNewApplicationApprovalInfo>,
 ) -> impl Responder {
-    let CompleteNewApplicationProposalInfo { signer, request_id } = info.into_inner();
+    let CompleteNewApplicationApprovalInfo { signer, request_id } = info.into_inner();
     let ldn_application =
         match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
         {
@@ -164,6 +165,7 @@ pub async fn approve(
             request_id,
             query.owner.clone(),
             query.repo.clone(),
+            None,
         )
         .await
     {

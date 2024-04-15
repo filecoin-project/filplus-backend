@@ -304,6 +304,28 @@ pub struct Allocation {
     pub signers: Verifiers,
 }
 
+impl ApplicationFile {
+    pub fn remove_active_allocation(&mut self) {
+        self.allocation.0.retain(|alloc| !alloc.is_active);
+    }
+
+    pub fn get_active_allocation(&self) -> Option<&Allocation> {
+        self.allocation.0.iter().find(|alloc| alloc.is_active)
+    }
+
+    pub fn adjust_active_allocation_amount(&mut self, new_amount: String) -> Result<(), &'static str> {
+        // Find the first active allocation
+        if let Some(allocation) = self.allocation.0.iter_mut().find(|alloc| alloc.is_active) {
+            // Update the amount
+            allocation.amount = new_amount;
+            Ok(())
+        } else {
+            // Return an error if no active allocation is found
+            Err("No active allocation found")
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Verifiers(pub Vec<Verifier>);
 
