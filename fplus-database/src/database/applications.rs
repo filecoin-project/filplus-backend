@@ -292,8 +292,13 @@ pub async fn update_application(id: String, owner: String, repo: String, pr_numb
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn create_application(id: String, owner: String, repo: String, pr_number: u64, app_file: String, sha: String, path: String) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn create_application(id: String, owner: String, repo: String, pr_number: u64, app_file: String, path: String) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
+    //Calculate SHA
+    let mut hasher = Sha1::new();
+    let application = format!("blob {}\x00{}", app_file.len(), app_file);
+    hasher.update(application.as_bytes());
+    let file_sha = format!("{:x}", hasher.finalize());  
 
     let new_application = ActiveModel {
         id: Set(id),
@@ -301,10 +306,11 @@ pub async fn create_application(id: String, owner: String, repo: String, pr_numb
         repo: Set(repo),
         pr_number: Set(pr_number as i64),
         application: Set(Some(app_file)),
-        sha: Set(Some(sha)),
+        sha: Set(Some(file_sha)),
         path: Set(Some(path)),
         ..Default::default()
     };
+
     
     let result = match new_application.insert(&conn).await {
         Ok(application) => Ok(application),

@@ -716,7 +716,6 @@ impl LDNApplication {
                                 info.repo.clone(),
                                 number,
                                 file_content,
-                                file_sha.clone(),
                                 LDNPullRequest::application_path(&app_id),
                             )
                             .await
@@ -2141,9 +2140,33 @@ impl LDNApplication {
             }
         };
 
-        let _ = database::applications::update_application(application_id, owner.clone(), repo.clone(), pr_number.clone(), file_content.clone(), Some(filename.clone())).await;
+        match database::applications::get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await {
+            Ok(_) => {
+                let _ = database::applications::update_application(
+                    application_id, 
+                    owner.clone(), 
+                    repo.clone(), 
+                    pr_number, 
+                    file_content.clone(), 
+                    Some(filename.clone())
+                )
+                    .await
+                    .map_err(|e| LDNError::Load(format!("Failed to update application in the database: {}", e)))?;
+            },
+            Err(_) => {
+                let _ = database::applications::create_application(
+                    application_id,
+                    owner.clone(),
+                    repo.clone(),
+                    pr_number,
+                    file_content.clone(),
+                    filename.clone()
+                )
+                .await.map_err(|e| LDNError::Load(format!("Failed to create application in the database: {}", e)))?;
+            }
+        }
 
-        gh.update_file(&filename,commit_message,&file_content, &branch_name, &sha).await.map_err(|e| {
+        gh.update_file(&filename, commit_message, &file_content, &branch_name, &sha).await.map_err(|e| {
             LDNError::Load(format!("Failed to update file in GitHub repo {}/{}. Reason: {} in file {}", gh.owner.clone(), gh.repo.clone(), e, filename))
         })?;
 
@@ -3020,7 +3043,6 @@ Your Datacap Allocation Request has been {} by the Notary
                     repo.clone(),
                     gh_app.pr_number as u64,
                     serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
-                    gh_app.sha,
                     gh_app.path,
                 )
                 .await
@@ -3091,7 +3113,6 @@ Your Datacap Allocation Request has been {} by the Notary
                     repo.clone(),
                     0,
                     serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
-                    gh_app.sha,
                     gh_app.path,
                 )
                 .await
