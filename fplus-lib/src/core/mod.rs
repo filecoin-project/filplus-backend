@@ -2070,6 +2070,11 @@ impl LDNApplication {
             return Ok(true);
         }
 
+        if application_file.lifecycle.get_state() == AppState::ChangesRequested {
+            log::warn!("Val Trigger - Application is in ChangesRequested state");
+            return Ok(true);
+        }
+
         let allocation_count = application_file.allocation.0.len();
         
         if allocation_count == 0 {
@@ -2142,17 +2147,15 @@ impl LDNApplication {
             LDNError::Load(format!("Failed to update file in GitHub repo {}/{}. Reason: {} in file {}", gh.owner.clone(), gh.repo.clone(), e, filename))
         })?;
 
-        if allocation_count == 1 && application_file.allocation.active().is_some() && application_file.allocation.active().unwrap().signers.0.is_empty() {
-            let differences = application_file.compare(&db_application_file);
-    
-            Self::issue_changes_requested(
-                application_file.clone(),
-                owner.clone(),
-                repo.clone(),
-                differences
-            )
-            .await?;
-        }
+        let differences = application_file.compare(&db_application_file);
+
+        Self::issue_changes_requested(
+            application_file.clone(),
+            owner.clone(),
+            repo.clone(),
+            differences
+        )
+        .await?;
         
         return Ok(true);
     }
