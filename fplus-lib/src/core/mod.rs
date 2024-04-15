@@ -66,7 +66,7 @@ pub struct ApplicationProposalApprovalSignerInfo {
 pub struct CompleteNewApplicationProposalInfo {
     pub signer: ApplicationProposalApprovalSignerInfo,
     pub request_id: String,
-    pub new_allocation_amount: String
+    pub new_allocation_amount: Option<String>
 }
 
 #[derive(Deserialize, Serialize, Debug)]
