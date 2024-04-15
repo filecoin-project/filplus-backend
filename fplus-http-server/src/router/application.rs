@@ -392,7 +392,7 @@ pub async fn check_for_changes(
     match pr_number {
         Ok(pr_number) => {
             match LDNApplication::check_for_changes(pr_number, &user_handle, owner, repo).await {
-                Ok(result) => HttpResponse::Ok().body(result),
+                Ok(result) => HttpResponse::Ok().json(result),
                 Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
             }
         }

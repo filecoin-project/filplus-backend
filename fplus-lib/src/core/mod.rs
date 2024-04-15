@@ -2031,7 +2031,7 @@ impl LDNApplication {
         author: &str,
         owner: String,
         repo: String,
-    ) -> Result<String, LDNError> {
+    ) -> Result<bool, LDNError> {
         log::info!("Starting check_for_changes:");
 
         let bot_user = get_env_var_or_default("BOT_USER");
@@ -2067,7 +2067,7 @@ impl LDNApplication {
 
         if application_file.lifecycle.edited.unwrap_or(false) == false {
             log::warn!("Val Trigger - Application has not been edited");
-            return Ok("true".to_string());
+            return Ok(true);
         }
 
         let allocation_count = application_file.allocation.0.len();
@@ -2154,7 +2154,7 @@ impl LDNApplication {
             .await?;
         }
         
-        return Ok(db_application_file_str);
+        return Ok(true);
     }
 
     pub async fn validate_approval(
