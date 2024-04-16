@@ -1256,6 +1256,7 @@ impl LDNApplication {
                 items[0].sha.clone(),
                 owner,
                 repo,
+                true
             )
             .await?;
             Ok(true)
@@ -1449,6 +1450,7 @@ impl LDNApplication {
                 content.sha,
                 refill_info.owner,
                 refill_info.repo,
+                true
             )
             .await?;
             return Ok(true);
@@ -2069,11 +2071,6 @@ impl LDNApplication {
             return Ok(true);
         }
 
-        if application_file.lifecycle.get_state() == AppState::ChangesRequested {
-            log::warn!("Val Trigger - Application is in ChangesRequested state");
-            return Ok(true);
-        }
-
         let allocation_count = application_file.allocation.0.len();
         
         if allocation_count == 0 {
@@ -2098,9 +2095,9 @@ impl LDNApplication {
         
         let commit_message;
 
+        application_file.lifecycle.edited = Some(false);
         if allocation_count == 1 && application_file.allocation.active().is_some() && application_file.allocation.active().unwrap().signers.0.is_empty() {
             application_file.lifecycle.state = AppState::Submitted;
-            application_file.lifecycle.edited = Some(false);
             application_file.allocation = Allocations(Vec::new());
             commit_message = "Updated application state to Verifier Review due to changes requested on the issue and no signed allocations."
         } else {
@@ -2197,6 +2194,10 @@ impl LDNApplication {
                     return Ok(true);
                 }
                 let app_state: AppState = application_file.lifecycle.get_state();
+                if application_file.lifecycle.edited.unwrap_or(false) == true {
+                    log::warn!("Val Trigger - Application has been edited");
+                    return Ok(false);
+                }
 
                 log::info!("Val Approval - App state is {:?}", app_state.as_str());
                 if app_state < AppState::Granted {
@@ -2280,6 +2281,11 @@ impl LDNApplication {
                 }
                 let app_state: AppState = application_file.lifecycle.get_state();
                 log::info!("Val Proposal - App state is {:?}", app_state.as_str());
+                if application_file.lifecycle.edited.unwrap_or(false) == true {
+                    log::warn!("Val Trigger - Application has been edited");
+                    return Ok(false);
+                }
+
                 if app_state < AppState::StartSignDatacap {
                     log::warn!("Val Proposal (< SSD) - State is less than StartSignDatacap");
                     return Ok(false);
@@ -2377,7 +2383,7 @@ impl LDNApplication {
         let application_id = parsed_ldn.id.clone();
         
         //Edit the application file with the new info from the issue
-        let app_file = ApplicationFile::edited(
+        let mut app_file = ApplicationFile::edited(
             pr_application.issue_number.clone(),
             parsed_ldn.version,
             application_id.clone(),
@@ -2387,6 +2393,10 @@ impl LDNApplication {
             pr_application.allocation.clone(),
             pr_application.lifecycle.clone(),
         ).await;
+
+        if app_file.allocation.0.len() < 1 {
+            app_file.lifecycle.edited = Some(false);
+        }
 
         let file_content = match serde_json::to_string_pretty(&app_file) {
             Ok(f) => f,
@@ -2418,6 +2428,26 @@ impl LDNApplication {
             application_model.repo.clone(),
         ).await {
             Some(()) => {
+                if app_file.allocation.0.len() < 1 {
+                    match gh.get_pull_request_by_head(&branch_name).await {
+                        Ok(prs) => {
+                            if let Some(pr) = prs.get(0) {
+                                let number = pr.number;
+    
+                                let _ = database::applications::update_application(
+                                    app_file.id.clone(),
+                                    application_model.owner.clone(),
+                                    application_model.repo.clone(),
+                                    number as u64,
+                                    serde_json::to_string_pretty(&app_file).unwrap(),
+                                    Some(application_model.path.clone().unwrap()),
+                                )
+                                .await;
+                            }
+                        }
+                        Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                    };
+                }
                 return Ok(LDNApplication {
                     github: gh,
                     application_id,
@@ -2483,6 +2513,7 @@ impl LDNApplication {
             application_model.sha.clone().unwrap(),
             application_model.owner.clone(),
             application_model.repo.clone(),
+            false
         )
         .await?;
         
@@ -3184,6 +3215,7 @@ impl LDNPullRequest {
         file_sha: String,
         owner: String,
         repo: String,
+        should_create_in_db: bool,
     ) -> Result<u64, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh = github_async_new(owner.to_string(), repo.to_string()).await;
@@ -3210,6 +3242,23 @@ impl LDNPullRequest {
             .await
         {
             Ok(pr) => {
+                if should_create_in_db {
+                    database::applications::create_application(
+                        application_id.clone(),
+                        owner,
+                        repo,
+                        pr.0.number,
+                        file_content,
+                        file_name,
+                    )
+                    .await
+                    .map_err(|e| {
+                        return LDNError::New(format!(
+                            "Application issue {} cannot create application in DB /// {}",
+                            application_id, e
+                        ));
+                    })?;
+                }
                 pr
             }
             Err(e) => {

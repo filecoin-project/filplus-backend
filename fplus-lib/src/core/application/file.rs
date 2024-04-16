@@ -307,6 +307,13 @@ pub struct Allocation {
 impl ApplicationFile {
     pub fn remove_active_allocation(&mut self) {
         self.allocation.0.retain(|alloc| !alloc.is_active);
+        if self.allocation.0.len() == 0 {
+            self.lifecycle.validated_at = "".to_string();
+            self.lifecycle.validated_by = "".to_string();
+            self.lifecycle.active_request = Some("".to_string());
+        } else {
+            self.lifecycle.active_request = Some(self.allocation.0[self.allocation.0.len() - 1].id.clone());
+        }
     }
 
     pub fn get_active_allocation(&self) -> Option<&Allocation> {
