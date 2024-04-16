@@ -252,7 +252,14 @@ pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_numb
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn update_application(id: String, owner: String, repo: String, pr_number: u64, app_file: String, path: Option<String>) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn update_application(
+    id: String, 
+    owner: String, 
+    repo: String, 
+    pr_number: u64, 
+    app_file: String, 
+    path: Option<String>, 
+) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
     match get_application(id.clone(), owner.clone(), repo.clone(), Some(pr_number)).await {
