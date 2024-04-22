@@ -342,8 +342,8 @@ pub async fn force_update_allocators(files: Vec<String>, affected_allocators: Op
                 .filter(|a| {
                     affected_allocators
                         .iter()
-                        .any(|aa| aa.owner == a.owner && aa.repo == a.repo)
-                })
+                        .any(|aa| aa.owner.as_ref() == Some(&a.owner) && aa.repo.as_ref() == Some(&a.repo))
+                    })
                 .cloned()
                 .collect()
         }

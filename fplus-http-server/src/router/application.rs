@@ -354,8 +354,15 @@ pub async fn delete_branch(data: web::Json<BranchDeleteInfo>) -> actix_web::Resu
 #[post("application/cache/renewal")]
 pub async fn cache_renewal(info: web::Json<GithubQueryParams>) -> impl Responder {
     let GithubQueryParams { owner, repo } = info.into_inner();
-    let active_result = LDNApplication::cache_renewal_active(owner.clone(), repo.clone()).await;
 
+    if owner.is_none() || repo.is_none() {
+        return HttpResponse::BadRequest().json("Missing owner or repo parameters");
+    }
+
+    let owner = owner.unwrap();
+    let repo = repo.unwrap();
+
+    let active_result = LDNApplication::cache_renewal_active(owner.clone(), repo.clone()).await;
     let merged_result = LDNApplication::cache_renewal_merged(owner, repo).await;
 
     match (active_result, merged_result) {

@@ -149,8 +149,8 @@ pub struct InstallationIdUpdateInfo {
 
 #[derive(Deserialize)]
 pub struct GithubQueryParams {
-    pub owner: String,
-    pub repo: String,
+    pub owner: Option<String>,
+    pub repo: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -455,13 +455,13 @@ impl LDNApplication {
     }
 
     pub async fn active(
-        owner: String,
-        repo: String,
+        owner: Option<String>,
+        repo: Option<String>,
         filter: Option<String>,
     ) -> Result<Vec<ApplicationFile>, LDNError> {
         // Get all active applications from the database.
         let active_apps_result =
-            database::applications::get_active_applications(Some(owner), Some(repo)).await;
+            database::applications::get_active_applications(owner, repo).await;
 
         // Handle errors in getting active applications.
         let active_apps = match active_apps_result {
@@ -1229,7 +1229,7 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<bool, LDNError> {
-        let merged = Self::merged(owner.clone(), repo.clone()).await?;
+        let merged = Self::merged(Some(owner.clone()), Some(repo.clone())).await?;
         let app = merged
             .par_iter()
             .find_first(|(_, app)| app.id == application_id);
@@ -1331,7 +1331,7 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<(ApplicationGithubInfo, ApplicationFile), LDNError> {
-        Ok(LDNApplication::merged(owner, repo)
+        Ok(LDNApplication::merged(Some(owner), Some(repo))
             .await?
             .into_iter()
             .find(|(_, app)| app.id == application_id)
@@ -1375,13 +1375,13 @@ impl LDNApplication {
     }
 
     pub async fn merged(
-        owner: String,
-        repo: String,
+        owner: Option<String>,
+        repo: Option<String>,
     ) -> Result<Vec<(ApplicationGithubInfo, ApplicationFile)>, LDNError> {
         // Retrieve all applications in the main branch from the database.
         let merged_apps_result = database::applications::get_merged_applications(
-            Some(owner.clone()),
-            Some(repo.clone()),
+            owner.clone(),
+            repo.clone(),
         )
         .await;
 
@@ -1423,7 +1423,7 @@ impl LDNApplication {
 
     pub async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
         let apps =
-            LDNApplication::merged(refill_info.owner.clone(), refill_info.repo.clone()).await?;
+            LDNApplication::merged(Some(refill_info.owner.clone()), Some(refill_info.repo.clone())).await?;
         if let Some((content, mut app)) = apps.into_iter().find(|(_, app)| app.id == refill_info.id)
         {
             let uuid = uuidv4::uuid::v4();
