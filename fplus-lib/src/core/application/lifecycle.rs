@@ -5,6 +5,8 @@ use super::file::{AppState, LifeCycle};
 impl AppState {
     pub fn as_str(&self) -> &str {
         match *self {
+            AppState::AdditionalInfoRequired => "additional information required",
+            AppState::AdditionalInfoSubmitted => "additional information submitted",
             AppState::Submitted => "validated",
             AppState::ChangesRequested => "application changes requested",
             AppState::ReadyToSign => "ready to sign",
