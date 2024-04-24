@@ -1,6 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
+        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
     };
 
 
@@ -173,6 +173,58 @@ pub async fn approve(
         Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
     }
 }
+
+#[post("/application/decline")]
+pub async fn decline(
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
+    let ldn_application =
+    match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+    {
+        Ok(app) => app,
+        Err(e) => {
+            return HttpResponse::BadRequest().body(e.to_string());
+        }
+    };
+    match ldn_application
+        .decline_application(
+            query.owner.clone(),
+            query.repo.clone(),
+        )
+        .await
+    {
+        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+        Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
+    }
+}
+
+#[post("/application/additional_info_required")]
+pub async fn additional_info_required(
+    query: web::Query<VerifierActionsQueryParams>,
+    info: web::Json<MoreInfoNeeded>,
+) -> impl Responder {
+    let MoreInfoNeeded { verifier_message } = info.into_inner();
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => {
+                return HttpResponse::BadRequest().body(e.to_string());
+            }
+        };
+    match ldn_application
+        .additional_info_required(
+            query.owner.clone(),
+            query.repo.clone(),
+            verifier_message
+        )
+        .await
+    {
+        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+        Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
+    }
+}
+
 
 #[get("/applications")]
 pub async fn all_applications() -> impl Responder {

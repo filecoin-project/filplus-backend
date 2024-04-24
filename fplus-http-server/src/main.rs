@@ -77,6 +77,8 @@ async fn main() -> std::io::Result<()> {
                     .service(router::application::approve_changes)
                     .service(router::application::propose)
                     .service(router::application::approve)
+                    .service(router::application::decline)
+                    .service(router::application::additional_info_required)
             )
             .service(router::application::merged)
             .service(router::application::active)
