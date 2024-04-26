@@ -26,7 +26,8 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
                 a.application, 
                 a.updated_at, 
                 a.sha,
-                a.path
+                a.path,
+                a.warning
             FROM 
                 applications a 
             ORDER BY 
@@ -52,6 +53,7 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
             updated_at: Utc.from_utc_datetime(&app.get("updated_at").unwrap().as_str().unwrap().parse::<DateTime<Utc>>().unwrap().naive_utc()),
             sha: Some(app.get("sha").unwrap().as_str().unwrap().to_string()),
             path: Some(app.get("path").unwrap().as_str().unwrap().to_string()),
+            warning: app.get("warning").unwrap().as_bool().unwrap(),
         });
     }
     Ok(applications)
@@ -315,6 +317,7 @@ pub async fn create_application(id: String, owner: String, repo: String, pr_numb
         application: Set(Some(app_file)),
         sha: Set(Some(file_sha)),
         path: Set(Some(path)),
+        warning: Set(false),
         ..Default::default()
     };
 
@@ -345,4 +348,10 @@ pub async fn delete_application(id: String, owner: String, repo: String, pr_numb
     application.delete(&conn).await?;
     Ok(())
 }
-    
+
+pub async fn update_warning(id: String, owner: String, repo: String, warning: bool) -> Result<ApplicationModel, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+    let mut application = get_application(id.clone(), owner.clone(), repo.clone(), None).await?.into_active_model();
+    application.warning = Set(warning);
+    application.update(&conn).await
+}

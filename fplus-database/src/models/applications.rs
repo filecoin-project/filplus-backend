@@ -23,6 +23,8 @@ pub struct Model {
   pub sha: Option<String>,
   #[sea_orm(nullable)]
   pub path: Option<String>,
+  #[sea_orm(nullable)]
+  pub warning: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

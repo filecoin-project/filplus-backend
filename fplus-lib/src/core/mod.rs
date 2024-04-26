@@ -109,6 +109,14 @@ pub struct ValidationPullRequestData {
 }
 
 #[derive(Deserialize)]
+pub struct SsaErrorRequestData {
+    pub id: String,
+    pub owner: String,
+    pub repo: String,
+    pub error_message: String,
+}
+
+#[derive(Deserialize)]
 pub struct ValidationIssueData {
     pub issue_number: String,
     pub user_handle: String,
@@ -2539,6 +2547,50 @@ impl LDNApplication {
         gh.remove_branch(request).await.map_err(|e| {
             return LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e));
         })?;
+
+        Ok(true)
+    }
+
+    pub async fn post_ssa_error(
+        id: String,
+        owner: String,
+        repo: String,
+        error_message: String
+    ) -> Result<bool, LDNError> {
+        //Get the application file from DB
+        let application_model = match database::applications::get_application(id.clone(), owner.clone(), repo.clone(), None).await {
+            Ok(app) => app,
+            Err(e) => {
+                return Err(LDNError::New(format!(
+                    "Failed to get application model: {}",
+                    e
+                )));
+            }
+        };
+
+        //If the application already has an error label, return
+        if application_model.warning {
+            return Ok(true);
+        } 
+
+        let application = ApplicationFile::from_str(&application_model.application.unwrap())
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))?;
+        
+        //Add error label to the issue
+        Self::add_error_label(
+            application.issue_number.clone(),
+            error_message.clone(),
+            owner.clone(),
+            repo.clone(),
+        ).await?;
+
+        //Set application warning to true
+        database::applications::update_warning(
+            id.clone(),
+            owner.clone(),
+            repo.clone(),
+            true
+        ).await.unwrap();
 
         Ok(true)
     }

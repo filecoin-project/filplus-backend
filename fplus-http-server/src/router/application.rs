@@ -1,7 +1,10 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams
-    };
+    application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, 
+    CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, 
+    GithubQueryParams, LDNApplication, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams, 
+    SsaErrorRequestData
+};
 
 
 #[post("/application")]
@@ -405,6 +408,19 @@ pub async fn check_for_changes(
         }
         Err(_) => HttpResponse::BadRequest().json("Invalid PR Number"),
     }
+}
+
+#[post("/ssa/error")]
+pub async fn post_ssa_error (
+    info: web::Json<SsaErrorRequestData>
+) -> impl Responder {
+    let SsaErrorRequestData { id, owner, repo, error_message } = info.into_inner();
+
+    match LDNApplication::post_ssa_error(id, owner, repo, error_message).await {
+        Ok(result) => HttpResponse::Ok().json(result),
+        Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
+    }
+
 }
 
 #[get("/health")]
