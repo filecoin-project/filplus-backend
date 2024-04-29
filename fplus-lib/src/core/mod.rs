@@ -75,6 +75,11 @@ pub struct CompleteNewApplicationApprovalInfo {
     pub request_id: String,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct MoreInfoNeeded {
+    pub verifier_message: String
+}
+
 #[derive(Debug)]
 pub struct LDNApplication {
     github: GithubWrapper,
@@ -789,7 +794,7 @@ impl LDNApplication {
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
-                AppState::Submitted => {
+                AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
                     let app_file: ApplicationFile = self.file().await?;
                     let uuid = uuidv4::uuid::v4();
                     let request = AllocationRequest::new(
@@ -833,7 +838,7 @@ impl LDNApplication {
                                             Some(app_path.clone()),
                                         )
                                         .await;
-
+        
                                         Self::issue_datacap_allocation_requested(
                                             app_file.clone(),
                                             app_file.get_active_allocation(),
@@ -1632,7 +1637,8 @@ impl LDNApplication {
         };
 
         // Check if application is in Submitted state
-        if application.lifecycle.get_state() == AppState::Submitted {
+        let state = application.lifecycle.get_state();
+        if state == AppState::Submitted || state == AppState::AdditionalInfoRequired || state == AppState::AdditionalInfoSubmitted {
             if !application.lifecycle.validated_by.is_empty() {
                 log::warn!(
                     "- Application has already been validated by: {}",
@@ -1701,6 +1707,14 @@ impl LDNApplication {
             }
 
             let res: bool = match app_state {
+                AppState::AdditionalInfoRequired => {
+                    log::warn!("Val Trigger (RtS) - Application state is MoreInfoNeeded");
+                    return Ok(false);
+                }
+                AppState::AdditionalInfoSubmitted => {
+                    log::warn!("Val Trigger (RtS) - Application state is MoreInfoNeeded");
+                    return Ok(false);
+                }
                 AppState::Submitted => {
                     log::warn!("Val Trigger (RtS) - Application state is Submitted");
                     return Ok(false);
@@ -1864,52 +1878,43 @@ impl LDNApplication {
 
     async fn update_and_commit_application_state(
         self,
-        new_state: AppState,
-        mut db_application_file: ApplicationFile,
+        db_application_file: ApplicationFile,
         owner: String,
         repo: String,
         sha: String,
         branch_name: String,
         filename: String,
         commit_message: String,
-        remove_allocation: bool
-    ) -> Result<(), LDNError> {
-        // Update the state
-        db_application_file.lifecycle.state = new_state.clone();
-        db_application_file.lifecycle.edited = Some(false);
-
-        if remove_allocation == true {
-            db_application_file.remove_active_allocation();
+    ) -> Result<ApplicationFile, LDNError> {  // Changed return type to include ApplicationFile
+    
+    // Serialize the updated application file
+    let file_content = match serde_json::to_string_pretty(&db_application_file) {
+        Ok(f) => f,
+        Err(e) => {
+            Self::add_error_label(
+                db_application_file.issue_number.clone(),
+                "".to_string(),
+                owner.clone(),
+                repo.clone(),
+            )
+            .await?;
+            return Err(LDNError::New(format!(
+                "Application issue file is corrupted /// {}",
+                e
+            )));
         }
-    
-        // Serialize the updated application file
-        let file_content = match serde_json::to_string_pretty(&db_application_file) {
-            Ok(f) => f,
-            Err(e) => {
-                Self::add_error_label(
-                    db_application_file.issue_number.clone(),
-                    "".to_string(),
-                    owner.clone(),
-                    repo.clone(),
-                )
-                .await?;
-                return Err(LDNError::New(format!(
-                    "Application issue file is corrupted /// {}",
-                    e
-                )));
-            }
-        };
-    
-        // Commit the changes to the branch
-        match LDNPullRequest::add_commit_to(
-            filename.clone(),
-            branch_name.clone(),
-            commit_message,
-            file_content,
-            sha.clone(),
-            owner.clone(),
-            repo.clone()
-        )
+    };
+
+    // Commit the changes to the branch
+    match LDNPullRequest::add_commit_to(
+        filename.clone(),
+        branch_name.clone(),
+        commit_message,
+        file_content,
+        sha.clone(),
+        owner.clone(),
+        repo.clone()
+    )
         .await
         {
             Some(()) => {
@@ -1918,7 +1923,7 @@ impl LDNApplication {
                     Ok(prs) => {
                         if let Some(pr) = prs.get(0) {
                             let number = pr.number;
-                            let _ = database::applications::update_application(
+                            let update_result = database::applications::update_application(
                                 db_application_file.id.clone(),
                                 owner.clone(),
                                 repo.clone(),
@@ -1927,19 +1932,28 @@ impl LDNApplication {
                                 Some(filename.clone()),
                             )
                             .await;
+                            
+                            match update_result {
+                                Ok(_) => return Ok(db_application_file),  // Return the updated ApplicationFile
+                                Err(e) => {
+                                    log::error!("Failed to update application: {}", e);
+                                    return Err(LDNError::New("Failed to update the application in the database".to_string()));
+                                }
+                            }
+                        } else {
+                            return Err(LDNError::New("No pull request found for the given branch".to_string()));
                         }
                     }
-                    Err(e) => log::warn!("Failed to get pull request by head: {}", e),
-                };
+                    Err(e) => {
+                        log::warn!("Failed to get pull request by head: {}", e);
+                        return Err(LDNError::New(format!("Failed to get pull request: {}", e)));
+                    }
+                }
             }
             None => {
                 return Err(LDNError::New("Adding commit in approve changes failed".to_string()));
             }
         }
-
-        Self::issue_changes_approved(db_application_file.issue_number.clone(), owner.clone(), repo.clone(), new_state).await?;
-    
-        Ok(())
     }
 
     pub async fn approve_changes(
@@ -1964,7 +1978,7 @@ impl LDNApplication {
             },
         };
 
-        let db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
+        let mut db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
         let application_state = db_application_file.lifecycle.state.clone();
 
         if application_state != AppState::ChangesRequested {
@@ -1983,25 +1997,14 @@ impl LDNApplication {
     
         let active_allocation = db_application_file.allocation.active();
         let mut remove_allocation = false;
-        let new_app_state: AppState;
     
         let active_allocation_ref = match active_allocation.as_ref() {
             Some(allocation) => allocation,
             None => {
-                new_app_state = AppState::Granted;
-                // case with no active allocation but more or equal to 1  - something not clear ask Alex
-                Self::update_and_commit_application_state(
-                    self,
-                    new_app_state,
-                    db_application_file,
-                    owner.clone(),
-                    repo.clone(),
-                    sha.clone(),
-                    branch_name.clone(),
-                    filename.clone(),
-                    "Changes approved".to_string(),
-                    remove_allocation
-                ).await?;
+                db_application_file.lifecycle.state = AppState::Granted;
+                db_application_file.lifecycle.edited = Some(false);
+        
+                let _ = self.finalize_changes_approval(db_application_file, owner, repo, sha, branch_name, filename).await;
                 return Ok("Changes approved".to_string()); // or return an error if appropriate
             }
         };
@@ -2009,29 +2012,47 @@ impl LDNApplication {
         if allocation_count == 1 && active_allocation_ref.signers.0.is_empty() {
             // case with exactly ONE allocation which is active, but not signed yet
             remove_allocation = true;
-            new_app_state = AppState::Submitted
+            db_application_file.lifecycle.state = AppState::Submitted
         } else if active_allocation_ref.signers.0.is_empty() {
             // case with more than one allocations one of which is active, but not signed yet
             remove_allocation = true;
-            new_app_state = AppState::Granted
+            db_application_file.lifecycle.state = AppState::Granted
         } else {
             // case with more than one allocations one of which is active and signed, and the number of signatures is 2 because otherwise there'd be no active one
-            new_app_state = AppState::StartSignDatacap
+            db_application_file.lifecycle.state = AppState::StartSignDatacap
         };
 
+        db_application_file.lifecycle.edited = Some(false);
+
+        if remove_allocation == true {
+            db_application_file.remove_active_allocation();
+        }
+
+        let _ = self.finalize_changes_approval(db_application_file, owner, repo, sha, branch_name, filename).await;
+
+        Ok("Changes approved".to_string())
+    }
+
+    async fn finalize_changes_approval(
+        self,
+        db_application_file: ApplicationFile,
+        owner: String,
+        repo: String,
+        sha: String,
+        branch_name: String,
+        filename: String
+    ) -> Result<String, LDNError> {
         Self::update_and_commit_application_state(
             self,
-            new_app_state,
-            db_application_file,
+            db_application_file.clone(),
             owner.clone(),
             repo.clone(),
             sha.clone(),
             branch_name.clone(),
             filename.clone(),
             "Changes approved".to_string(),
-            remove_allocation
         ).await?;
-
+        Self::issue_changes_approved(db_application_file.issue_number.clone(), owner, repo, db_application_file.lifecycle.state.clone()).await?;
         Ok("Changes approved".to_string())
     }
 
@@ -2385,8 +2406,17 @@ impl LDNApplication {
 
     pub async fn edit_pr_from_issue_modification(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
         //Get existing application file
-        let pr_application = ApplicationFile::from_str(&application_model.application.unwrap())
+        let mut pr_application = ApplicationFile::from_str(&application_model.application.unwrap())
             .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e))).unwrap();
+
+        if pr_application.lifecycle.get_state() == AppState::AdditionalInfoRequired {
+            pr_application.lifecycle.state = AppState::AdditionalInfoSubmitted;
+            let _ = Self::issue_additional_info_submitted(
+                pr_application.issue_number.clone(),
+                application_model.owner.clone(),
+                application_model.repo.clone(),
+            ).await;
+        }
 
         let application_id = parsed_ldn.id.clone();
         
@@ -3051,6 +3081,118 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(true)
     }
 
+    async fn issue_additional_info_required(
+        issue_number: String,
+        owner: String,
+        repo: String,
+        verifier_message: String
+    ) -> Result<bool, LDNError> {
+        let comment = format!(
+            "## Additional Information Requested
+#### A verifier has reviewed your application and has issued the following message:
+
+> {}
+
+_The initial issue can be edited in order to solve the request of the verifier. The changes will be reflected in the application and an automatic comment will be posted in order to let the verifiers know the updated application can be reviewed._",
+            verifier_message
+        );
+        let gh = github_async_new(owner, repo).await;
+        gh.add_comment_to_issue(
+            issue_number.parse().unwrap(),
+            &comment,
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
+
+        gh.replace_issue_labels(issue_number.parse().unwrap(), &["Additional Info Required".to_string()])
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+
+        Ok(true)
+    }
+
+    async fn issue_additional_info_submitted(
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner, repo).await;
+
+        let issue_number = issue_number.clone();
+
+        let comment = format!(
+            "#### The application's issue was edited after additional information was requested"
+        );
+
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+
+        gh.replace_issue_labels(issue_number.parse().unwrap(), &["Additional Info Submitted".to_string()])
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
+    async fn issue_application_declined(
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner, repo).await;
+
+        let issue_number = issue_number.clone();
+
+        let comment = format!(
+            "### The application has been declined."
+        );
+
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+
+        gh.replace_issue_labels(issue_number.parse().unwrap(), &["Declined".to_string()])
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+        Ok(true)
+    }
+
     async fn add_error_label(
         issue_number: String,
         comment: String,
@@ -3080,7 +3222,8 @@ Your Datacap Allocation Request has been {} by the Notary
     ) -> Result<(), LDNError> {
         let gh = github_async_new(owner, repo).await;
         let num: u64 = issue_number.parse().expect("Not a valid integer");
-        gh.update_issue_labels(num, new_labels)
+        let new_labels: Vec<String> = new_labels.iter().map(|&s| s.to_string()).collect();
+        gh.replace_issue_labels(num, &new_labels)
             .await
             .map_err(|e| {
                 return LDNError::New(format!(
@@ -3231,6 +3374,118 @@ Your Datacap Allocation Request has been {} by the Notary
 
         Ok(())
     }
+
+    pub async fn decline_application(
+        &self,
+        owner: String,
+        repo: String,
+    ) -> Result<(), LDNError> {
+        // Retrieve the application model from the database.
+        let app_model = database::applications::get_application(
+            self.application_id.clone(),
+            owner.clone(),
+            repo.clone(),
+            None,
+        )
+        .await
+        .map_err(|_| LDNError::Load(format!("No application found")))?;
+    
+        // Check if the application is associated with a PR.
+        if app_model.pr_number == 0 {
+            return Err(LDNError::New(format!("Application is not in a PR")));
+        }
+
+        let db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&app_model.clone().application.unwrap().clone()).unwrap();
+
+        if db_application_file.lifecycle.get_state() > AppState::Submitted {
+            return Err(LDNError::New(format!("Application is in a state that cannot be declined")));
+        }
+
+        let issue_number = self.file().await.map_err(|_| LDNError::Load("Failed to retrieve file details".into()))?.issue_number;
+        LDNApplication::issue_application_declined(
+            issue_number.clone(),
+            owner.clone(),
+            repo.clone(),
+        )
+        .await
+        .map_err(|e| LDNError::New(format!("Failed to issue application declined notification: {}", e)))?;
+    
+        // Attempt to close the associated pull request.
+        LDNPullRequest::close_pull_request(owner.clone(), repo.clone(), app_model.pr_number as u64)
+            .await
+            .map_err(|e| LDNError::New(format!("Failed to close PR: {}", e)))?;
+    
+        // Attempt to delete the associated branch.
+        LDNPullRequest::delete_branch(app_model.id, owner.clone(), repo.clone())
+            .await
+            .map_err(|e| LDNError::New(format!("Failed to delete branch: {}", e)))?;
+    
+                // Delete the application from the database.
+        database::applications::delete_application(
+            self.application_id.clone(),
+            owner.clone(),
+            repo.clone(),
+            app_model.pr_number as u64,
+        )
+        .await
+        .map_err(|_| LDNError::New(format!("Failed to delete application")))?;
+    
+        // Issue a notification about the application decline.
+        
+    
+        Ok(())
+    }
+
+    pub async fn additional_info_required(
+        self,
+        owner: String,
+        repo: String,
+        verifier_message: String
+    ) -> Result<ApplicationFile, LDNError> { // Adjusted return type to include ApplicationFile
+        let sha: String = self.file_sha.clone();
+        let filename: String = self.file_name.clone();
+        let branch_name: String = self.branch_name.clone();
+        let application_id: String = self.application_id.clone();
+
+        let db_application_file_str_result = database::applications::get_application(application_id, owner.clone(), repo.clone(), None).await;
+        let db_application_file_str = match db_application_file_str_result {
+            Ok(file) => file.application.unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
+            Err(e) => {
+                return Err(LDNError::New(format!(
+                    "Failed to fetch application data from the database: {}",
+                    e
+                )));
+            },
+        };
+
+        let mut db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
+        db_application_file.lifecycle.state = AppState::AdditionalInfoRequired;
+
+        if db_application_file.lifecycle.get_state() > AppState::Submitted {
+            return Err(LDNError::New(format!("Application is in a state in which additional info cannot be requested")));
+        }
+
+        // Adjusted to capture the result of update_and_commit_application_state
+        let updated_application = Self::update_and_commit_application_state(
+            self,
+            db_application_file.clone(),
+            owner.clone(),
+            repo.clone(),
+            sha.clone(),
+            branch_name.clone(),
+            filename.clone(),
+            "Additional information required".to_string(),
+        ).await?;
+
+        let _ = Self::issue_additional_info_required(
+            db_application_file.issue_number.clone(),
+            owner.clone(),
+            repo.clone(),
+            verifier_message.clone(),
+        ).await;
+
+        Ok(updated_application) // Return the updated ApplicationFile
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -3375,6 +3630,34 @@ impl LDNPullRequest {
                 None
             }
         }
+    }
+
+    pub async fn close_pull_request(
+        owner: String,
+        repo: String,
+        pr_number: u64,
+    ) -> Result<(), LDNError> {
+        let gh = github_async_new(owner.clone(), repo.clone()).await;
+        gh.close_pull_request(pr_number).await.map_err(|e| {
+            return LDNError::New(format!(
+                "Error closing pull request {} /// {}",
+                pr_number, e
+            ));
+        })?;
+        Ok(())
+    }
+
+    pub async fn delete_branch(application_id: String, owner: String, repo: String) -> Result<(), LDNError> {
+        let gh = github_async_new(owner.clone(), repo.clone()).await;
+        let branch_name = LDNPullRequest::application_branch_name(&application_id);
+        let request = gh.build_remove_ref_request(branch_name.clone()).unwrap();
+        gh.remove_branch(request).await.map_err(|e| {
+            return LDNError::New(format!(
+                "Error deleting branch {} /// {}",
+                branch_name, e
+            ));
+        })?;
+        Ok(())
     }
 
     pub(super) fn application_branch_name(application_id: &str) -> String {

@@ -236,6 +236,8 @@ pub struct Provider {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub enum AppState {
+    AdditionalInfoRequired,
+    AdditionalInfoSubmitted,
     Submitted,
     ChangesRequested,
     ReadyToSign,
