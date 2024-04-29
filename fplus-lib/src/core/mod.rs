@@ -664,7 +664,28 @@ impl LDNApplication {
                                 "Pathway mismatch: Application has already received datacap".to_string(),
                             ));
                         },
-                        _ => {} // If no allowance is found, do nothing and let the function proceed
+                        Ok(_) => {
+                            log::info!("Allowance not found or is zero");
+                        },
+                        Err(_) => {
+                            Self::add_error_label(
+                                issue_number.clone(),
+                                "".to_string(),
+                                info.owner.clone(),
+                                info.repo.clone(),
+                            ).await?;
+
+                            Self::add_comment_to_issue(
+                                issue_number.clone(),
+                                info.owner.clone(),
+                                info.repo.clone(),
+                                "Unable to access blockchain data for your address. Please contact support.".to_string(),
+                            ).await?;
+
+                            return Err(LDNError::New(
+                                "Error getting allowance for address. Unable to access blockchain".to_string(),
+                            ));
+                        },
                     }
                 }
 
@@ -2573,23 +2594,36 @@ impl LDNApplication {
         Ok(true)
     }
 
+    async fn add_comment_to_issue(
+        issue_number: String,
+        owner: String,
+        repo: String,
+        comment: String,
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner, repo).await;
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+
+        Ok(true)
+    }
+
     async fn issue_waiting_for_gov_review(
         issue_number: String,
         owner: String,
         repo: String,
     ) -> Result<bool, LDNError> {
-        let gh = github_async_new(owner, repo).await;
-        gh.add_comment_to_issue(
-            issue_number.parse().unwrap(),
-            "Application is waiting for allocator review",
-        )
-        .await
-        .map_err(|e| {
-            return LDNError::New(format!(
-                "Error adding comment to issue {} /// {}",
-                issue_number, e
-            ));
-        })?;
+        Self::add_comment_to_issue(
+            issue_number, 
+            owner, 
+            repo, 
+            "Application is waiting for allocator review".to_string()
+        ).await?;
 
         Ok(true)
     }

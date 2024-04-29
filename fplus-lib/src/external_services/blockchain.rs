@@ -73,7 +73,13 @@ impl BlockchainData {
 
         //Body json structure is {"type": "verifiedClient" | "error", ["allowance"]: string value, ["message"]: string value}
         // Let's parse the json and return the allowance value if the type is verifiedClient
-        let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let json: serde_json::Value = match serde_json::from_str(&body) {
+            Ok(json) => json,
+            Err(e) => {
+                log::error!("Error: {}", e);
+                return Err(BlockchainDataError::Err(e.to_string()))
+            }
+        };
         match json["type"].as_str() {
             Some("verifiedClient") => {
                 let allowance = json["allowance"].as_str().unwrap_or("");
