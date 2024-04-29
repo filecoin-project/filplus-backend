@@ -12,6 +12,15 @@ pub enum BlockchainDataError {
    Err(String),
 }
 
+//Implement Display for BlockchainDataError
+impl std::fmt::Display for BlockchainDataError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BlockchainDataError::Err(e) => write!(f, "Error: {}", e),
+        }
+    }
+}
+
 impl BlockchainData {
     /// Setup new BlockchainData client.
     pub fn new() -> Self {

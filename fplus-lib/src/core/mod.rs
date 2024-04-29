@@ -668,26 +668,28 @@ impl LDNApplication {
                         Ok(_) => {
                             log::info!("Allowance not found or is zero");
                         },
-                        Err(_ ) => {
-                            //If error contains
+                        Err(e) => {
+                            //If error contains "DMOB api", add error label and comment to issue
+                            if e.to_string().contains("DMOB api") {
+                                log::error!("Error getting allowance for address. Unable to access blockchain data");
+                                Self::add_error_label(
+                                    issue_number.clone(),
+                                    "".to_string(),
+                                    info.owner.clone(),
+                                    info.repo.clone(),
+                                ).await?;
 
-                            // Self::add_error_label(
-                            //     issue_number.clone(),
-                            //     "".to_string(),
-                            //     info.owner.clone(),
-                            //     info.repo.clone(),
-                            // ).await?;
-
-                            // Self::add_comment_to_issue(
-                            //     issue_number.clone(),
-                            //     info.owner.clone(),
-                            //     info.repo.clone(),
-                            //     "Unable to access blockchain data for your address. Please contact support.".to_string(),
-                            // ).await?;
-
-                            // return Err(LDNError::New(
-                            //     "Error getting allowance for address. Unable to access blockchain".to_string(),
-                            // ));
+                                Self::add_comment_to_issue(
+                                    issue_number.clone(),
+                                    info.owner.clone(),
+                                    info.repo.clone(),
+                                    "Unable to access blockchain data for your address. Please contact support.".to_string(),
+                                ).await?;
+                                
+                                return Err(LDNError::New(
+                                    "Error getting allowance for address. Unable to access blockchain".to_string(),
+                                ));
+                            }
                         },
                     }
                 }
