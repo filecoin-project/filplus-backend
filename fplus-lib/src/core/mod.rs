@@ -2557,7 +2557,7 @@ impl LDNApplication {
         repo: String,
         error_message: String
     ) -> Result<bool, LDNError> {
-        //Get the application file from DB
+        // Get the application file from DB
         let application_model = match database::applications::get_application(id.clone(), owner.clone(), repo.clone(), None).await {
             Ok(app) => app,
             Err(e) => {
@@ -2568,7 +2568,7 @@ impl LDNApplication {
             }
         };
 
-        //If the application already has an error label, return
+        // If the application already has an error label, return
         if application_model.warning {
             return Ok(true);
         } 
@@ -2576,12 +2576,20 @@ impl LDNApplication {
         let application = ApplicationFile::from_str(&application_model.application.unwrap())
             .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))?;
         
-        //Add error label to the issue
+        // Add error label to the issue
         Self::add_error_label(
             application.issue_number.clone(),
             error_message.clone(),
             owner.clone(),
             repo.clone(),
+        ).await?;
+
+        // Issue a comment to the issue
+        Self::issue_generic_comment(
+            application.issue_number.clone(),
+            owner.clone(),
+            repo.clone(),
+            error_message
         ).await?;
 
         //Set application warning to true
@@ -2591,6 +2599,25 @@ impl LDNApplication {
             repo.clone(),
             true
         ).await.unwrap();
+
+        Ok(true)
+    }
+
+    async fn issue_generic_comment(
+        issue_number: String,
+        owner: String,
+        repo: String,
+        error_message: String
+    ) -> Result<bool, LDNError> {
+        let gh = github_async_new(owner, repo).await;
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &error_message)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
 
         Ok(true)
     }
@@ -2644,7 +2671,6 @@ impl LDNApplication {
             };
         } 
     
-        dbg!(&comment);
         let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
