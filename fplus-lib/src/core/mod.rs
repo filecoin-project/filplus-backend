@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use actix_web::cookie::time::error;
 use chrono::{DateTime, Utc};
 use futures::future;
 use octocrab::models::{
@@ -667,24 +668,26 @@ impl LDNApplication {
                         Ok(_) => {
                             log::info!("Allowance not found or is zero");
                         },
-                        Err(_) => {
-                            Self::add_error_label(
-                                issue_number.clone(),
-                                "".to_string(),
-                                info.owner.clone(),
-                                info.repo.clone(),
-                            ).await?;
+                        Err(_ ) => {
+                            //If error contains
 
-                            Self::add_comment_to_issue(
-                                issue_number.clone(),
-                                info.owner.clone(),
-                                info.repo.clone(),
-                                "Unable to access blockchain data for your address. Please contact support.".to_string(),
-                            ).await?;
+                            // Self::add_error_label(
+                            //     issue_number.clone(),
+                            //     "".to_string(),
+                            //     info.owner.clone(),
+                            //     info.repo.clone(),
+                            // ).await?;
 
-                            return Err(LDNError::New(
-                                "Error getting allowance for address. Unable to access blockchain".to_string(),
-                            ));
+                            // Self::add_comment_to_issue(
+                            //     issue_number.clone(),
+                            //     info.owner.clone(),
+                            //     info.repo.clone(),
+                            //     "Unable to access blockchain data for your address. Please contact support.".to_string(),
+                            // ).await?;
+
+                            // return Err(LDNError::New(
+                            //     "Error getting allowance for address. Unable to access blockchain".to_string(),
+                            // ));
                         },
                     }
                 }

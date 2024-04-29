@@ -77,7 +77,7 @@ impl BlockchainData {
             Ok(json) => json,
             Err(e) => {
                 log::error!("Error: {}", e);
-                return Err(BlockchainDataError::Err(e.to_string()))
+                return Err(BlockchainDataError::Err("Error accessing DMOB api".to_string()))
             }
         };
         match json["type"].as_str() {
