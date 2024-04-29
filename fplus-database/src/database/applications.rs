@@ -349,6 +349,18 @@ pub async fn delete_application(id: String, owner: String, repo: String, pr_numb
     Ok(())
 }
 
+/**
+ * Update the warning status of an application in the database
+ * 
+ * # Arguments
+ * @param id: String - The ID of the application
+ * @param owner: String - The owner of the repository
+ * @param repo: String - The repository name
+ * @param warning: bool - The warning status
+ * 
+ * # Returns
+ * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
+ */
 pub async fn update_warning(id: String, owner: String, repo: String, warning: bool) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     let mut application = get_application(id.clone(), owner.clone(), repo.clone(), None).await?.into_active_model();
