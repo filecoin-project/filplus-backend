@@ -2646,7 +2646,11 @@ impl LDNApplication {
             let application = ApplicationFile::from_str(&db_model.application.unwrap())
                 .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))?;
         
-            comment = if db_model.owner == info_owner && db_model.repo == info_repo {
+            comment = 
+            if db_model.owner == info_owner && db_model.repo == info_repo && application.issue_number == issue_number {
+                //if issue number is the same, do not add the comment
+                "There's no need to retry this application. File already exists.".to_string()
+            } else if db_model.owner == info_owner && db_model.repo == info_repo {
                 // Application already exists in the same repository
                 format!(
                     "This wallet address was already used in application #{} for this pathway. Please continue in that application instead.",
