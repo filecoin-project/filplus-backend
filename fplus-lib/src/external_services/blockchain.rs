@@ -94,6 +94,10 @@ impl BlockchainData {
                 let allowance = json["allowance"].as_str().unwrap_or("");
                 Ok(allowance.to_string())
             }
+            Some("verifier") => {
+                let allowance = json["allowance"].as_str().unwrap_or("");
+                Ok(allowance.to_string())
+            }
             Some("error") => {
                 let message = json["message"].as_str().unwrap_or("");
                 Err(BlockchainDataError::Err(message.to_string()))
@@ -123,7 +127,9 @@ fn parse_size_to_bytes(size: &str) -> Option<u64> {
 
     // Normalize the unit by removing any trailing 's' and converting to upper case
     let unit = unit.trim_end_matches('s').to_uppercase();
-
+    println!("Size: {}", size);
+    println!("Unit: {}", unit);
+    println!("number: {}", number);
     match unit.as_str() {
         "KIB" => Some(number * 1024),                             // 2^10
         "MIB" => Some(number * 1024 * 1024),                      // 2^20
@@ -140,11 +146,40 @@ fn parse_size_to_bytes(size: &str) -> Option<u64> {
 }
 
 pub fn compare_allowance_and_allocation(allowance: &str, new_allocation_amount: Option<String>) -> Option<bool> {
-    let allowance_bytes = parse_size_to_bytes(allowance)?;
-    let allocation_bytes = match new_allocation_amount {
-        Some(amount) => parse_size_to_bytes(&amount)?,
-        None => return None, 
+    println!("Allowance: {} bytes, Allocation: {} bytes", allowance, new_allocation_amount.clone().unwrap());
+
+    let allowance_bytes: u64 = match allowance.parse::<u64>() {
+        Ok(value) => {
+            println!("Allowance value: {}", value);
+            value
+        }
+        Err(_) => {
+            println!("Error parsing allowance value");
+            return None
+        }
     };
+
+
+    let allocation_bytes = match new_allocation_amount {
+        Some(amount) => {
+            println!("Allowance value: {}", amount);
+            parse_size_to_bytes(&amount)?
+        },
+        None => {
+            println!("Error parsing allocation value");
+            return None
+        }, 
+    };
+
+    println!("===============================");
+    println!("===============================");
+    println!("===============================");
+    println!("Allowance end: {} bytes, Allocation end: {} bytes", allowance_bytes, allocation_bytes);
+    println!("===============================");
+    println!("===============================");
+    println!("===============================");
+
+    println!("COMPARISON: {}", allowance_bytes >= allocation_bytes);
 
     Some(allowance_bytes >= allocation_bytes)
 }

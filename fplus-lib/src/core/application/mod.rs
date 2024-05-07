@@ -5,7 +5,6 @@ pub mod client;
 pub mod datacap;
 pub mod file;
 pub mod lifecycle;
-pub mod project;
 
 impl file::ApplicationFile {
     pub async fn new(

@@ -825,9 +825,6 @@ impl LDNApplication {
                     Self::check_and_handle_allowance(
                         &db_multisig_address.clone(),
                         Some(allocation_amount.clone()),
-                        app_file.issue_number.clone(),
-                        owner.clone(),
-                        repo.clone(),
                     ).await?;
 
                     let uuid = uuidv4::uuid::v4();
@@ -987,9 +984,6 @@ impl LDNApplication {
                         Self::check_and_handle_allowance(
                             &db_multisig_address.clone(),
                             new_allocation_amount.clone(),
-                            app_file.issue_number.clone(),
-                            owner.clone(),
-                            repo.clone(),
                         ).await?;
 
                         let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
@@ -1140,9 +1134,6 @@ impl LDNApplication {
             Self::check_and_handle_allowance(
                 &db_multisig_address.clone(),
                 new_allocation_amount.clone(),
-                app_file.issue_number.clone(),
-                owner.clone(),
-                repo.clone(),
             ).await?;
 
             let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
@@ -2561,12 +2552,9 @@ impl LDNApplication {
     async fn check_and_handle_allowance(
         db_multisig_address: &str,
         new_allocation_amount: Option<String>,
-        issue_number: String,
-        owner: String,
-        repo: String,
     ) -> Result<(), LDNError> {
         let blockchain = BlockchainData::new();
-        match blockchain.get_allowance_for_address(db_multisig_address).await {
+        match blockchain.get_allowance_for_address("f24siazyti3akorqyvi33rvlq3i73j23rwohdamuy").await {
             Ok(allowance) if allowance != "0" => {
                 log::info!("Allowance found and is not zero. Value is {}", allowance);
                 match compare_allowance_and_allocation(&allowance, new_allocation_amount) {
@@ -2576,7 +2564,6 @@ impl LDNApplication {
                             Ok(())
                         } else {
                             println!("Allowance is not sufficient.");
-                            Self::issue_allowance_too_low(issue_number, owner, repo).await?;
                             Err(LDNError::New("Multisig address has less allowance than the new allocation amount".to_string()))
                         }
                     },
@@ -2741,26 +2728,6 @@ impl LDNApplication {
         } 
     
         dbg!(&comment);
-        let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
-        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
-            .await
-            .map_err(|e| {
-                return LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
-                ));
-            })?;
-    
-        Ok(true)
-    }
-
-    async fn issue_allowance_too_low(
-        issue_number: String,
-        info_owner: String,
-        info_repo: String,
-    ) -> Result<bool, LDNError> {
-        let comment = "The allocator's remaining allowance is not high enough to grant the approved amount.".to_string();
-
         let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
