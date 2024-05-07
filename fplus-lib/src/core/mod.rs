@@ -622,6 +622,8 @@ impl LDNApplication {
                     parsed_ldn.client.clone(),
                     parsed_ldn.project,
                     parsed_ldn.datacap,
+                    info.repo.clone(),
+                    info.owner.clone(),
                 )
                 .await;
 
@@ -2485,6 +2487,8 @@ impl LDNApplication {
             parsed_ldn.datacap,
             pr_application.allocation.clone(),
             pr_application.lifecycle.clone(),
+            application_model.repo.clone(),
+            application_model.owner.clone()
         ).await;
 
         if app_file.allocation.0.len() < 1 {
@@ -2612,6 +2616,8 @@ impl LDNApplication {
             parsed_ldn.datacap,
             merged_application.allocation.clone(),
             merged_application.lifecycle.clone(),
+            application_model.repo.clone(),
+            application_model.owner.clone()
         ).await;
 
         let file_content = match serde_json::to_string_pretty(&application_file) {

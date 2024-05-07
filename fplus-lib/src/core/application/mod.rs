@@ -16,12 +16,16 @@ impl file::ApplicationFile {
         client: file::Client,
         project: file::Project,
         datacap: file::Datacap,
+        repo: String,
+        owner: String
     ) -> Self {
+        let issue_link = format!("https://github.com/{}/{}/issues/{}", owner, repo, issue_number);
         let allocation = Allocations::default();
         let lifecycle = LifeCycle::submitted(id.clone(), multisig_address.clone());
         Self {
             version,
             issue_number,
+            issue_link,
             id,
             client,
             project,
@@ -40,15 +44,19 @@ impl file::ApplicationFile {
         datacap: file::Datacap,
         allocation: file::Allocations,
         lifecycle: file::LifeCycle,
+        repo: String,
+        owner: String
     ) -> Self {
         //set lifecycle.edited = true
         let lifecycle =  LifeCycle {
             edited: Some(true),
             ..lifecycle
         };
+        let issue_link = format!("https://github.com/{}/{}/issues/{}", owner, repo, issue_number);
         Self {
             version,
             issue_number,
+            issue_link,
             id,
             client,
             project,
