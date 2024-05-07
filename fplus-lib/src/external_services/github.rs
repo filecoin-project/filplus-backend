@@ -45,7 +45,7 @@ struct GithubParams {
 
 #[derive(Debug)]
 pub struct CreateRefillMergeRequestData {
-    pub application_id: String,
+    pub issue_link: String,
     pub owner_name: String,
     pub ref_request: Request<String>,
     pub file_content: String,
@@ -57,7 +57,7 @@ pub struct CreateRefillMergeRequestData {
 
 #[derive(Debug)]
 pub struct CreateMergeRequestData {
-    pub application_id: String,
+    pub issue_link: String,
     pub owner_name: String,
     pub ref_request: Request<String>,
     pub file_content: String,
@@ -605,7 +605,7 @@ impl GithubWrapper {
         data: CreateRefillMergeRequestData,
     ) -> Result<(PullRequest, String), OctocrabError> {
         let CreateRefillMergeRequestData {
-            application_id: _,
+            issue_link,
             ref_request,
             owner_name,
             file_content,
@@ -621,7 +621,7 @@ impl GithubWrapper {
             .create_pull_request(
                 &format!("Datacap for {}", owner_name),
                 &branch_name,
-                &format!(""),
+                &format!("{}", issue_link),
             )
             .await?;
 
@@ -633,7 +633,7 @@ impl GithubWrapper {
         data: CreateMergeRequestData,
     ) -> Result<(PullRequest, String), OctocrabError> {
         let CreateMergeRequestData {
-            application_id: _,
+            issue_link,
             ref_request,
             owner_name,
             file_content,
@@ -650,7 +650,7 @@ impl GithubWrapper {
             .create_pull_request(
                 &format!("Datacap for {}", owner_name),
                 &branch_name,
-                &format!(""),
+                &format!("{}", issue_link),
             )
             .await?;
 

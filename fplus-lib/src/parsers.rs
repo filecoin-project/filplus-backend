@@ -3,7 +3,7 @@ use std::str::FromStr;
 use markdown::{mdast::Node, to_mdast, ParseOptions};
 use serde::{Deserialize, Serialize};
 
-use crate::core::application::file::{Client, DataType, Datacap, DatacapGroup, Project};
+use crate::{config::get_env_var_or_default, core::application::file::{Client, DataType, Datacap, DatacapGroup, Project}};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ParsedApplicationDataFields {
@@ -47,7 +47,6 @@ pub enum ParsedApplicationDataFields {
 impl From<String> for ParsedApplicationDataFields {
     fn from(s: String) -> Self {
         match s.as_str() {
-	  "Version" => ParsedApplicationDataFields::Version,
 	  "On-chain address for first allocation" => ParsedApplicationDataFields::Address,
 	  // Client Info
 	  "Data Owner Name" => ParsedApplicationDataFields::Name,
@@ -58,8 +57,7 @@ impl From<String> for ParsedApplicationDataFields {
 	  "Social Media Type" => ParsedApplicationDataFields::SocialMediaType,
 	  "What is your role related to the dataset" => ParsedApplicationDataFields::Role,
 	  // Project Info
-	  "Project ID" => ParsedApplicationDataFields::ProjectID,
-          "Share a brief history of your project and organization" => {
+      "Share a brief history of your project and organization" => {
 		ParsedApplicationDataFields::ProjectBriefHistory
 	  }
 	  "Is this project associated with other projects/ecosystem stakeholders?" => {
@@ -145,23 +143,22 @@ impl ParsedIssue {
         let client = Client::from(data.clone());
         let project = Project::from(data.clone());
         let datacap = Datacap::from(data.clone());
-        let version = data
-            .clone()
-            .0
-            .into_iter()
-            .find(|(prop, _)| prop.0 == "Version")
-            .unwrap()
-            .1
-             .0
-            .parse::<u8>()
-            .unwrap();
         let id = data
             .0
             .into_iter()
             .find(|(prop, _)| prop.0 == "On-chain address for first allocation")
             .unwrap()
             .1
-             .0;
+            .0;
+
+        let version_string = get_env_var_or_default("ISSUE_TEMPLATE_VERSION");
+        let version: u8 = match version_string.parse() {
+            Ok(num) => num,
+            Err(_) => {
+                eprintln!("Error: The environment variable ISSUE_TEMPLATE_VERSION is not a valid u8");
+                0
+            },
+        };
 
         Self {
             id,
@@ -186,9 +183,6 @@ impl From<IssueValidData> for Project {
         let mut project = Project::default();
         for (prop, value) in data.0 {
             match prop.0.into() {
-                ParsedApplicationDataFields::ProjectID => {
-                    project.project_id = value.0;
-                }
                 ParsedApplicationDataFields::ProjectBriefHistory => {
                     project.history = value.0;
                 }
@@ -331,7 +325,6 @@ mod tests {
         assert!(!parsed_ldn.client.social_media.is_empty());
         assert!(!parsed_ldn.client.social_media_type.is_empty());
         assert!(!parsed_ldn.client.role.is_empty());
-        assert!(!parsed_ldn.project.project_id.is_empty());
         assert!(!parsed_ldn.project.history.is_empty());
         assert!(!parsed_ldn.project.associated_projects.is_empty());
 

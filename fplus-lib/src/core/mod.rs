@@ -15,7 +15,7 @@ use serde_json::from_str;
 
 use crate::{
     base64, config::get_env_var_or_default, core::application::file::Allocations, error::LDNError, external_services::{
-        blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
+        blockchain::{compare_allowance_and_allocation, BlockchainData}, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         }
     }, parsers::ParsedIssue
@@ -814,6 +814,22 @@ impl LDNApplication {
             Ok(s) => match s {
                 AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
                     let app_file: ApplicationFile = self.file().await?;
+
+                    let db_allocator = match get_allocator(&owner, &repo).await {
+                        Ok(allocator) => allocator.unwrap(),
+                        Err(err) => {
+                            return Err(LDNError::New(format!("Database: get_allocator: {}", err)));
+                        }
+                    };
+                    let db_multisig_address = db_allocator.multisig_address.unwrap();
+                    Self::check_and_handle_allowance(
+                        &db_multisig_address.clone(),
+                        Some(allocation_amount.clone()),
+                        app_file.issue_number.clone(),
+                        owner.clone(),
+                        repo.clone(),
+                    ).await?;
+
                     let uuid = uuidv4::uuid::v4();
                     let request = AllocationRequest::new(
                         actor.clone(),
@@ -821,6 +837,7 @@ impl LDNApplication {
                         AllocationRequestType::First,
                         allocation_amount,
                     );
+
                     let app_file = app_file.complete_governance_review(actor.clone(), request);
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     let app_path = &self.file_name.clone();
@@ -967,6 +984,14 @@ impl LDNApplication {
                         app_lifecycle,
                     );
                     if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
+                        Self::check_and_handle_allowance(
+                            &db_multisig_address.clone(),
+                            new_allocation_amount.clone(),
+                            app_file.issue_number.clone(),
+                            owner.clone(),
+                            repo.clone(),
+                        ).await?;
+
                         let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
                     }
                     
@@ -1107,7 +1132,19 @@ impl LDNApplication {
             ));
         }
 
+        // Check the allowance for the address
+        
         if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
+            let db_multisig_address = db_allocator.multisig_address.unwrap();
+            
+            Self::check_and_handle_allowance(
+                &db_multisig_address.clone(),
+                new_allocation_amount.clone(),
+                app_file.issue_number.clone(),
+                owner.clone(),
+                repo.clone(),
+            ).await?;
+
             let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
         }
 
@@ -2521,6 +2558,44 @@ impl LDNApplication {
         }
     }
 
+    async fn check_and_handle_allowance(
+        db_multisig_address: &str,
+        new_allocation_amount: Option<String>,
+        issue_number: String,
+        owner: String,
+        repo: String,
+    ) -> Result<(), LDNError> {
+        let blockchain = BlockchainData::new();
+        match blockchain.get_allowance_for_address(db_multisig_address).await {
+            Ok(allowance) if allowance != "0" => {
+                log::info!("Allowance found and is not zero. Value is {}", allowance);
+                match compare_allowance_and_allocation(&allowance, new_allocation_amount) {
+                    Some(result) => {
+                        if result {
+                            println!("Allowance is sufficient.");
+                            Ok(())
+                        } else {
+                            println!("Allowance is not sufficient.");
+                            Self::issue_allowance_too_low(issue_number, owner, repo).await?;
+                            Err(LDNError::New("Multisig address has less allowance than the new allocation amount".to_string()))
+                        }
+                    },
+                    None => {
+                        println!("Error parsing sizes.");
+                        Err(LDNError::New("Error parsing sizes".to_string()))
+                    },
+                }
+            },
+            Ok(_) => {
+                Err(LDNError::New("Multisig address has no remaining allowance".to_string()))
+            },
+            Err(e) => {
+                log::error!("Failed to retrieve allowance: {:?}", e);
+                Err(LDNError::New("Failed to retrieve allowance".to_string()))
+            }
+        }
+    }
+
     pub async fn create_pr_from_issue_modification(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
         let merged_application = ApplicationFile::from_str(&application_model.application.unwrap())
             .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e))).unwrap();
@@ -2666,6 +2741,26 @@ impl LDNApplication {
         } 
     
         dbg!(&comment);
+        let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+    
+        Ok(true)
+    }
+
+    async fn issue_allowance_too_low(
+        issue_number: String,
+        info_owner: String,
+        info_repo: String,
+    ) -> Result<bool, LDNError> {
+        let comment = "The allocator's remaining allowance is not high enough to grant the approved amount.".to_string();
+
         let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
@@ -3483,9 +3578,11 @@ impl LDNPullRequest {
                 ));
             })?;
 
+        let issue_link = format!("https://github.com/{}/{}/issues/{}", owner, repo, application_id);
+
         let (_pr, file_sha) = gh
             .create_merge_request(CreateMergeRequestData {
-                application_id: application_id.clone(),
+                issue_link,
                 branch_name: app_branch_name,
                 file_name,
                 owner_name,
@@ -3526,9 +3623,12 @@ impl LDNPullRequest {
                     application_id, e
                 ));
             })?;
+
+        let issue_link = format!("https://github.com/{}/{}/issues/{}", owner, repo, application_id);
+        
         let pr = match gh
             .create_refill_merge_request(CreateRefillMergeRequestData {
-                application_id: application_id.clone(),
+                issue_link,
                 owner_name,
                 file_name: file_name.clone(),
                 file_sha: file_sha.clone(),

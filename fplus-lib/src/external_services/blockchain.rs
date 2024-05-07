@@ -110,3 +110,41 @@ impl BlockchainData {
         format!("{}/{}", self.base_url, path)
     }
 }
+
+
+fn parse_size_to_bytes(size: &str) -> Option<u64> {
+    let parts = size.trim().splitn(2, |c: char| !c.is_ascii_digit()).collect::<Vec<_>>();
+    if parts.len() != 2 {
+        return None; // Incorrect format
+    }
+
+    let number = parts[0].parse::<u64>().ok()?;
+    let unit = parts[1].trim();
+
+    // Normalize the unit by removing any trailing 's' and converting to upper case
+    let unit = unit.trim_end_matches('s').to_uppercase();
+
+    match unit.as_str() {
+        "KIB" => Some(number * 1024),                             // 2^10
+        "MIB" => Some(number * 1024 * 1024),                      // 2^20
+        "GIB" => Some(number * 1024 * 1024 * 1024),               // 2^30
+        "TIB" => Some(number * 1024 * 1024 * 1024 * 1024),        // 2^40
+        "PIB" => Some(number * 1024 * 1024 * 1024 * 1024 * 1024), // 2^50
+        "KB"  => Some(number * 1000),                             // 10^3
+        "MB"  => Some(number * 1000 * 1000),                      // 10^6
+        "GB"  => Some(number * 1000 * 1000 * 1000),               // 10^9
+        "TB"  => Some(number * 1000 * 1000 * 1000 * 1000),        // 10^12
+        "PB"  => Some(number * 1000 * 1000 * 1000 * 1000 * 1000), // 10^15
+        _ => None, // Unsupported unit
+    }
+}
+
+pub fn compare_allowance_and_allocation(allowance: &str, new_allocation_amount: Option<String>) -> Option<bool> {
+    let allowance_bytes = parse_size_to_bytes(allowance)?;
+    let allocation_bytes = match new_allocation_amount {
+        Some(amount) => parse_size_to_bytes(&amount)?,
+        None => return None, 
+    };
+
+    Some(allowance_bytes >= allocation_bytes)
+}

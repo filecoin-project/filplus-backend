@@ -7,7 +7,6 @@ impl Project {
 
     fn validate(&self) -> bool {
         let Project {
-            project_id,
             associated_projects,
             dataset_prepare,
             filplus_guideline,
@@ -22,8 +21,7 @@ impl Project {
             distribution,
             history,
         } = self;
-        project_id.len() > 0
-            && associated_projects.len() > 0
+            associated_projects.len() > 0
             && dataset_prepare.len() > 0
             && filplus_guideline.len() > 0
             && dataset_life_span.len() > 0

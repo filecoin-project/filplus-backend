@@ -176,8 +176,6 @@ pub enum StorageProviders {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Project {
-    #[serde(rename = "Project Id")]
-    pub project_id: String,
     #[serde(rename = "Brief history of your project and organization")]
     pub history: String,
     #[serde(rename = "Is this project associated with other projects/ecosystem stakeholders?")]
@@ -404,9 +402,6 @@ pub trait DeepCompare {
 impl DeepCompare for ApplicationFile {
     fn compare(&self, other: &Self) -> Vec<String> {
         let mut differences = Vec::new();
-        if self.version != other.version {
-            differences.push(format!("Version: {} vs {}", self.version, other.version));
-        }
         if self.id != other.id {
             differences.push(format!("ID: {} vs {}", self.id, other.id));
         }
@@ -483,9 +478,6 @@ impl DeepCompare for Datacap {
 impl DeepCompare for Project {
     fn compare(&self, other: &Self) -> Vec<String> {
         let mut differences = Vec::new();
-        if self.project_id != other.project_id {
-            differences.push(format!("Project ID: {} vs {}", self.project_id, other.project_id));
-        }
         if self.history != other.history {
             differences.push(format!("Brief history of your project and organization: {} vs {}", self.history, other.history));
         }
