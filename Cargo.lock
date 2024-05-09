@@ -986,6 +986,7 @@ dependencies = [
  "once_cell",
  "pem",
  "rayon",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

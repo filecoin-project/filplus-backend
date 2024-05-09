@@ -21,6 +21,7 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("BACKEND_URL", "https://fp-core.dp04sa0tdc6pk.us-east-1.cs.amazonlightsail.com");
         m.insert("FILPLUS_ENV", "staging");
         m.insert("GLIF_NODE_URL", "http://electric-publicly-adder.ngrok-free.app/rpc/v0");
+        m.insert("ISSUE_TEMPLATE_VERSION", "1.3");
         
         m
     })

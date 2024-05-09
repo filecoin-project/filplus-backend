@@ -6,4 +6,5 @@ pub mod core;
 pub mod error;
 pub mod external_services;
 pub mod parsers;
+pub mod helpers;
 pub mod models;

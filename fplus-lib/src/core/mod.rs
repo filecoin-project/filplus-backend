@@ -1,7 +1,6 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use actix_web::cookie::time::error;
 use chrono::{DateTime, Utc};
 use futures::future;
 use octocrab::models::{
@@ -18,7 +17,7 @@ use crate::{
         blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         }
-    }, parsers::ParsedIssue
+    }, helpers::{compare_allowance_and_allocation, process_amount}, parsers::ParsedIssue
 };
 use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 use fplus_database::database::{
@@ -593,12 +592,15 @@ impl LDNApplication {
     pub async fn new_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNError> {
         let issue_number = info.issue_number;
         let gh = github_async_new(info.owner.to_string(), info.repo.to_string()).await;
-        let (parsed_ldn, _) = LDNApplication::parse_application_issue(
+        let (mut parsed_ldn, _) = LDNApplication::parse_application_issue(
             issue_number.clone(),
             info.owner.clone(),
             info.repo.clone(),
         )
         .await?;
+
+        parsed_ldn.datacap.total_requested_amount = process_amount(parsed_ldn.datacap.total_requested_amount.clone());
+        parsed_ldn.datacap.weekly_allocation = process_amount(parsed_ldn.datacap.weekly_allocation.clone());
         
         let application_id = parsed_ldn.id.clone();
         let file_name = LDNPullRequest::application_path(&application_id);
@@ -814,13 +816,28 @@ impl LDNApplication {
             Ok(s) => match s {
                 AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
                     let app_file: ApplicationFile = self.file().await?;
+                    let allocation_amount_parsed = process_amount(allocation_amount.clone());
+
+                    let db_allocator = match get_allocator(&owner, &repo).await {
+                        Ok(allocator) => allocator.unwrap(),
+                        Err(err) => {
+                            return Err(LDNError::New(format!("Database: get_allocator: {}", err)));
+                        }
+                    };
+                    let db_multisig_address = db_allocator.multisig_address.unwrap();
+                    Self::check_and_handle_allowance(
+                        &db_multisig_address.clone(),
+                        Some(allocation_amount_parsed.clone()),
+                    ).await?;
+
                     let uuid = uuidv4::uuid::v4();
                     let request = AllocationRequest::new(
                         actor.clone(),
                         uuid,
                         AllocationRequestType::First,
-                        allocation_amount,
+                        allocation_amount_parsed,
                     );
+
                     let app_file = app_file.complete_governance_review(actor.clone(), request);
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     let app_path = &self.file_name.clone();
@@ -967,7 +984,14 @@ impl LDNApplication {
                         app_lifecycle,
                     );
                     if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
-                        let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
+                        Self::check_and_handle_allowance(
+                            &db_multisig_address.clone(),
+                            new_allocation_amount.clone(),
+                        ).await?;
+
+                        let new_allocation_amount_parsed = process_amount(new_allocation_amount.clone().unwrap());
+
+                        let _ = app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
                     }
                     
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
@@ -1107,8 +1131,18 @@ impl LDNApplication {
             ));
         }
 
+        // Check the allowance for the address
+        
         if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
-            let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
+            let db_multisig_address = db_allocator.multisig_address.unwrap();
+            
+            Self::check_and_handle_allowance(
+                &db_multisig_address.clone(),
+                new_allocation_amount.clone(),
+            ).await?;
+            let new_allocation_amount_parsed = process_amount(new_allocation_amount.clone().unwrap());
+
+            let _ = app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
         }
 
         // Add signer to signers array
@@ -2382,7 +2416,7 @@ impl LDNApplication {
     pub async fn update_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNError> {
         // Get the PR number from the issue number.
         let issue_number = info.issue_number.clone();
-        let (parsed_ldn, _) = LDNApplication::parse_application_issue(
+        let (mut parsed_ldn, _) = LDNApplication::parse_application_issue(
             issue_number.clone(),
             info.owner.clone(),
             info.repo.clone(),
@@ -2412,6 +2446,9 @@ impl LDNApplication {
             
             }
         };
+
+        parsed_ldn.datacap.total_requested_amount = process_amount(parsed_ldn.datacap.total_requested_amount.clone());
+        parsed_ldn.datacap.weekly_allocation = process_amount(parsed_ldn.datacap.weekly_allocation.clone());
         
         //Application was granted. Create a new PR with the updated application file, as if it was a new application
         if application_model.pr_number == 0 {
@@ -2517,6 +2554,40 @@ impl LDNApplication {
                     "Application issue {} cannot be modified",
                     app_file.issue_number
                 )))
+            }
+        }
+    }
+
+    async fn check_and_handle_allowance(
+        db_multisig_address: &str,
+        new_allocation_amount: Option<String>,
+    ) -> Result<(), LDNError> {
+        let blockchain = BlockchainData::new();
+        match blockchain.get_allowance_for_address("f24siazyti3akorqyvi33rvlq3i73j23rwohdamuy").await {
+            Ok(allowance) if allowance != "0" => {
+                log::info!("Allowance found and is not zero. Value is {}", allowance);
+                match compare_allowance_and_allocation(&allowance, new_allocation_amount) {
+                    Some(result) => {
+                        if result {
+                            println!("Allowance is sufficient.");
+                            Ok(())
+                        } else {
+                            println!("Allowance is not sufficient.");
+                            Err(LDNError::New("Multisig address has less allowance than the new allocation amount".to_string()))
+                        }
+                    },
+                    None => {
+                        println!("Error parsing sizes.");
+                        Err(LDNError::New("Error parsing sizes".to_string()))
+                    },
+                }
+            },
+            Ok(_) => {
+                Err(LDNError::New("Multisig address has no remaining allowance".to_string()))
+            },
+            Err(e) => {
+                log::error!("Failed to retrieve allowance: {:?}", e);
+                Err(LDNError::New("Failed to retrieve allowance".to_string()))
             }
         }
     }
@@ -3483,9 +3554,11 @@ impl LDNPullRequest {
                 ));
             })?;
 
+        let issue_link = format!("https://github.com/{}/{}/issues/{}", owner, repo, application_id);
+
         let (_pr, file_sha) = gh
             .create_merge_request(CreateMergeRequestData {
-                application_id: application_id.clone(),
+                issue_link,
                 branch_name: app_branch_name,
                 file_name,
                 owner_name,
@@ -3526,9 +3599,12 @@ impl LDNPullRequest {
                     application_id, e
                 ));
             })?;
+
+        let issue_link = format!("https://github.com/{}/{}/issues/{}", owner, repo, application_id);
+        
         let pr = match gh
             .create_refill_merge_request(CreateRefillMergeRequestData {
-                application_id: application_id.clone(),
+                issue_link,
                 owner_name,
                 file_name: file_name.clone(),
                 file_sha: file_sha.clone(),

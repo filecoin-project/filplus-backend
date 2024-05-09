@@ -5,13 +5,12 @@ pub mod client;
 pub mod datacap;
 pub mod file;
 pub mod lifecycle;
-pub mod project;
 
 impl file::ApplicationFile {
     pub async fn new(
         issue_number: String,
         multisig_address: String,
-        version: u8,
+        version: String,
         id: String,
         client: file::Client,
         project: file::Project,
@@ -33,7 +32,7 @@ impl file::ApplicationFile {
 
     pub async fn edited(
         issue_number: String,
-        version: u8,
+        version: String,
         id: String,
         client: file::Client,
         project: file::Project,

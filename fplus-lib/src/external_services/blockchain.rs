@@ -1,4 +1,5 @@
 const BASE_URL: &str = "https://api.filplus.d.interplanetary.one/public/api";
+extern crate regex;
 
 /// BlockchainData is a client for the Fil+ blockchain data API.
 pub struct BlockchainData {
@@ -91,6 +92,10 @@ impl BlockchainData {
         };
         match json["type"].as_str() {
             Some("verifiedClient") => {
+                let allowance = json["allowance"].as_str().unwrap_or("");
+                Ok(allowance.to_string())
+            }
+            Some("verifier") => {
                 let allowance = json["allowance"].as_str().unwrap_or("");
                 Ok(allowance.to_string())
             }
