@@ -1,4 +1,6 @@
 const BASE_URL: &str = "https://api.filplus.d.interplanetary.one/public/api";
+extern crate regex;
+use regex::Regex;
 
 /// BlockchainData is a client for the Fil+ blockchain data API.
 pub struct BlockchainData {
@@ -117,20 +119,16 @@ impl BlockchainData {
 
 
 fn parse_size_to_bytes(size: &str) -> Option<u64> {
-    let parts = size.trim().splitn(2, |c: char| !c.is_ascii_digit()).collect::<Vec<_>>();
-    if parts.len() != 2 {
-        return None; // Incorrect format
-    }
+    let re = Regex::new(r"^(\d+)([a-zA-Z]+)$").unwrap();
+    let caps = re.captures(size.trim())?;
 
-    let number = parts[0].parse::<u64>().ok()?;
-    let unit = parts[1].trim();
+    let number = caps.get(1)?.as_str().parse::<u64>().ok()?;
+    let unit = caps.get(2)?.as_str().to_uppercase();
 
-    // Normalize the unit by removing any trailing 's' and converting to upper case
-    let unit = unit.trim_end_matches('s').to_uppercase();
-    println!("Size: {}", size);
-    println!("Unit: {}", unit);
-    println!("number: {}", number);
-    match unit.as_str() {
+    // Normalize the unit by removing any trailing 'i', 's' and converting to upper case
+    let normalized_unit = unit.trim_end_matches('S');
+
+    match normalized_unit {
         "KIB" => Some(number * 1024),                             // 2^10
         "MIB" => Some(number * 1024 * 1024),                      // 2^20
         "GIB" => Some(number * 1024 * 1024 * 1024),               // 2^30
