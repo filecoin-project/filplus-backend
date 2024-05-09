@@ -113,7 +113,7 @@ impl From<String> for ParsedApplicationDataFields {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ParsedIssue {
-    pub version: u8,
+    pub version: String,
     pub id: String,
     pub client: Client,
     pub project: Project,
@@ -151,14 +151,7 @@ impl ParsedIssue {
             .1
             .0;
 
-        let version_string = get_env_var_or_default("ISSUE_TEMPLATE_VERSION");
-        let version: u8 = match version_string.parse() {
-            Ok(num) => num,
-            Err(_) => {
-                eprintln!("Error: The environment variable ISSUE_TEMPLATE_VERSION is not a valid u8");
-                0
-            },
-        };
+        let version = get_env_var_or_default("ISSUE_TEMPLATE_VERSION");
 
         Self {
             id,

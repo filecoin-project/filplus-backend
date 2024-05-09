@@ -34,7 +34,7 @@ impl FromStr for DatacapGroup {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationFile {
     #[serde(rename = "Version")]
-    pub version: u8,
+    pub version: String,
     #[serde(rename = "ID")]
     pub id: String,
     #[serde(rename = "Issue Number")]
