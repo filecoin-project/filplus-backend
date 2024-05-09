@@ -817,6 +817,7 @@ impl LDNApplication {
             Ok(s) => match s {
                 AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
                     let app_file: ApplicationFile = self.file().await?;
+                    let allocation_amount_parsed = process_amount(allocation_amount.clone());
 
                     let db_allocator = match get_allocator(&owner, &repo).await {
                         Ok(allocator) => allocator.unwrap(),
@@ -827,7 +828,7 @@ impl LDNApplication {
                     let db_multisig_address = db_allocator.multisig_address.unwrap();
                     Self::check_and_handle_allowance(
                         &db_multisig_address.clone(),
-                        Some(allocation_amount.clone()),
+                        Some(allocation_amount_parsed.clone()),
                     ).await?;
 
                     let uuid = uuidv4::uuid::v4();
@@ -835,7 +836,7 @@ impl LDNApplication {
                         actor.clone(),
                         uuid,
                         AllocationRequestType::First,
-                        allocation_amount,
+                        allocation_amount_parsed,
                     );
 
                     let app_file = app_file.complete_governance_review(actor.clone(), request);
@@ -989,7 +990,9 @@ impl LDNApplication {
                             new_allocation_amount.clone(),
                         ).await?;
 
-                        let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
+                        let new_allocation_amount_parsed = process_amount(new_allocation_amount.clone().unwrap());
+
+                        let _ = app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
                     }
                     
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
@@ -1138,8 +1141,9 @@ impl LDNApplication {
                 &db_multisig_address.clone(),
                 new_allocation_amount.clone(),
             ).await?;
+            let new_allocation_amount_parsed = process_amount(new_allocation_amount.clone().unwrap());
 
-            let _ = app_file.adjust_active_allocation_amount(new_allocation_amount.unwrap().clone());
+            let _ = app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
         }
 
         // Add signer to signers array
