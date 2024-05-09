@@ -6,6 +6,7 @@ use fplus_lib::core::allocator::generate_github_app_jwt;
 use fplus_lib::core::{allocator::{
     create_allocator_repo, force_update_allocators, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic, validate_amount_type_and_options
 }, AllocatorUpdateForceInfo, AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo};
+use fplus_lib::helpers::process_amount;
 use reqwest::Client;
 
 /**
@@ -42,7 +43,8 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
         log::info!("Starting allocator creation on: {}", file_name);
 
         match process_allocator_file(file_name).await {
-            Ok(model) => {
+            Ok(mut model) => {
+                let mut quantity_options: Vec<String>;
                 if let Some(allocation_amount) = model.application.allocation_amount.clone() {
                     if allocation_amount.amount_type.clone() == None || allocation_amount.quantity_options.clone() == None {
                         error_response = Some(HttpResponse::BadRequest().body("Amount type and quantity options are required"));
@@ -50,7 +52,11 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                     }
 
                     let amount_type = allocation_amount.amount_type.clone().unwrap().to_lowercase(); // Assuming you still want to unwrap here
-                    let quantity_options = allocation_amount.quantity_options.unwrap(); // Assuming unwrap is desired
+                    quantity_options = allocation_amount.quantity_options.unwrap(); // Assuming unwrap is desired
+
+                    for option in quantity_options.iter_mut() {
+                        *option = process_amount(option.clone());
+                    }
 
                     match validate_amount_type_and_options(&amount_type, &quantity_options) {
                         Ok(()) => println!("Options are valid"),
@@ -59,6 +65,8 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                             break;
                         }
                     }
+
+                    model.application.allocation_amount.as_mut().unwrap().quantity_options = Some(quantity_options);
                 }
 
                 let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {

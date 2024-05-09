@@ -15,10 +15,10 @@ use serde_json::from_str;
 
 use crate::{
     base64, config::get_env_var_or_default, core::application::file::Allocations, error::LDNError, external_services::{
-        blockchain::{compare_allowance_and_allocation, BlockchainData}, filecoin::get_multisig_threshold_for_actor, github::{
+        blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         }
-    }, parsers::ParsedIssue
+    }, helpers::{compare_allowance_and_allocation, process_amount}, parsers::ParsedIssue
 };
 use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 use fplus_database::database::{
@@ -593,12 +593,15 @@ impl LDNApplication {
     pub async fn new_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNError> {
         let issue_number = info.issue_number;
         let gh = github_async_new(info.owner.to_string(), info.repo.to_string()).await;
-        let (parsed_ldn, _) = LDNApplication::parse_application_issue(
+        let (mut parsed_ldn, _) = LDNApplication::parse_application_issue(
             issue_number.clone(),
             info.owner.clone(),
             info.repo.clone(),
         )
         .await?;
+
+        parsed_ldn.datacap.total_requested_amount = process_amount(parsed_ldn.datacap.total_requested_amount.clone());
+        parsed_ldn.datacap.weekly_allocation = process_amount(parsed_ldn.datacap.weekly_allocation.clone());
         
         let application_id = parsed_ldn.id.clone();
         let file_name = LDNPullRequest::application_path(&application_id);
@@ -2410,7 +2413,7 @@ impl LDNApplication {
     pub async fn update_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNError> {
         // Get the PR number from the issue number.
         let issue_number = info.issue_number.clone();
-        let (parsed_ldn, _) = LDNApplication::parse_application_issue(
+        let (mut parsed_ldn, _) = LDNApplication::parse_application_issue(
             issue_number.clone(),
             info.owner.clone(),
             info.repo.clone(),
@@ -2440,6 +2443,9 @@ impl LDNApplication {
             
             }
         };
+
+        parsed_ldn.datacap.total_requested_amount = process_amount(parsed_ldn.datacap.total_requested_amount.clone());
+        parsed_ldn.datacap.weekly_allocation = process_amount(parsed_ldn.datacap.weekly_allocation.clone());
         
         //Application was granted. Create a new PR with the updated application file, as if it was a new application
         if application_model.pr_number == 0 {
