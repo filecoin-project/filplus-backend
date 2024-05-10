@@ -1,4 +1,5 @@
-use self::file::{AllocationRequest, Allocations, LifeCycle, Verifier};
+
+use self::file::{AllocationRequest, Allocations, LifeCycle, Verifier, Version};
 
 pub mod allocation;
 pub mod client;
@@ -10,7 +11,7 @@ impl file::ApplicationFile {
     pub async fn new(
         issue_number: String,
         multisig_address: String,
-        version: String,
+        version: Version,
         id: String,
         client: file::Client,
         project: file::Project,
@@ -32,7 +33,7 @@ impl file::ApplicationFile {
 
     pub async fn edited(
         issue_number: String,
-        version: String,
+        version: Version,
         id: String,
         client: file::Client,
         project: file::Project,

@@ -489,7 +489,9 @@ impl LDNApplication {
                 match from_str::<ApplicationFile>(&app_json) {
                     Ok(app) => apps.push(app),
                     //if error, don't push into apps
-                    Err(_) => {}
+                    Err(err) => {
+                        log::error!("Failed to parse application file from DB: {}", err);
+                    }
                 }
             }
         }

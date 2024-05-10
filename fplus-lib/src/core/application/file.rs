@@ -25,6 +25,13 @@ impl FromStr for DatacapGroup {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum Version {
+    Number(u8),
+    Text(String),
+}
+
 // DONT CHANGE ME UNLESS YOU HAVE GUN POINTED TO YOUR HEAD
 // INCLUDES ALL THE NESTED OBJECTS, IE `CLIENT`, `PROJECT`, `DATACAP`, `LIFECYCLE`, `ALLOCATION`
 //
@@ -34,7 +41,7 @@ impl FromStr for DatacapGroup {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApplicationFile {
     #[serde(rename = "Version")]
-    pub version: String,
+    pub version: Version,
     #[serde(rename = "ID")]
     pub id: String,
     #[serde(rename = "Issue Number")]

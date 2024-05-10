@@ -3,7 +3,7 @@ use std::str::FromStr;
 use markdown::{mdast::Node, to_mdast, ParseOptions};
 use serde::{Deserialize, Serialize};
 
-use crate::{config::get_env_var_or_default, core::application::file::{Client, DataType, Datacap, DatacapGroup, Project}};
+use crate::{config::get_env_var_or_default, core::application::file::{Client, DataType, Datacap, DatacapGroup, Project, Version}};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ParsedApplicationDataFields {
@@ -113,7 +113,7 @@ impl From<String> for ParsedApplicationDataFields {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ParsedIssue {
-    pub version: String,
+    pub version: Version,
     pub id: String,
     pub client: Client,
     pub project: Project,
@@ -155,7 +155,7 @@ impl ParsedIssue {
 
         Self {
             id,
-            version,
+            version: Version::Text(version),
             client,
             project,
             datacap,
