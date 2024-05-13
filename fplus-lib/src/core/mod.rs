@@ -210,6 +210,10 @@ pub struct ApproveChangesObject {
     pr_number: u64,
 }
 
+#[derive(Deserialize)]
+pub struct SignatureRequest {
+    pub signature: String,
+}
 
 impl LDNApplication {
     pub async fn single_active(

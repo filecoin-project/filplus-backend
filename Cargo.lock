@@ -285,7 +285,6 @@ dependencies = [
  "alloy-rpc-client",
  "alloy-serde",
  "alloy-signer",
- "alloy-signer-wallet",
  "alloy-transport-http",
  "reqwest 0.12.4",
 ]
@@ -540,21 +539,6 @@ dependencies = [
  "auto_impl",
  "elliptic-curve",
  "k256",
- "thiserror",
-]
-
-[[package]]
-name = "alloy-signer-wallet"
-version = "0.1.0"
-source = "git+https://github.com/alloy-rs/alloy#dd7a999d9efe259c47a34dde046952de795a8f6a"
-dependencies = [
- "alloy-consensus",
- "alloy-network",
- "alloy-primitives",
- "alloy-signer",
- "async-trait",
- "k256",
- "rand",
  "thiserror",
 ]
 
@@ -1623,10 +1607,9 @@ dependencies = [
 
 [[package]]
 name = "fplus-http-server"
-version = "1.8.3"
+version = "1.8.4"
 dependencies = [
  "actix-cors",
- "actix-rt",
  "actix-utils",
  "actix-web",
  "alloy",
@@ -1645,7 +1628,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "url",
  "uuidv4",
 ]
 
@@ -1653,7 +1635,9 @@ dependencies = [
 name = "fplus-lib"
 version = "1.8.4"
 dependencies = [
+ "actix-rt",
  "actix-web",
+ "alloy",
  "anyhow",
  "base64 0.13.1",
  "chrono",

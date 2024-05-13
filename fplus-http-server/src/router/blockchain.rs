@@ -1,11 +1,6 @@
-use std::str::FromStr;
+use actix_web::{get, web, HttpResponse, Responder};
 
-use actix_web::{get, post, web, HttpResponse, Responder};
-use alloy::signers::Signature;
 use fplus_lib::external_services::blockchain::BlockchainData;
-use serde::Deserialize;
-
-use crate::middleware::SignatureReader;
 
 /// Address Allowance.
 ///
@@ -68,29 +63,4 @@ pub async fn verified_clients() -> impl Responder {
                 .body("SOMETHING IS WRONG WITH DEMOB SETUP!");
         }
     }
-}
-
-#[post("/blockchain/verify")]
-pub async fn verify(signature: web::Json<SignatureRequest>) -> impl Responder {
-    let signature_reader = SignatureReader;
-
-    let signature = match Signature::from_str(&signature.signature) {
-        Ok(signature) => signature,
-        Err(_) => return HttpResponse::BadRequest(),
-    };
-
-    // todo move message to .env
-    let _address = signature_reader
-        .get_address_from_signature(&signature, b"Hello world2")
-        .await
-        .unwrap();
-
-    // todo add call to gitcoin
-
-    HttpResponse::Ok()
-}
-
-#[derive(Deserialize)]
-struct SignatureRequest {
-    signature: String,
 }

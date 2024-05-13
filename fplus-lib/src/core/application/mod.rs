@@ -6,6 +6,7 @@ pub mod client;
 pub mod datacap;
 pub mod file;
 pub mod lifecycle;
+pub mod signature_reader;
 
 impl file::ApplicationFile {
     pub async fn new(
