@@ -1,5 +1,4 @@
 use actix_web::{get, web, HttpResponse, Responder};
-
 use fplus_lib::external_services::blockchain::BlockchainData;
 
 /// Address Allowance.

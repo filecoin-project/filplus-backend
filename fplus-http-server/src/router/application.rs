@@ -1,14 +1,11 @@
+use std::str::FromStr;
+
 use actix_web::{get, post, web, HttpResponse, Responder};
 use alloy::signers::Signature;
 use fplus_lib::core::{
-    application::{file::VerifierInput, signature_reader::get_address_from_signature}, ApplicationQueryParams, BranchDeleteInfo,
-    CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo,
-    CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams,
-    LDNApplication, MoreInfoNeeded, RefillInfo, SignatureRequest, ValidationPullRequestData,
-    VerifierActionsQueryParams,
-};
+        application::{file::VerifierInput, signature_reader::get_address_from_signature}, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, SignatureRequest, ValidationPullRequestData, VerifierActionsQueryParams
+    };
 
-use std::str::FromStr;
 
 #[post("/application")]
 pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
@@ -24,7 +21,9 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
 }
 
 #[get("/application")]
-pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder {
+pub async fn single(
+    query: web::Query<ApplicationQueryParams>,
+) -> impl Responder {
     let ApplicationQueryParams { id, owner, repo } = query.into_inner();
 
     match LDNApplication::load_from_db(id, owner, repo).await {
@@ -40,7 +39,7 @@ pub async fn application_with_allocation_amount_handler(
     query: web::Query<ApplicationQueryParams>,
 ) -> impl Responder {
     let ApplicationQueryParams { id, owner, repo } = query.into_inner();
-
+    
     match LDNApplication::application_with_allocation_amount(id, owner, repo).await {
         Ok(result) => HttpResponse::Ok().json(result),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
@@ -67,7 +66,7 @@ pub async fn trigger(
             query.github_username.clone(),
             query.owner.clone(),
             query.repo.clone(),
-            allocation_amount,
+            allocation_amount
         )
         .await
     {
@@ -80,7 +79,9 @@ pub async fn trigger(
 }
 
 #[post("/application/approve_changes")]
-pub async fn approve_changes(query: web::Query<VerifierActionsQueryParams>) -> impl Responder {
+pub async fn approve_changes(
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
     let ldn_application =
         match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
         {
@@ -89,10 +90,11 @@ pub async fn approve_changes(query: web::Query<VerifierActionsQueryParams>) -> i
                 return HttpResponse::BadRequest().body(e.to_string());
             }
         };
-
-    match ldn_application
-        .approve_changes(query.owner.clone(), query.repo.clone())
-        .await
+        
+    match ldn_application.approve_changes(
+        query.owner.clone(),
+        query.repo.clone(),
+    ).await
     {
         Ok(result) => {
             return HttpResponse::Ok().body(result);
@@ -108,11 +110,7 @@ pub async fn propose(
     info: web::Json<CompleteNewApplicationProposalInfo>,
     query: web::Query<VerifierActionsQueryParams>,
 ) -> impl Responder {
-    let CompleteNewApplicationProposalInfo {
-        signer,
-        request_id,
-        new_allocation_amount,
-    } = info.into_inner();
+    let CompleteNewApplicationProposalInfo { signer, request_id, new_allocation_amount } = info.into_inner();
     let ldn_application =
         match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
         {
@@ -133,7 +131,7 @@ pub async fn propose(
             request_id,
             query.owner.clone(),
             query.repo.clone(),
-            new_allocation_amount,
+            new_allocation_amount
         )
         .await
     {
@@ -180,17 +178,22 @@ pub async fn approve(
 }
 
 #[post("/application/decline")]
-pub async fn decline(query: web::Query<VerifierActionsQueryParams>) -> impl Responder {
+pub async fn decline(
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
     let ldn_application =
-        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
-        {
-            Ok(app) => app,
-            Err(e) => {
-                return HttpResponse::BadRequest().body(e.to_string());
-            }
-        };
+    match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+    {
+        Ok(app) => app,
+        Err(e) => {
+            return HttpResponse::BadRequest().body(e.to_string());
+        }
+    };
     match ldn_application
-        .decline_application(query.owner.clone(), query.repo.clone())
+        .decline_application(
+            query.owner.clone(),
+            query.repo.clone(),
+        )
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
@@ -213,13 +216,18 @@ pub async fn additional_info_required(
             }
         };
     match ldn_application
-        .additional_info_required(query.owner.clone(), query.repo.clone(), verifier_message)
+        .additional_info_required(
+            query.owner.clone(),
+            query.repo.clone(),
+            verifier_message
+        )
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
         Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
     }
 }
+
 
 #[get("/applications")]
 pub async fn all_applications() -> impl Responder {
@@ -416,7 +424,7 @@ pub async fn cache_renewal(info: web::Json<GithubQueryParams>) -> impl Responder
 #[post("application/update-from-issue")]
 pub async fn update_from_issue(info: web::Json<CreateApplicationInfo>) -> impl Responder {
     match LDNApplication::update_from_issue(info.into_inner()).await {
-        Ok(app) => HttpResponse::Ok().body(format!(
+        Ok(app) =>HttpResponse::Ok().body(format!(
             "Updated application for issue: {}",
             app.application_id.clone()
         )),
@@ -425,7 +433,9 @@ pub async fn update_from_issue(info: web::Json<CreateApplicationInfo>) -> impl R
 }
 
 #[post("application/check_for_changes")]
-pub async fn check_for_changes(info: web::Json<ValidationPullRequestData>) -> impl Responder {
+pub async fn check_for_changes(
+    info: web::Json<ValidationPullRequestData>,
+) -> impl Responder {
     let ValidationPullRequestData {
         pr_number,
         user_handle,

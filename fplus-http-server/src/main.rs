@@ -6,13 +6,18 @@ use middleware::verifier_auth::VerifierAuth;
 pub(crate) mod router;
 use std::env;
 
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{
+    App,
+    HttpServer,
+    web,
+    middleware::Logger,
+};
 
-use chrono::Utc;
 use cron::Schedule;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use tokio::time::sleep_until;
+use chrono::Utc;
 
 pub async fn run_cron<F>(expression: &str, mut task: F)
 where
@@ -32,9 +37,7 @@ where
             None => continue,
         };
 
-        let sleep_duration = (next - now)
-            .to_std()
-            .unwrap_or_else(|_| Duration::from_secs(1));
+        let sleep_duration = (next - now).to_std().unwrap_or_else(|_| Duration::from_secs(1));
         let sleep_until_time = Instant::now() + sleep_duration;
         sleep_until(sleep_until_time.into()).await;
 
@@ -54,10 +57,7 @@ async fn main() -> std::io::Result<()> {
     }
 
     tokio::spawn(async {
-        run_cron("0 0 0,4,8,12,16,20 * * * *", || {
-            tokio::spawn(update_installation_ids_logic())
-        })
-        .await;
+        run_cron("0 0 0,4,8,12,16,20 * * * *", || tokio::spawn(update_installation_ids_logic())).await;
     });
 
     HttpServer::new(move || {
@@ -78,7 +78,7 @@ async fn main() -> std::io::Result<()> {
                     .service(router::application::propose)
                     .service(router::application::approve)
                     .service(router::application::decline)
-                    .service(router::application::additional_info_required),
+                    .service(router::application::additional_info_required)
             )
             .service(router::application::merged)
             .service(router::application::active)
@@ -106,7 +106,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::allocator::create_from_json)
             .service(router::allocator::update_single_installation_id)
             .service(router::allocator::update_allocator_force)
-        // .service(router::allocator::get_installation_ids)
+            // .service(router::allocator::get_installation_ids)
     })
     .bind(("0.0.0.0", 8080))?
     .run()
