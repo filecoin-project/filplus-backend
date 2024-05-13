@@ -6,8 +6,7 @@ pub async fn get_address_from_signature(
     signature: &Signature,
     message: &[u8],
 ) -> Result<Address, alloy::signers::Error> {
-    let address_from_signature = signature.recover_address_from_msg(&message[..]).unwrap();
-
+    let address_from_signature = signature.recover_address_from_msg(&message[..])?;
     Ok(address_from_signature)
 }
 

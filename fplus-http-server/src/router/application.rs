@@ -449,7 +449,7 @@ pub async fn check_for_changes(info: web::Json<ValidationPullRequestData>) -> im
 pub async fn verify(signature: web::Json<SignatureRequest>) -> impl Responder {
     let signature = match Signature::from_str(&signature.signature) {
         Ok(signature) => signature,
-        Err(_) => return HttpResponse::BadRequest(),
+        Err(error) => return HttpResponse::BadRequest().json(error.to_string()),
     };
 
     // todo move message to .env
@@ -459,7 +459,7 @@ pub async fn verify(signature: web::Json<SignatureRequest>) -> impl Responder {
 
     // todo add call to gitcoin
 
-    HttpResponse::Ok()
+    HttpResponse::Ok().json("Address verified")
 }
 
 #[get("/health")]
