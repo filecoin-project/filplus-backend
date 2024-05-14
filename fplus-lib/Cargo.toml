@@ -36,5 +36,12 @@ anyhow = "1.0"
 regex = "1.0"
 actix-rt = "2.9.0"
 alloy = { git = "https://github.com/alloy-rs/alloy", version = "0.1.0", features = [
-    "signers"
+    "signers",
+    "providers",
+    "node-bindings",
+    "sol-types",
+    "json",
+    "network",
+    "rpc-types-eth",
 ] }
+tempfile = "3.10.1"
