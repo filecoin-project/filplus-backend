@@ -6,7 +6,6 @@ pub mod client;
 pub mod datacap;
 pub mod file;
 pub mod lifecycle;
-pub mod signature_reader;
 pub mod gitcoin_interaction;
 
 impl file::ApplicationFile {

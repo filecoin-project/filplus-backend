@@ -3,7 +3,7 @@ use std::str::FromStr;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use alloy::signers::Signature;
 use fplus_lib::core::{
-        application::{file::VerifierInput, signature_reader::get_address_from_signature}, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, SignatureRequest, ValidationPullRequestData, VerifierActionsQueryParams
+        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, SignatureRequest, ValidationPullRequestData, VerifierActionsQueryParams
     };
 
 
@@ -457,18 +457,7 @@ pub async fn check_for_changes(
 
 #[post("application/verify")]
 pub async fn verify(signature: web::Json<SignatureRequest>) -> impl Responder {
-    let signature = match Signature::from_str(&signature.signature) {
-        Ok(signature) => signature,
-        Err(error) => return HttpResponse::BadRequest().json(error.to_string()),
-    };
-
-    // todo move message to .env
-    let _address = get_address_from_signature(&signature, b"Hello world2")
-        .await
-        .unwrap();
-
-    // todo add call to gitcoin
-
+    // todo call gitcoin verifier method
     HttpResponse::Ok().json("Address verified")
 }
 
