@@ -1,6 +1,6 @@
 use regex::Regex;
 
-fn parse_size_to_bytes(size: &str) -> Option<u64> {
+pub fn parse_size_to_bytes(size: &str) -> Option<u64> {
   let re = Regex::new(r"^(\d+)([a-zA-Z]+)$").unwrap();
   let caps = re.captures(size.trim())?;
 
