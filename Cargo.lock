@@ -288,6 +288,7 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-serde",
  "alloy-signer",
+ "alloy-transport",
  "alloy-transport-http",
  "reqwest 0.12.4",
 ]

@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use actix_web::{get, post, web, HttpResponse, Responder};
-use alloy::signers::Signature;
+use alloy::{primitives::address, signers::Signature};
 use fplus_lib::core::{
-        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, SignatureRequest, ValidationPullRequestData, VerifierActionsQueryParams
+        application::{file::VerifierInput, gitcoin_interaction::get_gitcoin_score_for_address}, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, SignatureRequest, ValidationPullRequestData, VerifierActionsQueryParams
     };
 
 
@@ -458,7 +458,7 @@ pub async fn check_for_changes(
 #[post("application/verify")]
 pub async fn verify(signature: web::Json<SignatureRequest>) -> impl Responder {
     // todo call gitcoin verifier method
-    HttpResponse::Ok().json("Address verified")
+    HttpResponse::Ok().json(format!("Address verified with score"))
 }
 
 #[get("/health")]

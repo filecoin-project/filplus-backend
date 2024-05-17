@@ -43,5 +43,6 @@ alloy = { git = "https://github.com/alloy-rs/alloy", version = "0.1.0", features
     "json",
     "network",
     "rpc-types-eth",
+    "provider-http",
 ] }
 tempfile = "3.10.1"
