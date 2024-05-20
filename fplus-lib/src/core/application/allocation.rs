@@ -3,6 +3,7 @@ use chrono::Utc;
 use super::file::{
     Allocation, AllocationRequest, AllocationRequestType, Allocations, Verifiers, Verifier,
 };
+use crate::helpers::parse_size_to_bytes;
 
 impl Default for Verifiers {
     fn default() -> Self {
@@ -137,5 +138,15 @@ impl Allocations {
         let allocation = Allocation::new(request);
         self.0.push(allocation);
         self.clone()
+    }
+
+    pub fn total_requested(&self) -> u64 {
+        let mut total_amount: u64 = 0;
+        for allocation in self.0.iter() {
+            if let Some(amount) = parse_size_to_bytes(&allocation.amount) {
+                total_amount += amount;
+            }
+        }
+        return total_amount;
     }
 }
