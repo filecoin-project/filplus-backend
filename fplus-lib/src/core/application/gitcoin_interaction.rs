@@ -24,15 +24,11 @@ pub async fn verify_on_gitcoin(signature: &str, message: &[u8]) -> Result<()> {
     let signature = Signature::from_str(signature)?;
     let address_from_signature = get_address_from_signature(&signature, message)?;
 
-    let rpc_url = format!(
-        "{}/{}",
-        get_env_or_throw("ALCHEMY_RPC_URL"),
-        get_env_or_throw("ALCHEMY_API_KEY")
-    );
+    let rpc_url = format!("{}", get_env_or_throw("RPC_URL"));
     let score = get_gitcoin_score_for_address(&rpc_url, address_from_signature).await?;
 
-    let minimum_score = env::var("GITCOIN_MINIMUM_SCORE")?;
-    let minimum_score = minimum_score.parse::<f64>()?;
+    let minimum_score = get_env_or_throw("GITCOIN_MINIMUM_SCORE");
+    let minimum_score = minimum_score.parse::<f64>().unwrap();
 
     if score > minimum_score {
         Ok(())
