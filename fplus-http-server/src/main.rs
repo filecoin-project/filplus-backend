@@ -79,6 +79,7 @@ async fn main() -> std::io::Result<()> {
                     .service(router::application::approve)
                     .service(router::application::decline)
                     .service(router::application::additional_info_required)
+                    .service(router::application::request_kyc)
             )
             .service(router::application::merged)
             .service(router::application::active)

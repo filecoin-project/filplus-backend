@@ -1,6 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams, TriggerSSAInfo
+        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams, KYCRequestedInfo, TriggerSSAInfo
     };
 
 
@@ -454,6 +454,25 @@ pub async fn check_for_changes(
 #[get("/health")]
 pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")
+}
+
+#[post("application/request_kyc")]
+pub async fn request_kyc(
+    info: web::Json<KYCRequestedInfo>,
+) -> impl Responder {
+    let ldn_application =
+        match LDNApplication::load(info.id.clone(), info.owner.clone(), info.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+
+        };
+    match ldn_application.request_kyc(info.into_inner()).await {
+        Ok(()) => {
+            return HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap())
+        }
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    };
 }
 
 #[post("application/trigger_ssa")]

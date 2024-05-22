@@ -245,6 +245,7 @@ pub enum AppState {
     AdditionalInfoRequired,
     AdditionalInfoSubmitted,
     Submitted,
+    KYCRequested,
     ChangesRequested,
     ReadyToSign,
     StartSignDatacap,
