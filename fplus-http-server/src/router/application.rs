@@ -465,7 +465,6 @@ pub async fn request_kyc(
         {
             Ok(app) => app,
             Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
-
         };
     match ldn_application.request_kyc(info.into_inner()).await {
         Ok(()) => {

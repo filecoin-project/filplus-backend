@@ -133,7 +133,7 @@ impl file::ApplicationFile {
         }
     }
 
-    pub fn kyc_request(&mut self) -> Self {
+    pub fn kyc_request(&self) -> Self {
         let new_life_cycle = self
             .lifecycle
             .clone()

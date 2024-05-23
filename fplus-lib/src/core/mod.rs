@@ -832,7 +832,7 @@ impl LDNApplication {
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
-                AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
+                AppState::KYCRequested | AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
                     let app_file: ApplicationFile = self.file().await?;
                     let allocation_amount_parsed = process_amount(allocation_amount.clone());
 
@@ -1708,7 +1708,7 @@ impl LDNApplication {
 
         // Check if application is in Submitted state
         let state = application.lifecycle.get_state();
-        if state == AppState::Submitted || state == AppState::AdditionalInfoRequired || state == AppState::AdditionalInfoSubmitted {
+        if state == AppState::KYCRequested || state == AppState::Submitted || state == AppState::AdditionalInfoRequired || state == AppState::AdditionalInfoSubmitted {
             if !application.lifecycle.validated_by.is_empty() {
                 log::warn!(
                     "- Application has already been validated by: {}",
@@ -3556,12 +3556,12 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 info.id
             ))
         })?;
-        let mut application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
+        let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
         if application_file.lifecycle.state != AppState::Submitted {
             return Err(LDNError::Load(format!("Application state is {:?}. Expected Submitted", application_file.lifecycle.state)));
         }
 
-        application_file = application_file.kyc_request();
+        let application_file = application_file.kyc_request();
 
         database::applications::update_application( 
             info.id,
@@ -3574,7 +3574,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 )))?,
             serde_json::to_string_pretty(&application_file).unwrap(),
             app_model.path.clone()
-        ).await.unwrap();
+        ).await.expect("Failed to update_application in DB!");
 
         self.issue_updates_for_kyc(&application_file.issue_number.parse().unwrap()).await?;
         
@@ -3592,7 +3592,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
     pub async fn issue_updates_for_kyc(&self, issue_number: &u64) -> Result<(), LDNError> {
         let comment = format!(
-            "KYC has been requested. Please complete KYC at https://kyc.allocator.tech/?owner={}&repo={}&client={}", 
+            "KYC has been requested. Please complete KYC at {}/?owner={}&repo={}&client={}", 
+            get_env_var_or_default("KYC_URL"),
             &self.github.owner,
             &self.github.repo,
             &self.application_id
@@ -3605,8 +3606,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
                 ));
-            })
-            .unwrap();
+            })?;
 
         self.github.replace_issue_labels(*issue_number, &["kyc requested".to_string()])
             .await
@@ -3615,8 +3615,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     "Error adding labels to issue {} /// {}",
                     issue_number, e
                 ));
-            })
-            .unwrap();
+            })?;
         Ok(())
     }
 
@@ -3881,6 +3880,30 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
             Some(sha)
         }
         None => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_update_app_state_to_kyc_requested() {
+        let application_file = ApplicationFile::new("1".into(),"adres".into(), application::file::Version::Text("1.3".to_string()),"adres2".into(), Default::default(), Default::default(), application::file::Datacap {
+            _group: application::file::DatacapGroup::DA,
+            data_type: application::file::DataType::Slingshot,
+            total_requested_amount: "1 TiB".into(),
+            single_size_dataset: "1 GiB".into(),
+            replicas: 2,
+            weekly_allocation: "1 TiB".into(),
+            custom_multisig: "adres".into(),
+            identifier: "id".into()
+         }).await;
+        let application_file = application_file.kyc_request();
+        assert_eq!(
+            application_file.lifecycle.state,
+            AppState::KYCRequested
+            );
     }
 }
 
