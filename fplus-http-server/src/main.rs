@@ -96,7 +96,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::delete_branch)
             .service(router::application::cache_renewal)
             .service(router::application::update_from_issue)
-            .service(router::application::verify)
+            .service(router::application::submit_kyc)
             .service(router::blockchain::address_allowance)
             .service(router::blockchain::verified_clients)
             .service(router::verifier::verifiers)

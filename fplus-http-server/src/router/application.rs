@@ -3,7 +3,7 @@ use std::str::FromStr;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use alloy::{primitives::address, signers::Signature};
 use fplus_lib::core::{
-        application::{file::VerifierInput, gitcoin_interaction::get_gitcoin_score_for_address}, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, SignatureRequest, ValidationPullRequestData, VerifierActionsQueryParams
+        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams, SubmitKYCInfo
     };
 
 
@@ -455,10 +455,14 @@ pub async fn check_for_changes(
     }
 }
 
-#[post("application/verify")]
-pub async fn verify(signature: web::Json<SignatureRequest>) -> impl Responder {
-    // todo call gitcoin verifier method
-    HttpResponse::Ok().json(format!("Address verified with score"))
+#[post("application/submit_kyc")]
+pub async fn submit_kyc(info: web::Json<SubmitKYCInfo>) -> impl Responder {
+    match LDNApplication::submit_kyc(&info).await {
+        Ok(()) => {
+            return HttpResponse::Ok().body(serde_json::to_string_pretty("Address verified with score").unwrap())
+        }
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    }; 
 }
 
 #[get("/health")]

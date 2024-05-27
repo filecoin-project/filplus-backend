@@ -34,7 +34,6 @@ fplus-database = { path = "../fplus-database", version = "1.8.4"}
 pem = "1.0"
 anyhow = "1.0"
 regex = "1.0"
-actix-rt = "2.9.0"
 alloy = { git = "https://github.com/alloy-rs/alloy", version = "0.1.0", features = [
     "signers",
     "providers",
@@ -44,5 +43,10 @@ alloy = { git = "https://github.com/alloy-rs/alloy", version = "0.1.0", features
     "network",
     "rpc-types-eth",
     "provider-http",
+    "dyn-abi",
+    "eip712",
 ] }
 tempfile = "3.10.1"
+
+[dev-dependencies]
+actix-rt = "2.9.0"

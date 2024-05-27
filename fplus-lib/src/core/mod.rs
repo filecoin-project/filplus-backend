@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
 use crate::{
-    base64, config::get_env_var_or_default, core::application::file::Allocations, error::LDNError, external_services::{
+    base64, config::get_env_var_or_default, core::application::{file::Allocations, gitcoin_interaction::{verify_on_gitcoin, KycApproval}}, error::LDNError, external_services::{
         blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         }
@@ -178,6 +178,12 @@ pub struct VerifierActionsQueryParams {
     pub repo: String,
 }
 
+#[derive(Deserialize)]
+pub struct SubmitKYCInfo {
+    pub message: KycApproval,
+    pub signature: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct ApplicationFileWithDate {
     pub application_file: ApplicationFile,
@@ -210,10 +216,6 @@ pub struct ApproveChangesObject {
     pr_number: u64,
 }
 
-#[derive(Deserialize)]
-pub struct SignatureRequest {
-    pub signature: String,
-}
 
 impl LDNApplication {
     pub async fn single_active(
@@ -3527,6 +3529,11 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         ).await;
 
         Ok(updated_application) // Return the updated ApplicationFile
+    }
+
+    pub async fn submit_kyc(info: &SubmitKYCInfo) -> Result<(), LDNError> {
+        let _ = verify_on_gitcoin(&info.message, &info.signature).await;
+        Ok(())
     }
 }
 
