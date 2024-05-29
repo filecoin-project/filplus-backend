@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use futures::stream::All;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -337,6 +338,11 @@ impl ApplicationFile {
             // Return an error if no active allocation is found
             Err("No active allocation found")
         }
+    }
+
+    pub fn get_last_request_allowance(&self) -> Option<Allocation> {
+        let request_id = self.lifecycle.active_request.clone()?;
+        self.allocation.find_one(request_id)
     }
 }
 

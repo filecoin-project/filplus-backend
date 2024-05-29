@@ -17,7 +17,7 @@ use crate::{
         blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         }
-    }, helpers::{compare_allowance_and_allocation, process_amount}, parsers::ParsedIssue
+    }, helpers::{compare_allowance_and_allocation, process_amount, parse_size_to_bytes}, parsers::ParsedIssue
 };
 use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 use fplus_database::database::{
@@ -43,6 +43,15 @@ pub struct CreateApplicationInfo {
     pub issue_number: String,
     pub owner: String,
     pub repo: String,
+}
+
+#[derive(Deserialize)]
+pub struct TriggerSSAInfo {
+    pub id: String,
+    pub owner: String,
+    pub repo: String,
+    pub amount: String,
+    pub amount_type: String,
 }
 
 #[derive(Deserialize)]
@@ -3529,6 +3538,48 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         ).await;
 
         Ok(updated_application) // Return the updated ApplicationFile
+    }
+
+    pub async fn trigger_ssa(info: TriggerSSAInfo) -> Result<(), LDNError> {
+        let app_model =
+            Self::get_application_model(info.id.clone(), info.owner.clone(), info.repo.clone())
+                .await?;
+
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                info.id
+            ))
+        })?;
+        let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
+
+        if application_file.lifecycle.state != AppState::Granted {
+            return Err(LDNError::Load(format!("Application state is {:?}. Expected Granted", application_file.lifecycle.state)));
+        }
+        let last_allocation = application_file.get_last_request_allowance().ok_or(LDNError::Load("Last allocation not found".into()))?;
+        if last_allocation.is_active {
+            return Err(LDNError::Load("Last active allocation ID is active".into()));
+        }
+
+        let requested_so_far = application_file.allocation.total_requested();
+        let total_requested = parse_size_to_bytes(&application_file.datacap.total_requested_amount).ok_or(
+            LDNError::Load("Can not parse total requested amount to bytes".into()),
+            )?;
+        let ssa_amount = parse_size_to_bytes((format!("{}{}", &info.amount, &info.amount_type)).as_str()).ok_or(
+            LDNError::Load("Can not parse requested amount to bytes".into()),
+            )?;
+        if requested_so_far + ssa_amount > total_requested {
+            return Err(LDNError::Load("The sum of datacap requested so far and requested amount exceeds total requested amount".into()));
+        }
+        let refill_info = RefillInfo {
+            id: info.id,
+            amount: info.amount,
+            amount_type: info.amount_type,
+            owner: app_model.owner,
+            repo: app_model.repo,
+        };
+        Self::refill(refill_info).await?;
+        Ok(())
     }
 
     pub async fn submit_kyc(self, info: &SubmitKYCInfo) -> Result<(), LDNError> {
