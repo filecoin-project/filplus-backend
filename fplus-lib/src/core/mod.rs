@@ -123,13 +123,6 @@ pub struct ValidationPullRequestData {
 }
 
 #[derive(Deserialize)]
-pub struct KYCRequestedInfo {
-    pub id: String,
-    pub owner: String,
-    pub repo: String,
-}
-
-#[derive(Deserialize)]
 pub struct ValidationIssueData {
     pub issue_number: String,
     pub user_handle: String,
@@ -3545,15 +3538,15 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(updated_application) // Return the updated ApplicationFile
     }
 
-    pub async fn request_kyc(self, info: KYCRequestedInfo) -> Result<(), LDNError> {
+    pub async fn request_kyc(self, id: &str, owner: &str, repo: &str) -> Result<(), LDNError> {
         let app_model =
-            Self::get_application_model(info.id.clone(), info.owner.clone(), info.repo.clone())
+            Self::get_application_model(id.to_string(), owner.to_string(), repo.to_string())
                 .await?;
 
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
                 "Application {} does not have an application field",
-                info.id
+                id
             ))
         })?;
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
@@ -3564,9 +3557,9 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let application_file = application_file.kyc_request();
 
         database::applications::update_application( 
-            info.id,
-            info.owner.clone(),
-            info.repo.clone(),
+            id.to_string(),
+            owner.to_string(),
+            repo.to_string(),
             app_model.pr_number.try_into().map_err(|e| 
                 LDNError::Load(format!(
                     "Parse PR number: {} to u64 failed  /// {}",
@@ -3580,8 +3573,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         
         self.update_and_commit_application_state(
             application_file.clone(),
-            info.owner.clone(),
-            info.repo.clone(),
+            owner.to_string(),
+            repo.to_string(),
             app_model.sha.unwrap(),
             LDNPullRequest::application_branch_name(&application_file.id),
             app_model.path.unwrap(),
