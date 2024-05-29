@@ -133,6 +133,14 @@ impl file::ApplicationFile {
             ..self.clone()
         }
     }
+
+    pub fn move_back_to_submit_state(self) -> Self {
+        let new_life_cycle = self.lifecycle.clone().move_back_to_submit_state();
+        Self {
+            lifecycle: new_life_cycle,
+            ..self.clone()
+        }
+    }
 }
 
 impl std::str::FromStr for file::ApplicationFile {

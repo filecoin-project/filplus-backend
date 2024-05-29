@@ -109,4 +109,11 @@ impl LifeCycle {
             ..self
         }
     }
+    pub fn move_back_to_submit_state(self) -> Self {
+        LifeCycle {
+            state: AppState::Submitted,
+            updated_at: Utc::now().to_string(),
+            ..self.clone()
+        }
+    }
 }

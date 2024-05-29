@@ -3531,9 +3531,88 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(updated_application) // Return the updated ApplicationFile
     }
 
-    pub async fn submit_kyc(info: &SubmitKYCInfo) -> Result<(), LDNError> {
-        let _ = verify_on_gitcoin(&info.message, &info.signature).await;
+    pub async fn submit_kyc(self, info: &SubmitKYCInfo) -> Result<(), LDNError> {
+        let client_id = &info.message.client_id;
+        let repo = &info.message.allocator_repo_name;
+        let owner = &info.message.allocator_repo_owner;
+        let app_model =
+            Self::get_application_model(client_id.clone(), owner.clone(), repo.clone())
+                .await?;
+
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                client_id
+            ))
+        })?;
+        let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
+        if application_file.lifecycle.state != AppState::RequestKYC {
+            return Err(LDNError::Load(format!("Application state is {:?}. Expected RequestKYC", application_file.lifecycle.state)));
+        }
+
+        if LDNApplication::date_is_expired(&info.message.issued_at, &info.message.expires_at)? {
+            return Err(LDNError::Load(format!("Message expired at {}", info.message.expires_at)));
+        }
+        verify_on_gitcoin(&info.message, &info.signature).await?;
+        let application_file = application_file.move_back_to_submit_state();
+        database::applications::update_application( 
+            client_id.clone(),
+            owner.clone(),
+            repo.clone(),
+            app_model.pr_number.try_into().map_err(|e| 
+                LDNError::Load(format!(
+                    "Parse PR number: {} to u64 failed  /// {}",
+                    app_model.pr_number, e
+                )))?,
+            serde_json::to_string_pretty(&application_file).unwrap(),
+            app_model.path.clone()
+        ).await.expect("Failed to update_application in DB!");
+
+        self.issue_updates_for_kyc_submit(&application_file.issue_number.parse().unwrap()).await?;
+        
+        self.update_and_commit_application_state(
+            application_file.clone(),
+            owner.clone(),
+            repo.clone(),
+            app_model.sha.unwrap(),
+            LDNPullRequest::application_branch_name(&application_file.id),
+            app_model.path.unwrap(),
+            "KYC submitted".to_string(),
+            ).await?;
         Ok(())
+    }
+
+    async fn issue_updates_for_kyc_submit(&self, issue_number: &u64) -> Result<(), LDNError> {
+        let comment = format!(
+            "User {} has completed KYC. {}", &self.application_id, get_env_var_or_default("KYC_URL")
+        );
+
+        self.github.add_comment_to_issue(*issue_number, &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+
+        self.github.replace_issue_labels(*issue_number, &[AppState::Submitted.as_str().into(), "waiting for allocator review".into()])
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding labels to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+        Ok(())   
+    }
+
+    fn date_is_expired(start_date: &str, expiration_date: &str) -> Result<bool, LDNError> {
+        let start_date_to_datetime = DateTime::parse_from_rfc3339(start_date).map_err(
+            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")))?;
+        let expiration_date_to_datetime = DateTime::parse_from_rfc3339(expiration_date).map_err(
+            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")))?;
+        Ok(start_date_to_datetime.time() > expiration_date_to_datetime.time())
     }
 }
 

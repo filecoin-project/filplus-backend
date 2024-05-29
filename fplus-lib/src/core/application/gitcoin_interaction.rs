@@ -11,10 +11,9 @@ use alloy::{
     sol_types::{SolCall, eip712_domain, SolStruct},
 };
 
-use anyhow::{anyhow, Result, ensure};
-use fplus_database::config::get_env_or_throw;
+use anyhow::Result;
 use crate::config::get_env_var_or_default;
-
+use crate::error::LDNError;
 
 sol! {
     #[allow(missing_docs)]
@@ -24,34 +23,34 @@ sol! {
     struct KycApproval {
         string message;
         string client_id;
-        string issued_at;
-        string expires_at;
         string allocator_repo_name;
         string allocator_repo_owner;
+        string issued_at;
+        string expires_at;
     }
 }
 
-pub async fn verify_on_gitcoin(message: &KycApproval, signature: &str) -> Result<()> {
+pub async fn verify_on_gitcoin(message: &KycApproval, signature: &str) -> Result<(), LDNError> {
     let address_from_signature = get_address_from_signature(&message, &signature)?;
 
-    let rpc_url = format!("{}", get_env_or_throw("RPC_URL"));
+    let rpc_url = get_env_var_or_default("RPC_URL");
     let score = get_gitcoin_score_for_address(&rpc_url, address_from_signature).await?;
 
     let minimum_score = get_env_var_or_default("GITCOIN_MINIMUM_SCORE");
-    let minimum_score = minimum_score.parse::<f64>().unwrap();
+    let minimum_score = minimum_score.parse::<f64>().map_err(|e| LDNError::New(format!("Parse minimum score to f64 failed: {e:?}")))?;
 
-    ensure!(score > minimum_score, 
-        anyhow!(format!(
+    if score <= minimum_score {
+        return Err(LDNError::New(format!(
             "For address: {}, Gitcoin passport score is too low ({}). Minimum value is: {}",
-            address_from_signature, score, minimum_score
-    )));
+            address_from_signature, score, minimum_score)));
+    } 
     Ok(())
 }
 
-async fn get_gitcoin_score_for_address(rpc_url: &str, address: Address) -> Result<f64> {
-    let provider = ProviderBuilder::new().on_builtin(rpc_url).await?;
+async fn get_gitcoin_score_for_address(rpc_url: &str, address: Address) -> Result<f64, LDNError> {
+    let provider = ProviderBuilder::new().on_builtin(rpc_url).await.map_err(|e| LDNError::New(format!("Invalid RPC URL: {e:?}")))?;
     let gitcoin_passport_decoder = Address::from_str(
-        &get_env_var_or_default("GITCOIN_PASSPORT_DECODER"))?;
+        &get_env_var_or_default("GITCOIN_PASSPORT_DECODER")).map_err(|e| LDNError::New(format!("Parse GITCOIN PASSPORT DECODER failed: {e:?}")))?;
     let call = getScoreCall { user: address }.abi_encode();
     let input = Bytes::from(call);
     let tx = TransactionRequest::default()
@@ -71,15 +70,15 @@ fn calculate_score(response: Bytes) -> f64 {
 
 fn get_address_from_signature(
     message: &KycApproval, signature: &str
-) -> Result<Address, alloy::signers::Error> {
+) -> Result<Address, LDNError> {
     let domain = eip712_domain! {
         name: "Fil+ KYC",
         version: "1",
-        chain_id: get_env_var_or_default("PASSPORT_VERIFIER_CHAIN_ID").parse().map_err(|_| alloy::signers::Error::Other("Parse chain Id to u64 failed".into()))?, // Filecoin Chain Id 
+        chain_id: get_env_var_or_default("PASSPORT_VERIFIER_CHAIN_ID").parse().map_err(|_| LDNError::New(format!("Parse chain Id to u64 failed")))?, // Filecoin Chain Id 
         verifying_contract: address!("0000000000000000000000000000000000000000"),
     };
     let hash = message.eip712_signing_hash(&domain);
-    let signature = Signature::from_str(&signature)?;
+    let signature = Signature::from_str(&signature).map_err(|e| LDNError::New(format!("Signature parsing failed: {e:?}")))?;
     Ok(signature.recover_address_from_prehash(&hash).unwrap())
 }
 
@@ -91,9 +90,10 @@ mod tests {
 
     use super::*;
 
-    const SIGNATURE_HASH: &str = "0xa3fbeb584a3c4a7f2eface5f0255fe7de7793a07d64e9289f28bfd0536e196b4613f1ad628b25ca8f73bd821844d4918a20572e17b6779b521848afa76a7fa101b";
+    const SIGNATURE: &str = "0x0d65d92f0f6774ca40a232422329421183dca5479a17b552a9f2d98ad0bb22ac65618c83061d988cd657c239754253bf66ce6e169252710894041b345797aaa21b";
 
     #[actix_rt::test]
+    #[cfg(feature = "online-tests")]
     async fn getting_score_from_gitcoin_passport_decoder_works() {
         let anvil = init_anvil();
 
@@ -108,6 +108,7 @@ mod tests {
     }
 
     #[actix_rt::test]
+    #[cfg(feature = "online-tests")]
     async fn getting_score_with_not_verified_score_should_return_zero() {
         let anvil = init_anvil();
 
@@ -120,36 +121,45 @@ mod tests {
         assert_eq!(result, 0.0);
     }
 
-    // #[actix_rt::test]
-    // async fn verifier_returns_valid_address_for_valid_message() {
-    //     let signature_message: KycApproval = KycApproval {
-    //         message: "Connect your Fil+ application with your wallet and give access to your Gitcoin passport".into(),
-    //         client_id: "test".into(),
-    //         issued_at: "Fri May 24 2024 13:43:37 GMT+0200 (Central European Summer Time)".into(),
-    //         expires_at: "Sat May 25 2024 13:43:37 GMT+0200 (Central European Summer Time)".into(),
-    //         allocator_repo_name: "test".into(),
-    //         allocator_repo_owner: "test".into()
-    //     };
-    //     let address_from_signature =
-    //         get_address_from_signature(&signature_message, &SIGNATURE_HASH).unwrap();
+    #[actix_rt::test]
+    #[cfg(feature = "online-tests")]
+    async fn verifier_returns_valid_address_for_valid_message() {
+        let signature_message: KycApproval = KycApproval {
+            message: "Connect your Fil+ application with your wallet and give access to your Gitcoin passport".into(),
+            client_id: "test".into(),
+            issued_at: "2024-05-28T09:02:51.126Z".into(),
+            expires_at: "2024-05-29T09:02:51.126Z".into(),
+            allocator_repo_name: "test".into(),
+            allocator_repo_owner: "test".into()
+        };
+        let address_from_signature =
+            get_address_from_signature(&signature_message, &SIGNATURE).unwrap();
 
-    //     let expected_address= address!("907F988126Fd7e3BB5F46412b6Db6775B3dC3F9b");
+        let expected_address= address!("7638462f3a5f2cdb49609bf4947ae396f9088949");
 
-    //     assert_eq!(expected_address, address_from_signature);
-    // }
+        assert_eq!(expected_address, address_from_signature);
+    }
 
-    // #[actix_rt::test]
-    // async fn verifier_returns_invalid_address_for_invalid_message() {
-    //     let message = b"Invalid message";
-    //     let signature = Signature::from_str(SIGNATURE_HASH).unwrap();
+    #[actix_rt::test]
+    #[cfg(feature = "online-tests")]
+    async fn verifier_returns_invalid_address_for_invalid_message() {
+        let message: KycApproval = KycApproval {
+            message: "Connect your Fil+ application with your wallet and give access to your Gitcoin passport".into(),
+            client_id: "test".into(),
+            issued_at: "2024-05-28T09:02:51.126Z".into(),
+            expires_at: "2024-05-29T09:02:51.126Z".into(),
+            allocator_repo_name: "test".into(),
+            allocator_repo_owner: "test".into()
+        };
 
-    //     let address_from_signature = get_address_from_signature(message, &signature).unwrap();
+        let address_from_signature =
+            get_address_from_signature(&message, &SIGNATURE).unwrap();
 
-    //     let expected_address =
-    //         Address::from_str("0x79e214f3aa3101997ffe810a57eca4586e3bdeb2").unwrap();
+        let expected_address =
+            Address::from_str("0x79e214f3aa3101997ffe810a57eca4586e3bdeb2").unwrap();
 
-    //     assert_ne!(expected_address, address_from_signature);
-    // }
+        assert_ne!(expected_address, address_from_signature);
+    }
 
     fn init_anvil() -> AnvilInstance {
         let rpc_url = "https://sepolia.optimism.io/";

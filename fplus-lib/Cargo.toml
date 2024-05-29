@@ -50,3 +50,6 @@ tempfile = "3.10.1"
 
 [dev-dependencies]
 actix-rt = "2.9.0"
+
+[features]
+online-tests = []

@@ -1,7 +1,4 @@
-use std::str::FromStr;
-
 use actix_web::{get, post, web, HttpResponse, Responder};
-use alloy::{primitives::address, signers::Signature};
 use fplus_lib::core::{
         application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams, SubmitKYCInfo
     };
@@ -457,12 +454,18 @@ pub async fn check_for_changes(
 
 #[post("application/submit_kyc")]
 pub async fn submit_kyc(info: web::Json<SubmitKYCInfo>) -> impl Responder {
-    match LDNApplication::submit_kyc(&info).await {
+    let ldn_application = match LDNApplication::load(info.message.client_id.clone(), 
+        info.message.allocator_repo_owner.clone(),
+        info.message.allocator_repo_name.clone()).await {
+            Ok(app) => app,
+            Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    };
+    match ldn_application.submit_kyc(&info.into_inner()).await {
         Ok(()) => {
             return HttpResponse::Ok().body(serde_json::to_string_pretty("Address verified with score").unwrap())
         }
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
-    }; 
+    };
 }
 
 #[get("/health")]
