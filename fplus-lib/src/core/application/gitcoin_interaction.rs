@@ -30,11 +30,9 @@ sol! {
     }
 }
 
-pub async fn verify_on_gitcoin(message: &KycApproval, signature: &str) -> Result<(), LDNError> {
-    let address_from_signature = get_address_from_signature(&message, &signature)?;
-
+pub async fn verify_on_gitcoin(address_from_signature: &Address) -> Result<f64, LDNError> {
     let rpc_url = get_env_var_or_default("RPC_URL");
-    let score = get_gitcoin_score_for_address(&rpc_url, address_from_signature).await?;
+    let score = get_gitcoin_score_for_address(&rpc_url, address_from_signature.clone()).await?;
 
     let minimum_score = get_env_var_or_default("GITCOIN_MINIMUM_SCORE");
     let minimum_score = minimum_score.parse::<f64>().map_err(|e| LDNError::New(format!("Parse minimum score to f64 failed: {e:?}")))?;
@@ -44,7 +42,7 @@ pub async fn verify_on_gitcoin(message: &KycApproval, signature: &str) -> Result
             "For address: {}, Gitcoin passport score is too low ({}). Minimum value is: {}",
             address_from_signature, score, minimum_score)));
     } 
-    Ok(())
+    Ok(score)
 }
 
 async fn get_gitcoin_score_for_address(rpc_url: &str, address: Address) -> Result<f64, LDNError> {
@@ -68,7 +66,7 @@ fn calculate_score(response: Bytes) -> f64 {
     score as f64 / 100.0
 }
 
-fn get_address_from_signature(
+pub fn get_address_from_signature(
     message: &KycApproval, signature: &str
 ) -> Result<Address, LDNError> {
     let domain = eip712_domain! {
