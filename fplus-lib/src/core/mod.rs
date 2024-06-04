@@ -3747,7 +3747,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
     fn verify_kyc_data_and_get_eth_address(message: &KycApproval, signature: &str, application_state: &AppState) -> Result<Address, LDNError> {
         let address_from_signature = get_address_from_signature(message, signature)?;
 
-        if application_state.clone() != AppState::RequestKYC {
+        if application_state.clone() != AppState::KYCRequested {
             return Err(LDNError::Load(format!("Application state is {:?}. Expected RequestKYC", application_state)));
         }
         let current_timestamp = Local::now();
@@ -3981,30 +3981,8 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
         None => None,
     }
 }
+    
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_update_app_state_to_kyc_requested() {
-        let application_file = ApplicationFile::new("1".into(),"adres".into(), application::file::Version::Text("1.3".to_string()),"adres2".into(), Default::default(), Default::default(), application::file::Datacap {
-            _group: application::file::DatacapGroup::DA,
-            data_type: application::file::DataType::Slingshot,
-            total_requested_amount: "1 TiB".into(),
-            single_size_dataset: "1 GiB".into(),
-            replicas: 2,
-            weekly_allocation: "1 TiB".into(),
-            custom_multisig: "adres".into(),
-            identifier: "id".into()
-         }).await;
-        let application_file = application_file.kyc_request();
-        assert_eq!(
-            application_file.lifecycle.state,
-            AppState::KYCRequested
-            );
-    }
-}
 
 // #[cfg(test)]
 // mod tests {
@@ -4034,6 +4012,25 @@ mod tests {
     use super::*;
 
     const SIGNATURE: &str = "0x0d65d92f0f6774ca40a232422329421183dca5479a17b552a9f2d98ad0bb22ac65618c83061d988cd657c239754253bf66ce6e169252710894041b345797aaa21b";
+
+    #[tokio::test]
+    async fn test_update_app_state_to_kyc_requested() {
+        let application_file = ApplicationFile::new("1".into(),"adres".into(), application::file::Version::Text("1.3".to_string()),"adres2".into(), Default::default(), Default::default(), application::file::Datacap {
+            _group: application::file::DatacapGroup::DA,
+            data_type: application::file::DataType::Slingshot,
+            total_requested_amount: "1 TiB".into(),
+            single_size_dataset: "1 GiB".into(),
+            replicas: 2,
+            weekly_allocation: "1 TiB".into(),
+            custom_multisig: "adres".into(),
+            identifier: "id".into()
+         }).await;
+        let application_file = application_file.kyc_request();
+        assert_eq!(
+            application_file.lifecycle.state,
+            AppState::KYCRequested
+            );
+    }
 
     #[tokio::test]
     async fn test_update_app_state_to_submitted_after_kyc() {
