@@ -137,9 +137,20 @@ impl file::ApplicationFile {
     pub fn move_back_to_submit_state(self) -> Self {
         let new_life_cycle = self.lifecycle.clone().move_back_to_submit_state();
         Self {
-            lifecycle: new_life_cycle,
-            ..self.clone()
-        }
+          lifecycle: new_life_cycle,
+          ..self.clone()
+      }
+    }
+  
+    pub fn kyc_request(&self) -> Self {
+      let new_life_cycle = self
+          .lifecycle
+          .clone()
+          .kyc_request();
+      Self {
+          lifecycle: new_life_cycle,
+          ..self.clone()
+      }
     }
 }
 

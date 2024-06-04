@@ -8,6 +8,7 @@ impl AppState {
             AppState::AdditionalInfoRequired => "additional information required",
             AppState::AdditionalInfoSubmitted => "additional information submitted",
             AppState::Submitted => "validated",
+            AppState::KYCRequested => "kyc requested",
             AppState::ChangesRequested => "application changes requested",
             AppState::ReadyToSign => "ready to sign",
             AppState::StartSignDatacap => "start sign datacap",
@@ -31,6 +32,14 @@ impl LifeCycle {
             client_on_chain_address,
             multisig_address,
             edited: Some(false)
+        }
+    }
+
+    pub fn kyc_request(&self) -> Self {
+        LifeCycle {
+            state: AppState::KYCRequested,
+            updated_at: Utc::now().to_string(),
+            ..self.clone()
         }
     }
 
