@@ -77,7 +77,7 @@ pub fn get_address_from_signature(
     };
     let hash = message.eip712_signing_hash(&domain);
     let signature = Signature::from_str(&signature).map_err(|e| LDNError::New(format!("Signature parsing failed: {e:?}")))?;
-    Ok(signature.recover_address_from_prehash(&hash).unwrap())
+    Ok(signature.recover_address_from_prehash(&hash).map_err(|e| LDNError::New(format!("Recover address from prehash failed: {e:?}")))?)
 }
 
 #[cfg(test)]
