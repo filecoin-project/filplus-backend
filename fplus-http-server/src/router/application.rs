@@ -456,6 +456,24 @@ pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")
 }
 
+#[post("application/request_kyc")]
+pub async fn request_kyc(
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+        };
+    match ldn_application.request_kyc(&query.id, &query.owner, &query.repo).await {
+        Ok(()) => {
+            return HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap())
+        }
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    };
+}
+
 #[post("application/trigger_ssa")]
 pub async fn trigger_ssa(info: web::Json<TriggerSSAInfo>) -> impl Responder {
     match LDNApplication::trigger_ssa(info.into_inner()).await {

@@ -233,6 +233,7 @@ impl GithubWrapper {
         let search_labels = vec![
             "waiting for allocator review",
             AppState::Submitted.as_str(),
+            AppState::KYCRequested.as_str(),
             AppState::ReadyToSign.as_str(),
             AppState::StartSignDatacap.as_str(),
             AppState::Granted.as_str(),

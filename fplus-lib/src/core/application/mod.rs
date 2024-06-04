@@ -132,6 +132,17 @@ impl file::ApplicationFile {
             ..self.clone()
         }
     }
+
+    pub fn kyc_request(&self) -> Self {
+        let new_life_cycle = self
+            .lifecycle
+            .clone()
+            .kyc_request();
+        Self {
+            lifecycle: new_life_cycle,
+            ..self.clone()
+        }
+    }
 }
 
 impl std::str::FromStr for file::ApplicationFile {
