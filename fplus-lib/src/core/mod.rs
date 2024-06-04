@@ -1,7 +1,8 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use alloy::primitives::Address;
+use chrono::{DateTime, Utc, Local};
 use futures::future;
 use octocrab::models::{
     pulls::PullRequest,
@@ -13,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
 use crate::{
-    base64, config::get_env_var_or_default, core::application::file::Allocations, error::LDNError, external_services::{
+    base64, config::get_env_var_or_default, core::application::{file::Allocations, gitcoin_interaction::{get_address_from_signature, verify_on_gitcoin, KycApproval}}, error::LDNError, external_services::{
         blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         }
@@ -182,6 +183,12 @@ pub struct VerifierActionsQueryParams {
     pub id: String,
     pub owner: String,
     pub repo: String,
+}
+
+#[derive(Deserialize)]
+pub struct SubmitKYCInfo {
+    pub message: KycApproval,
+    pub signature: String,
 }
 
 #[derive(Debug, Clone)]
@@ -822,7 +829,7 @@ impl LDNApplication {
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
-                AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
+                AppState::KYCRequested | AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
                     let app_file: ApplicationFile = self.file().await?;
                     let allocation_amount_parsed = process_amount(allocation_amount.clone());
 
@@ -1698,7 +1705,7 @@ impl LDNApplication {
 
         // Check if application is in Submitted state
         let state = application.lifecycle.get_state();
-        if state == AppState::Submitted || state == AppState::AdditionalInfoRequired || state == AppState::AdditionalInfoSubmitted {
+        if state == AppState::KYCRequested || state == AppState::Submitted || state == AppState::AdditionalInfoRequired || state == AppState::AdditionalInfoSubmitted {
             if !application.lifecycle.validated_by.is_empty() {
                 log::warn!(
                     "- Application has already been validated by: {}",
@@ -1767,6 +1774,10 @@ impl LDNApplication {
             }
 
             let res: bool = match app_state {
+                AppState::KYCRequested => {
+                    log::warn!("Val Trigger (RtS) - Application state is KYCRequested");
+                    return Ok(false);
+                }
                 AppState::AdditionalInfoRequired => {
                     log::warn!("Val Trigger (RtS) - Application state is MoreInfoNeeded");
                     return Ok(false);
@@ -3531,6 +3542,81 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(updated_application) // Return the updated ApplicationFile
     }
 
+    pub async fn request_kyc(self, id: &str, owner: &str, repo: &str) -> Result<(), LDNError> {
+        let app_model =
+            Self::get_application_model(id.to_string(), owner.to_string(), repo.to_string())
+                .await?;
+
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                id
+            ))
+        })?;
+        let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
+        if application_file.lifecycle.state != AppState::Submitted {
+            return Err(LDNError::Load(format!("Application state is {:?}. Expected Submitted", application_file.lifecycle.state)));
+        }
+
+        let application_file = application_file.kyc_request();
+
+        database::applications::update_application( 
+            id.to_string(),
+            owner.to_string(),
+            repo.to_string(),
+            app_model.pr_number.try_into().map_err(|e| 
+                LDNError::Load(format!(
+                    "Parse PR number: {} to u64 failed  /// {}",
+                    app_model.pr_number, e
+                )))?,
+            serde_json::to_string_pretty(&application_file).unwrap(),
+            app_model.path.clone()
+        ).await.expect("Failed to update_application in DB!");
+
+        self.issue_updates_for_kyc(&application_file.issue_number.parse().unwrap()).await?;
+        
+        self.update_and_commit_application_state(
+            application_file.clone(),
+            owner.to_string(),
+            repo.to_string(),
+            app_model.sha.unwrap(),
+            LDNPullRequest::application_branch_name(&application_file.id),
+            app_model.path.unwrap(),
+            "KYC requested".to_string(),
+            ).await?;
+        Ok(())
+    }
+
+    pub async fn issue_updates_for_kyc(&self, issue_number: &u64) -> Result<(), LDNError> {
+        let comment = format!(
+            "KYC has been requested. Please complete KYC at {}/?owner={}&repo={}&client={}&issue={}", 
+            get_env_var_or_default("KYC_URL"),
+            &self.github.owner,
+            &self.github.repo,
+            &self.application_id,
+            issue_number,
+        );
+
+        self.github.add_comment_to_issue(*issue_number, &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+
+        self.github.replace_issue_labels(*issue_number, &["kyc requested".to_string()])
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding labels to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+        Ok(())
+    }
+
     pub async fn trigger_ssa(id: &str, owner: &str, repo: &str, info: TriggerSSAInfo) -> Result<(), LDNError> {
         let app_model =
             Self::get_application_model(id.into(), owner.into(), repo.into())
@@ -3571,6 +3657,105 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         };
         Self::refill(refill_info).await?;
         Ok(())
+    }
+
+    pub async fn submit_kyc(self, info: &SubmitKYCInfo) -> Result<(), LDNError> {
+        let client_id = &info.message.client_id;
+        let repo = &info.message.allocator_repo_name;
+        let owner = &info.message.allocator_repo_owner;
+        let app_model =
+            Self::get_application_model(client_id.clone(), owner.clone(), repo.clone())
+                .await?;
+
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                client_id
+            ))
+        })?;
+        let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
+        let address_from_signature = LDNApplication::verify_kyc_data_and_get_eth_address(&info.message, &info.signature, &application_file.lifecycle.state)?;
+
+        let score = verify_on_gitcoin(&address_from_signature).await?;
+        let application_file = application_file.move_back_to_submit_state();
+        database::applications::update_application( 
+            client_id.clone(),
+            owner.clone(),
+            repo.clone(),
+            app_model.pr_number.try_into().map_err(|e| 
+                LDNError::Load(format!(
+                    "Parse PR number: {} to u64 failed  /// {}",
+                    app_model.pr_number, e
+                )))?,
+            serde_json::to_string_pretty(&application_file).unwrap(),
+            app_model.path.clone()
+        ).await.expect("Failed to update_application in DB!");
+
+        self.issue_updates_for_kyc_submit(&application_file.issue_number.parse().unwrap(), &score, &address_from_signature).await?;
+        
+        self.update_and_commit_application_state(
+            application_file.clone(),
+            owner.clone(),
+            repo.clone(),
+            app_model.sha.unwrap(),
+            LDNPullRequest::application_branch_name(&application_file.id),
+            app_model.path.unwrap(),
+            "KYC submitted".to_string(),
+            ).await?;
+        Ok(())
+    }
+
+    async fn issue_updates_for_kyc_submit(&self, issue_number: &u64, score: &f64, eth_address: &Address) -> Result<(), LDNError> {
+        let comment = format!(
+            "KYC completed for client address `{}` with Optimism address `{}` and passport score `{}`.", &self.application_id, eth_address, score.round() as i64
+        );
+
+        self.github.add_comment_to_issue(*issue_number, &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+
+        self.github.replace_issue_labels(*issue_number, &[AppState::Submitted.as_str().into(), "waiting for allocator review".into()])
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding labels to issue {} /// {}",
+                    issue_number, e
+                ));
+            })?;
+        Ok(())   
+    }
+
+    fn date_is_expired(expiration_date: &str, current_timestamp: &DateTime<Local>) -> Result<bool, LDNError> {
+        let expiration_date_to_datetime = DateTime::parse_from_rfc3339(expiration_date).map_err(
+            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")))?;
+        Ok(current_timestamp > &expiration_date_to_datetime)
+    }
+
+    fn date_is_from_future(issued_date: &str, current_timestamp: &DateTime<Local>) -> Result<bool, LDNError> {
+        let issued_date_to_datetime = DateTime::parse_from_rfc3339(issued_date).map_err(
+            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")))?;
+        Ok(current_timestamp < &issued_date_to_datetime)
+    }
+
+    fn verify_kyc_data_and_get_eth_address(message: &KycApproval, signature: &str, application_state: &AppState) -> Result<Address, LDNError> {
+        let address_from_signature = get_address_from_signature(message, signature)?;
+
+        if application_state.clone() != AppState::KYCRequested {
+            return Err(LDNError::Load(format!("Application state is {:?}. Expected RequestKYC", application_state)));
+        }
+        let current_timestamp = Local::now();
+        if LDNApplication::date_is_expired(&message.expires_at, &current_timestamp)? {
+            return Err(LDNError::Load(format!("Message expired at {}", message.expires_at)));
+        }
+        if LDNApplication::date_is_from_future(&message.issued_at, &current_timestamp)? {
+            return Err(LDNError::Load(format!("Message issued date {} is from future", message.issued_at)));
+        }
+        Ok(address_from_signature)
     }
 }
 
@@ -3794,6 +3979,8 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
         None => None,
     }
 }
+    
+
 
 // #[cfg(test)]
 // mod tests {
@@ -3817,6 +4004,88 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
 //         }
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_update_app_state_to_kyc_requested() {
+        let application_file = ApplicationFile::new("1".into(),"adres".into(), application::file::Version::Text("1.3".to_string()),"adres2".into(), Default::default(), Default::default(), application::file::Datacap {
+            _group: application::file::DatacapGroup::DA,
+            data_type: application::file::DataType::Slingshot,
+            total_requested_amount: "1 TiB".into(),
+            single_size_dataset: "1 GiB".into(),
+            replicas: 2,
+            weekly_allocation: "1 TiB".into(),
+            custom_multisig: "adres".into(),
+            identifier: "id".into()
+         }).await;
+        let application_file = application_file.kyc_request();
+        assert_eq!(
+            application_file.lifecycle.state,
+            AppState::KYCRequested
+            );
+    }
+
+    #[tokio::test]
+    async fn test_update_app_state_to_submitted_after_kyc() {
+        let mut application_file = ApplicationFile::new("1".into(),"adres".into(), application::file::Version::Text("1.3".to_string()),"adres2".into(), Default::default(), Default::default(), application::file::Datacap {
+            _group: application::file::DatacapGroup::DA,
+            data_type: application::file::DataType::Slingshot,
+            total_requested_amount: "1 TiB".into(),
+            single_size_dataset: "1 GiB".into(),
+            replicas: 2,
+            weekly_allocation: "1 TiB".into(),
+            custom_multisig: "adres".into(),
+            identifier: "id".into()
+         }).await;
+        application_file.lifecycle = application_file.lifecycle.finish_approval();
+        assert_eq!(
+            application_file.lifecycle.state,
+            AppState::Granted
+        );
+        let application_file = application_file.move_back_to_submit_state();
+        assert_eq!(
+            application_file.lifecycle.state,
+            AppState::Submitted
+        );
+    }
+
+    #[tokio::test]
+    async fn test_date_is_expired() {
+        let message: KycApproval = KycApproval {
+            message: "Connect your Fil+ application with your wallet and give access to your Gitcoin passport".into(),
+            client_id: "test".into(),
+            issued_at: "2024-05-28T09:02:51.126Z".into(),
+            expires_at: "2024-05-29T09:02:51.126Z".into(),
+            allocator_repo_name: "test".into(),
+            allocator_repo_owner: "test".into()
+        };
+        let fixed_current_date = "2024-05-28T09:04:51.126Z";
+        let fixed_current_date = DateTime::parse_from_rfc3339(fixed_current_date).map_err(
+            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")));
+        let is_expired = LDNApplication::date_is_expired(&message.expires_at, &fixed_current_date.unwrap().into());
+        assert_eq!(false, is_expired.unwrap())
+    }
+
+    #[tokio::test]
+    async fn test_date_is_from_future() {
+        let message: KycApproval = KycApproval {
+            message: "Connect your Fil+ application with your wallet and give access to your Gitcoin passport".into(),
+            client_id: "test".into(),
+            issued_at: "2024-05-28T09:02:51.126Z".into(),
+            expires_at: "2024-05-29T09:02:51.126Z".into(),
+            allocator_repo_name: "test".into(),
+            allocator_repo_owner: "test".into()
+        };
+        let fixed_current_date = "2024-05-28T09:04:51.126Z";
+        let fixed_current_date = DateTime::parse_from_rfc3339(fixed_current_date).map_err(
+            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")));
+        let is_from_future = LDNApplication::date_is_from_future(&message.issued_at, &fixed_current_date.unwrap().into());
+        assert_eq!(false, is_from_future.unwrap())
+    }
+}
 
 // #[cfg(test)]
 // mod tests {

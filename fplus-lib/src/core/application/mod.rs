@@ -6,6 +6,7 @@ pub mod client;
 pub mod datacap;
 pub mod file;
 pub mod lifecycle;
+pub mod gitcoin_interaction;
 
 impl file::ApplicationFile {
     pub async fn new(
@@ -131,6 +132,25 @@ impl file::ApplicationFile {
             lifecycle: app_lifecycle,
             ..self.clone()
         }
+    }
+
+    pub fn move_back_to_submit_state(self) -> Self {
+        let new_life_cycle = self.lifecycle.clone().move_back_to_submit_state();
+        Self {
+          lifecycle: new_life_cycle,
+          ..self.clone()
+      }
+    }
+  
+    pub fn kyc_request(&self) -> Self {
+      let new_life_cycle = self
+          .lifecycle
+          .clone()
+          .kyc_request();
+      Self {
+          lifecycle: new_life_cycle,
+          ..self.clone()
+      }
     }
 }
 

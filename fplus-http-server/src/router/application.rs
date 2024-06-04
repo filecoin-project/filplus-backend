@@ -1,6 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams, TriggerSSAInfo
+        application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, RefillInfo, ValidationPullRequestData, VerifierActionsQueryParams, SubmitKYCInfo, TriggerSSAInfo
     };
 
 
@@ -451,9 +451,43 @@ pub async fn check_for_changes(
     }
 }
 
+#[post("application/submit_kyc")]
+pub async fn submit_kyc(info: web::Json<SubmitKYCInfo>) -> impl Responder {
+    let ldn_application = match LDNApplication::load(info.message.client_id.clone(), 
+        info.message.allocator_repo_owner.clone(),
+        info.message.allocator_repo_name.clone()).await {
+            Ok(app) => app,
+            Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    };
+    match ldn_application.submit_kyc(&info.into_inner()).await {
+        Ok(()) => {
+            return HttpResponse::Ok().body(serde_json::to_string_pretty("Address verified with score").unwrap())
+        }
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    };
+}
+
 #[get("/health")]
 pub async fn health() -> impl Responder {
     HttpResponse::Ok().body("OK")
+}
+
+#[post("application/request_kyc")]
+pub async fn request_kyc(
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+        };
+    match ldn_application.request_kyc(&query.id, &query.owner, &query.repo).await {
+        Ok(()) => {
+            return HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap())
+        }
+        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+    };
 }
 
 #[post("application/trigger_ssa")]

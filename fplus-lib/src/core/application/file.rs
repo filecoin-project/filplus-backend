@@ -244,6 +244,7 @@ pub struct Provider {
 pub enum AppState {
     AdditionalInfoRequired,
     AdditionalInfoSubmitted,
+    KYCRequested,
     Submitted,
     ChangesRequested,
     ReadyToSign,

@@ -29,3 +29,6 @@ async-trait = "0.1.73"
 uuidv4 = "1.0.0"
 log = "0.4.20"
 cron = "0.12.1"
+alloy = { git = "https://github.com/alloy-rs/alloy", version = "0.1.0", features = [
+    "signers",
+] }
