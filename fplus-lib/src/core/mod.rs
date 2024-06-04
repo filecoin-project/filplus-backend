@@ -47,9 +47,6 @@ pub struct CreateApplicationInfo {
 
 #[derive(Deserialize)]
 pub struct TriggerSSAInfo {
-    pub id: String,
-    pub owner: String,
-    pub repo: String,
     pub amount: String,
     pub amount_type: String,
 }
@@ -3534,15 +3531,15 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(updated_application) // Return the updated ApplicationFile
     }
 
-    pub async fn trigger_ssa(info: TriggerSSAInfo) -> Result<(), LDNError> {
+    pub async fn trigger_ssa(id: &str, owner: &str, repo: &str, info: TriggerSSAInfo) -> Result<(), LDNError> {
         let app_model =
-            Self::get_application_model(info.id.clone(), info.owner.clone(), info.repo.clone())
+            Self::get_application_model(id.into(), owner.into(), repo.into())
                 .await?;
 
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
                 "Application {} does not have an application field",
-                info.id
+                id
             ))
         })?;
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
@@ -3564,7 +3561,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             return Err(LDNError::Load("Total datacap reached".into()));
         }
         let refill_info = RefillInfo {
-            id: info.id,
+            id: id.into(),
             amount: info.amount,
             amount_type: info.amount_type,
             owner: app_model.owner,
