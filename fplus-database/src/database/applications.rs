@@ -1,19 +1,21 @@
-use sea_orm::{entity::*, query::*, DbBackend, DbErr};
-use crate::models::applications::{Column, ActiveModel, Entity as Application, Model as ApplicationModel};
 use crate::get_database_connection;
-use sha1::{Sha1, Digest};
-use chrono::{DateTime, Utc, TimeZone};
+use crate::models::applications::{
+    ActiveModel, Column, Entity as Application, Model as ApplicationModel,
+};
+use chrono::{DateTime, TimeZone, Utc};
+use sea_orm::{entity::*, query::*, DbBackend, DbErr};
+use sha1::{Digest, Sha1};
 
 /**
  * Get all applications from the database
- * 
+ *
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
 pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
-    //Get all applications from the database. 
+    //Get all applications from the database.
     //Distinct on is not supported in sea_orm yet, so we have to use raw SQL
     let app_data = JsonValue::find_by_statement(Statement::from_sql_and_values(
         DbBackend::Postgres,
@@ -48,14 +50,27 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
             owner: app.get("owner").unwrap().as_str().unwrap().to_string(),
             repo: app.get("repo").unwrap().as_str().unwrap().to_string(),
             pr_number: app.get("pr_number").unwrap().as_i64().unwrap() as i64,
-            application: Some(app.get("application").unwrap().as_str().unwrap().to_string()),
-            updated_at: Utc.from_utc_datetime(&app.get("updated_at").unwrap().as_str().unwrap().parse::<DateTime<Utc>>().unwrap().naive_utc()),
+            application: Some(
+                app.get("application")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+            ),
+            updated_at: Utc.from_utc_datetime(
+                &app.get("updated_at")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .parse::<DateTime<Utc>>()
+                    .unwrap()
+                    .naive_utc(),
+            ),
             sha: Some(app.get("sha").unwrap().as_str().unwrap().to_string()),
             path: Some(app.get("path").unwrap().as_str().unwrap().to_string()),
         });
     }
     Ok(applications)
-   
 }
 
 /**
@@ -68,16 +83,20 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_merged_applications(owner: Option<String>, repo: Option<String>) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+pub async fn get_merged_applications(
+    owner: Option<String>,
+    repo: Option<String>,
+) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let mut query = Application::find()
-        .filter(Column::PrNumber.eq(0));
+    let mut query = Application::find().filter(Column::PrNumber.eq(0));
     if let Some(owner) = owner.clone() {
         query = query.filter(Column::Owner.contains(owner));
     }
     if let Some(repo) = repo {
         if owner.is_none() {
-            return Err(DbErr::Custom(format!("Owner is required to get merged applications").into()));
+            return Err(DbErr::Custom(
+                format!("Owner is required to get merged applications").into(),
+            ));
         }
         query = query.filter(Column::Repo.contains(repo));
     }
@@ -98,16 +117,20 @@ pub async fn get_merged_applications(owner: Option<String>, repo: Option<String>
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_active_applications(owner: Option<String>, repo: Option<String>) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+pub async fn get_active_applications(
+    owner: Option<String>,
+    repo: Option<String>,
+) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let mut query = Application::find()
-        .filter(Column::PrNumber.ne(0));
+    let mut query = Application::find().filter(Column::PrNumber.ne(0));
     if let Some(owner) = owner.clone() {
         query = query.filter(Column::Owner.contains(owner));
     }
     if let Some(repo) = repo {
         if owner.is_none() {
-            return Err(DbErr::Custom(format!("Owner is required to get merged applications").into()));
+            return Err(DbErr::Custom(
+                format!("Owner is required to get merged applications").into(),
+            ));
         }
         query = query.filter(Column::Repo.contains(repo));
     }
@@ -120,17 +143,22 @@ pub async fn get_active_applications(owner: Option<String>, repo: Option<String>
 
 /**
  * Get an application from the database with max pr_number for given id, owner and repo
- * 
+ *
  * # Arguments
  * @param id: String - The ID of the application
  * @param owner: String - The owner of the repository
  * @param repo: String - The repository name
  * @param pr_number: Option<u64> - Optional PR number to filter by
- * 
+ *
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_application(id: String, owner: String, repo: String, pr_number: Option<u64>) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn get_application(
+    id: String,
+    owner: String,
+    repo: String,
+    pr_number: Option<u64>,
+) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     let mut query = Application::find()
         .filter(Column::Id.eq(id))
@@ -162,7 +190,11 @@ pub async fn get_application(id: String, owner: String, repo: String, pr_number:
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_application_by_pr_number(owner: String, repo: String, pr_number: u64) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn get_application_by_pr_number(
+    owner: String,
+    repo: String,
+    pr_number: u64,
+) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     let result = Application::find()
         .filter(Column::Owner.contains(owner))
@@ -177,7 +209,7 @@ pub async fn get_application_by_pr_number(owner: String, repo: String, pr_number
     }
 }
 
-/** 
+/**
  * Merge an application in the database
  *
  * # Arguments
@@ -188,12 +220,24 @@ pub async fn get_application_by_pr_number(owner: String, repo: String, pr_number
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_number: u64) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn merge_application_by_pr_number(
+    owner: String,
+    repo: String,
+    pr_number: u64,
+) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let pr_application = get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await?;
+    let pr_application =
+        get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await?;
     let mut exists_merged = true;
 
-    let mut merged_application = match get_application(pr_application.id.clone(), owner.clone(), repo.clone(), Some(0)).await {
+    let mut merged_application = match get_application(
+        pr_application.id.clone(),
+        owner.clone(),
+        repo.clone(),
+        Some(0),
+    )
+    .await
+    {
         Ok(application) => application.into_active_model(),
         Err(_) => {
             exists_merged = false;
@@ -212,8 +256,7 @@ pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_numb
     let mut hasher = Sha1::new();
     let application = match pr_application.application.clone() {
         Some(app) => format!("blob {}\x00{}", app.len(), app),
-        None => "".to_string()
-
+        None => "".to_string(),
     };
     hasher.update(application.as_bytes());
     let file_sha = format!("{:x}", hasher.finalize());
@@ -226,13 +269,19 @@ pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_numb
         let result = merged_application.update(&conn).await;
         match result {
             Ok(application) => Ok(application),
-            Err(e) => Err(sea_orm::DbErr::Custom(format!("Failed to merge application: {}", e))),
+            Err(e) => Err(sea_orm::DbErr::Custom(format!(
+                "Failed to merge application: {}",
+                e
+            ))),
         }
     } else {
         let result = merged_application.insert(&conn).await;
         match result {
             Ok(application) => Ok(application),
-            Err(e) => Err(sea_orm::DbErr::Custom(format!("Failed to merge application: {}", e))),
+            Err(e) => Err(sea_orm::DbErr::Custom(format!(
+                "Failed to merge application: {}",
+                e
+            ))),
         }
     }
 }
@@ -253,12 +302,12 @@ pub async fn merge_application_by_pr_number(owner: String, repo: String, pr_numb
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
 pub async fn update_application(
-    id: String, 
-    owner: String, 
-    repo: String, 
-    pr_number: u64, 
-    app_file: String, 
-    path: Option<String>, 
+    id: String,
+    owner: String,
+    repo: String,
+    pr_number: u64,
+    app_file: String,
+    path: Option<String>,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
@@ -270,17 +319,17 @@ pub async fn update_application(
             let mut hasher = Sha1::new();
             let application = format!("blob {}\x00{}", app_file.len(), app_file);
             hasher.update(application.as_bytes());
-            let file_sha = format!("{:x}", hasher.finalize());  
+            let file_sha = format!("{:x}", hasher.finalize());
             active_application.sha = Set(Some(file_sha));
             if let Some(path) = path {
                 active_application.path = Set(Some(path));
             }
             let updated_application = active_application.update(&conn).await?;
             Ok(updated_application)
-        },
-        Err(_) => {
-            Err(sea_orm::DbErr::Custom("Failed to find the application to update.".into()))
         }
+        Err(_) => Err(sea_orm::DbErr::Custom(
+            "Failed to find the application to update.".into(),
+        )),
     }
 }
 
@@ -299,13 +348,20 @@ pub async fn update_application(
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
-pub async fn create_application(id: String, owner: String, repo: String, pr_number: u64, app_file: String, path: String) -> Result<ApplicationModel, sea_orm::DbErr> {
+pub async fn create_application(
+    id: String,
+    owner: String,
+    repo: String,
+    pr_number: u64,
+    app_file: String,
+    path: String,
+) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     //Calculate SHA
     let mut hasher = Sha1::new();
     let application = format!("blob {}\x00{}", app_file.len(), app_file);
     hasher.update(application.as_bytes());
-    let file_sha = format!("{:x}", hasher.finalize());  
+    let file_sha = format!("{:x}", hasher.finalize());
 
     let new_application = ActiveModel {
         id: Set(id),
@@ -318,10 +374,12 @@ pub async fn create_application(id: String, owner: String, repo: String, pr_numb
         ..Default::default()
     };
 
-    
     let result = match new_application.insert(&conn).await {
         Ok(application) => Ok(application),
-        Err(e) => Err(sea_orm::DbErr::Custom(format!("Failed to insert new application: {}", e))),
+        Err(e) => Err(sea_orm::DbErr::Custom(format!(
+            "Failed to insert new application: {}",
+            e
+        ))),
     };
 
     result
@@ -339,10 +397,15 @@ pub async fn create_application(id: String, owner: String, repo: String, pr_numb
  * # Returns
  * @return Result<(), sea_orm::DbErr> - The result of the operation
  */
-pub async fn delete_application(id: String, owner: String, repo: String, pr_number: u64) -> Result<(), sea_orm::DbErr> {
+pub async fn delete_application(
+    id: String,
+    owner: String,
+    repo: String,
+    pr_number: u64,
+) -> Result<(), sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let application = get_application(id.clone(), owner.clone(), repo.clone(), Some(pr_number)).await?;
+    let application =
+        get_application(id.clone(), owner.clone(), repo.clone(), Some(pr_number)).await?;
     application.delete(&conn).await?;
     Ok(())
 }
-    

@@ -1,6 +1,6 @@
 use log::warn;
-use std::collections::HashMap;
 use once_cell::sync::OnceCell;
+use std::collections::HashMap;
 
 pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
     static DEFAULTS: OnceCell<HashMap<&'static str, &'static str>> = OnceCell::new();
@@ -18,11 +18,20 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("ALLOCATOR_TEMPLATE_OWNER", "fidlabs");
         m.insert("ALLOCATOR_TEMPLATE_REPO", "allocator-template");
         m.insert("BOT_USER", "filplus-allocators-staging-bot[bot]");
-        m.insert("BACKEND_URL", "https://fp-core.dp04sa0tdc6pk.us-east-1.cs.amazonlightsail.com");
+        m.insert(
+            "BACKEND_URL",
+            "https://fp-core.dp04sa0tdc6pk.us-east-1.cs.amazonlightsail.com",
+        );
         m.insert("FILPLUS_ENV", "staging");
-        m.insert("GLIF_NODE_URL", "http://electric-publicly-adder.ngrok-free.app/rpc/v0");
+        m.insert(
+            "GLIF_NODE_URL",
+            "http://electric-publicly-adder.ngrok-free.app/rpc/v0",
+        );
         m.insert("ISSUE_TEMPLATE_VERSION", "1.3");
-        m.insert("GITCOIN_PASSPORT_DECODER", "5558D441779Eca04A329BcD6b47830D2C6607769");
+        m.insert(
+            "GITCOIN_PASSPORT_DECODER",
+            "5558D441779Eca04A329BcD6b47830D2C6607769",
+        );
         m.insert("PASSPORT_VERIFIER_CHAIN_ID", "10");
         m.insert("GITCOIN_MINIMUM_SCORE", "30");
         m.insert("KYC_URL", "https://kyc.allocator.tech");

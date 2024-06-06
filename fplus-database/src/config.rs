@@ -1,15 +1,15 @@
-use std::env;
 use log::error;
+use std::env;
 
 /**
  * Get an environment variable or exit the program if not set
- * 
+ *
  * # Arguments
  * * `key` - The environment variable key
- * 
+ *
  * # Returns
  * * The value of the environment variable
- * 
+ *
  * # Panics
  * * Exits the program if the environment variable is not set
  */

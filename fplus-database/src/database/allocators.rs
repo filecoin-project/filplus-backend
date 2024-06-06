@@ -1,21 +1,23 @@
-use sea_orm::{entity::*, query::*, DbErr};
-use crate::models::allocators::{Column, ActiveModel, Entity as Allocator, Model as AllocatorModel};
 use crate::get_database_connection;
+use crate::models::allocators::{
+    ActiveModel, Column, Entity as Allocator, Model as AllocatorModel,
+};
+use sea_orm::{entity::*, query::*, DbErr};
 
 /**
  * Get all allocators from the database
- * 
+ *
  * # Returns
  * @return Result<Vec<AllocatorModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_allocators() ->Result<Vec<AllocatorModel>, sea_orm::DbErr> {
+pub async fn get_allocators() -> Result<Vec<AllocatorModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     Allocator::find().all(&conn).await
 }
 
 /**
  * Update an allocator in the database
- * 
+ *
  * # Arguments
  * @param owner: &str - The owner of the repository
  * @param repo: &str - The repository name
@@ -25,7 +27,7 @@ pub async fn get_allocators() ->Result<Vec<AllocatorModel>, sea_orm::DbErr> {
  * @param multisig_threshold: Option<i32> - The multisig threshold
  * @param address: Option<String> - Address of the Allocator
  * @param tooling: Option<String> - Supported tooling
- * 
+ *
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
  */
@@ -80,11 +82,11 @@ pub async fn update_allocator(
 
 /**
  * Get an allocator from the database
- * 
+ *
  * # Arguments
  * @param owner: &str - The owner of the repository
  * @param repo: &str - The repository name
- * 
+ *
  * # Returns
  * @return Result<Option<AllocatorModel>, sea_orm::DbErr> - The result of the operation
  */
@@ -102,7 +104,7 @@ pub async fn get_allocator(
 
 /**
  * Creates or updates an allocator in the database
- * 
+ *
  * # Arguments
  * @param owner: String - The owner of the repository
  * @param repo: String - The repository name
@@ -111,7 +113,7 @@ pub async fn get_allocator(
  * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
  * @param address: Option<String> - Address of the Allocator
  * @param tooling: Option<String> - Supported tooling
- * 
+ *
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
  */
@@ -126,7 +128,6 @@ pub async fn create_or_update_allocator(
     address: Option<String>,
     tooling: Option<String>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
-
     let existing_allocator = get_allocator(&owner, &repo).await?;
     if let Some(allocator_model) = existing_allocator {
         let conn = get_database_connection().await?;
@@ -143,13 +144,14 @@ pub async fn create_or_update_allocator(
         if verifiers_gh_handles.is_some() {
             allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
         }
-    
+
         if multisig_threshold.is_some() {
             allocator_active_model.multisig_threshold = Set(multisig_threshold);
         }
 
         if let Some(allocation_amount_type) = allocation_amount_type {
-            allocator_active_model.allocation_amount_type = Set(Some(allocation_amount_type.to_lowercase()));
+            allocator_active_model.allocation_amount_type =
+                Set(Some(allocation_amount_type.to_lowercase()));
         } else {
             allocator_active_model.allocation_amount_type = Set(None);
         }
@@ -183,7 +185,7 @@ pub async fn create_or_update_allocator(
         if verifiers_gh_handles.is_some() {
             new_allocator.verifiers_gh_handles = Set(verifiers_gh_handles);
         }
-    
+
         if multisig_threshold.is_some() {
             new_allocator.multisig_threshold = Set(multisig_threshold);
         }
@@ -202,7 +204,9 @@ pub async fn create_or_update_allocator(
             new_allocator.tooling = Set(tooling);
         }
 
-        let conn = get_database_connection().await.expect("Failed to get DB connection");
+        let conn = get_database_connection()
+            .await
+            .expect("Failed to get DB connection");
         let insert_result = new_allocator.insert(&conn).await;
         println!("Allocator inserted: {:?}", insert_result);
         Ok(insert_result.unwrap())
@@ -211,14 +215,14 @@ pub async fn create_or_update_allocator(
 
 /**
  * Update the multisig threshold of an allocator in the database
- * 
+ *
  * This function specifically targets and updates only the multisig threshold of an existing allocator.
- * 
+ *
  * # Arguments
  * @param owner: &str - The owner of the repository.
  * @param repo: &str - The name of the repository.
  * @param multisig_threshold: i32 - The new multisig threshold to be updated in the allocator.
- * 
+ *
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation.
  * On successful update, it returns the updated AllocatorModel.
@@ -230,7 +234,8 @@ pub async fn update_allocator_threshold(
     multisig_threshold: i32,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let mut existing_allocator = get_allocator(owner, repo).await?
+    let mut existing_allocator = get_allocator(owner, repo)
+        .await?
         .ok_or_else(|| DbErr::Custom("Allocator not found".into()))?
         .into_active_model();
 
@@ -241,18 +246,15 @@ pub async fn update_allocator_threshold(
 
 /**
  * Delete an allocator from the database
- * 
+ *
  * # Arguments
  * @param owner: &str - The owner of the repository
  * @param repo: &str - The repository name
- * 
+ *
  * # Returns
  * @return Result<(), sea_orm::DbErr> - The result of the operation
  */
-pub async fn delete_allocator(
-    owner: &str,
-    repo: &str,
-) -> Result<(), sea_orm::DbErr> {
+pub async fn delete_allocator(owner: &str, repo: &str) -> Result<(), sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     let allocator = get_allocator(owner, repo).await?;
     let allocator = match allocator {

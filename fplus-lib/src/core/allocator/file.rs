@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllocatorModel {
@@ -28,7 +28,7 @@ pub struct Application {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllocationAmount {
     pub amount_type: Option<String>,
-    pub quantity_options: Option<Vec<String>>
+    pub quantity_options: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

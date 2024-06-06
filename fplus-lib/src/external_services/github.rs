@@ -90,7 +90,7 @@ struct Author {
 
 pub async fn github_async_new(owner: String, repo: String) -> GithubWrapper {
     let allocator_result = get_allocator(owner.as_str(), repo.as_str()).await;
-    
+
     let allocator = match allocator_result {
         Ok(allocator) => allocator,
         Err(e) => {
@@ -111,19 +111,21 @@ pub async fn github_async_new(owner: String, repo: String) -> GithubWrapper {
 impl GithubWrapper {
     pub fn new(owner: String, repo: String, installation_id_str: String) -> Self {
         let app_id_str = get_env_var_or_default("GITHUB_APP_ID");
-    
+
         let app_id = app_id_str.parse::<u64>().unwrap_or_else(|_| {
             log::error!("Failed to parse GITHUB_APP_ID as u64, using default value");
             0
         });
-    
+
         let installation_id = installation_id_str.parse::<u64>().unwrap_or_else(|_| {
             log::error!("Failed to parse GITHUB_INSTALLATION_ID as u64, using default value");
             0
         });
-    
+
         let gh_private_key = std::env::var("GH_PRIVATE_KEY").unwrap_or_else(|_| {
-            log::warn!("GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem");
+            log::warn!(
+                "GH_PRIVATE_KEY not found in .env file, attempting to read from gh-private-key.pem"
+            );
             std::fs::read_to_string("gh-private-key.pem").unwrap_or_else(|e| {
                 log::error!("Failed to read gh-private-key.pem. Error: {:?}", e);
                 std::process::exit(1);
@@ -139,7 +141,7 @@ impl GithubWrapper {
         let client = hyper::Client::builder()
             .pool_idle_timeout(std::time::Duration::from_secs(15))
             .build(connector);
-        
+
         let key = jsonwebtoken::EncodingKey::from_rsa_pem(gh_private_key.as_bytes()).unwrap();
         let octocrab = OctocrabBuilder::new_empty()
             .with_service(client)
@@ -214,14 +216,13 @@ impl GithubWrapper {
     pub async fn add_error_label(
         &self,
         number: u64,
-        _comment: String
+        _comment: String,
     ) -> Result<(), OctocrabError> {
-        self
-            .inner
+        self.inner
             .issues(&self.owner, &self.repo)
             .add_labels(number, &[AppState::Error.as_str().to_string()])
             .await?;
-        
+
         Ok(())
     }
 
@@ -239,28 +240,26 @@ impl GithubWrapper {
             AppState::Granted.as_str(),
             AppState::TotalDatacapReached.as_str(),
         ];
-    
+
         let issue = self.list_issue(number).await?;
-    
+
         let labels_to_keep: Vec<String> = issue
             .labels
             .iter()
             .filter(|label| !search_labels.contains(&label.name.as_str()))
             .map(|label| label.name.clone())
             .collect();
-    
+
         self.replace_issue_labels(number, &labels_to_keep).await?;
-    
+
         let new_labels: Vec<String> = new_labels.iter().map(|&s| s.to_string()).collect();
-        self
-            .inner
+        self.inner
             .issues(&self.owner, &self.repo)
             .add_labels(number, &new_labels)
             .await?;
-    
+
         Ok(())
     }
-    
 
     pub async fn list_pull_requests(&self) -> Result<Vec<PullRequest>, OctocrabError> {
         let iid = self
@@ -300,7 +299,10 @@ impl GithubWrapper {
         Ok((pr_number, iid.items.into_iter().map(|i| i.into()).collect()))
     }
 
-    pub async fn get_last_modification_date(&self, path: &str) -> Result<chrono::DateTime<chrono::Utc>, OctocrabError> {
+    pub async fn get_last_modification_date(
+        &self,
+        path: &str,
+    ) -> Result<chrono::DateTime<chrono::Utc>, OctocrabError> {
         let commits = self
             .inner
             .repos(&self.owner, &self.repo)
@@ -311,11 +313,9 @@ impl GithubWrapper {
             .await?;
 
         match commits.items.into_iter().next() {
-            Some(commit) => {
-                match commit.commit.author.and_then(|author| author.date) {
-                    Some(date) => Ok(date),
-                    None => Ok(chrono::Utc::now()),
-                }
+            Some(commit) => match commit.commit.author.and_then(|author| author.date) {
+                Some(date) => Ok(date),
+                None => Ok(chrono::Utc::now()),
             },
             None => Ok(chrono::Utc::now()),
         }
@@ -432,14 +432,14 @@ impl GithubWrapper {
         Ok(iid)
     }
 
-    pub async fn update_file (
+    pub async fn update_file(
         &self,
         path: &str,
         message: &str,
         content: &str,
         branch: &str,
         file_sha: &str,
-     ) -> Result<FileUpdate, OctocrabError> {
+    ) -> Result<FileUpdate, OctocrabError> {
         let iid = self
             .inner
             .repos(&self.owner, &self.repo)
@@ -739,10 +739,10 @@ impl GithubWrapper {
 
     pub async fn get_files_from_public_repo(
         &self,
-        owner: &str, 
-        repo: &str, 
+        owner: &str,
+        repo: &str,
         branch: &str,
-        path: Option<&str>
+        path: Option<&str>,
     ) -> Result<ContentItems, OctocrabError> {
         let octocrab = Octocrab::builder().build()?;
         let gh = octocrab.repos(owner, repo);
@@ -752,7 +752,7 @@ impl GithubWrapper {
             Some(p) => gh.get_content().r#ref(branch).path(p).send().await?,
             None => gh.get_content().r#ref(branch).send().await?,
         };
-        
+
         Ok(contents_items)
     }
 }

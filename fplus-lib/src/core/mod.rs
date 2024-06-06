@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use alloy::primitives::Address;
-use chrono::{DateTime, Utc, Local};
+use chrono::{DateTime, Local, Utc};
 use futures::future;
 use octocrab::models::{
     pulls::PullRequest,
@@ -14,11 +14,22 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
 use crate::{
-    base64, config::get_env_var_or_default, core::application::{file::Allocations, gitcoin_interaction::{get_address_from_signature, verify_on_gitcoin, KycApproval}}, error::LDNError, external_services::{
-        blockchain::BlockchainData, filecoin::get_multisig_threshold_for_actor, github::{
+    base64,
+    config::get_env_var_or_default,
+    core::application::{
+        file::Allocations,
+        gitcoin_interaction::{get_address_from_signature, verify_on_gitcoin, KycApproval},
+    },
+    error::LDNError,
+    external_services::{
+        blockchain::BlockchainData,
+        filecoin::get_multisig_threshold_for_actor,
+        github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
-        }
-    }, helpers::{compare_allowance_and_allocation, process_amount, parse_size_to_bytes}, parsers::ParsedIssue
+        },
+    },
+    helpers::{compare_allowance_and_allocation, parse_size_to_bytes, process_amount},
+    parsers::ParsedIssue,
 };
 use fplus_database::database::allocation_amounts::get_allocation_quantity_options;
 use fplus_database::database::{
@@ -29,8 +40,8 @@ use fplus_database::database::{
 use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
-    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ValidVerifierList,
-    VerifierInput, DeepCompare
+    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, DeepCompare,
+    ValidVerifierList, VerifierInput,
 };
 
 use crate::core::application::file::Allocation;
@@ -73,7 +84,7 @@ pub struct ApplicationProposalApprovalSignerInfo {
 pub struct CompleteNewApplicationProposalInfo {
     pub signer: ApplicationProposalApprovalSignerInfo,
     pub request_id: String,
-    pub new_allocation_amount: Option<String>
+    pub new_allocation_amount: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -84,7 +95,7 @@ pub struct CompleteNewApplicationApprovalInfo {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct MoreInfoNeeded {
-    pub verifier_message: String
+    pub verifier_message: String,
 }
 
 #[derive(Debug)]
@@ -225,7 +236,6 @@ pub struct ApproveChangesObject {
     pr_number: u64,
 }
 
-
 impl LDNApplication {
     pub async fn single_active(
         pr_number: u64,
@@ -258,8 +268,14 @@ impl LDNApplication {
     async fn get_pr_files_and_app(
         owner: String,
         repo: String,
-        pr_number: u64
-    ) -> Result<Option<((u64, Vec<octocrab::models::pulls::FileDiff>), ApplicationFile)>, LDNError> {
+        pr_number: u64,
+    ) -> Result<
+        Option<(
+            (u64, Vec<octocrab::models::pulls::FileDiff>),
+            ApplicationFile,
+        )>,
+        LDNError,
+    > {
         let gh = github_async_new(owner, repo).await;
         let files = match gh.get_pull_request_files(pr_number).await {
             Ok(files) => files,
@@ -287,10 +303,7 @@ impl LDNApplication {
             }
         };
 
-        Ok(Some((
-            files,
-            app,
-        )))
+        Ok(Some((files, app)))
     }
 
     async fn load_pr_files(
@@ -298,7 +311,13 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<Option<(String, String, ApplicationFile, PullRequest)>, LDNError> {
-        let result: Result<Option<((u64, Vec<octocrab::models::pulls::FileDiff>), ApplicationFile)>, LDNError> = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr.number).await;
+        let result: Result<
+            Option<(
+                (u64, Vec<octocrab::models::pulls::FileDiff>),
+                ApplicationFile,
+            )>,
+            LDNError,
+        > = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr.number).await;
         if let Some((files, app)) = result? {
             Ok(Some((
                 files.1.get(0).unwrap().sha.clone(),
@@ -616,9 +635,11 @@ impl LDNApplication {
         )
         .await?;
 
-        parsed_ldn.datacap.total_requested_amount = process_amount(parsed_ldn.datacap.total_requested_amount.clone());
-        parsed_ldn.datacap.weekly_allocation = process_amount(parsed_ldn.datacap.weekly_allocation.clone());
-        
+        parsed_ldn.datacap.total_requested_amount =
+            process_amount(parsed_ldn.datacap.total_requested_amount.clone());
+        parsed_ldn.datacap.weekly_allocation =
+            process_amount(parsed_ldn.datacap.weekly_allocation.clone());
+
         let application_id = parsed_ldn.id.clone();
         let file_name = LDNPullRequest::application_path(&application_id);
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
@@ -648,7 +669,7 @@ impl LDNApplication {
 
                 //check if id is in applications vector
                 let app_model = applications.iter().find(|app| app.id == application_id);
-                
+
                 if let Some(app_model) = app_model {
                     // Add a comment to the GitHub issue
                     log::info!("Application already exists in the database");
@@ -659,7 +680,7 @@ impl LDNApplication {
                         Some(app_model.clone()),
                     )
                     .await?;
-                    
+
                     // Return an error as the application already exists
                     return Err(LDNError::New(
                         "Pathway mismatch: Application already exists".to_string(),
@@ -667,7 +688,7 @@ impl LDNApplication {
                 } else {
                     log::info!("Application does not exist in the database");
                     let blockchain = BlockchainData::new();
-                
+
                     // Check the allowance for the address
                     match blockchain.get_allowance_for_address(&application_id).await {
                         Ok(allowance) if allowance != "0" => {
@@ -677,16 +698,18 @@ impl LDNApplication {
                                 issue_number.clone(),
                                 info.owner.clone(),
                                 info.repo.clone(),
-                                None, 
-                            ).await?;
-                            
+                                None,
+                            )
+                            .await?;
+
                             return Err(LDNError::New(
-                                "Pathway mismatch: Application has already received datacap".to_string(),
+                                "Pathway mismatch: Application has already received datacap"
+                                    .to_string(),
                             ));
-                        },
+                        }
                         Ok(_) => {
                             log::info!("Allowance not found or is zero");
-                        },
+                        }
                         Err(e) => {
                             //If error contains "DMOB api", add error label and comment to issue
                             if e.to_string().contains("DMOB api") {
@@ -696,7 +719,8 @@ impl LDNApplication {
                                     "".to_string(),
                                     info.owner.clone(),
                                     info.repo.clone(),
-                                ).await?;
+                                )
+                                .await?;
 
                                 Self::add_comment_to_issue(
                                     issue_number.clone(),
@@ -704,12 +728,12 @@ impl LDNApplication {
                                     info.repo.clone(),
                                     "Unable to access blockchain data for your address. Please contact support.".to_string(),
                                 ).await?;
-                                
+
                                 return Err(LDNError::New(
                                     "Error getting allowance for address. Unable to access blockchain".to_string(),
                                 ));
                             }
-                        },
+                        }
                     }
                 }
 
@@ -748,10 +772,7 @@ impl LDNApplication {
                 .await?;
                 Self::update_issue_labels(
                     application_file.issue_number.clone(),
-                    &[
-                        AppState::Submitted.as_str(),
-                        "waiting for allocator review",
-                    ],
+                    &[AppState::Submitted.as_str(), "waiting for allocator review"],
                     info.owner.clone(),
                     info.repo.clone(),
                 )
@@ -795,13 +816,16 @@ impl LDNApplication {
                     application_id.clone(),
                     info.owner.clone(),
                     info.repo.clone(),
-                ).await {
+                )
+                .await
+                {
                     Ok(model) => Some(model),
                     Err(_) => {
                         return Err(LDNError::New(
-                            "Original application file not found in db, but GH file exists".to_string(),
+                            "Original application file not found in db, but GH file exists"
+                                .to_string(),
                         ))
-                    },
+                    }
                 };
 
                 // Add a comment to the GitHub issue
@@ -809,10 +833,10 @@ impl LDNApplication {
                     issue_number.clone(),
                     info.owner.clone(),
                     info.repo.clone(),
-                    Some(app_model.unwrap()), 
+                    Some(app_model.unwrap()),
                 )
                 .await?;
-                
+
                 // Return an error as the application already exists
                 return Err(LDNError::New(
                     "Pathway mismatch: Allocator already assigned".to_string(),
@@ -831,7 +855,10 @@ impl LDNApplication {
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
-                AppState::KYCRequested | AppState::Submitted | AppState::AdditionalInfoRequired | AppState::AdditionalInfoSubmitted => {
+                AppState::KYCRequested
+                | AppState::Submitted
+                | AppState::AdditionalInfoRequired
+                | AppState::AdditionalInfoSubmitted => {
                     let app_file: ApplicationFile = self.file().await?;
                     let allocation_amount_parsed = process_amount(allocation_amount.clone());
 
@@ -845,7 +872,8 @@ impl LDNApplication {
                     Self::check_and_handle_allowance(
                         &db_multisig_address.clone(),
                         Some(allocation_amount_parsed.clone()),
-                    ).await?;
+                    )
+                    .await?;
 
                     let uuid = uuidv4::uuid::v4();
                     let request = AllocationRequest::new(
@@ -890,7 +918,7 @@ impl LDNApplication {
                                             Some(app_path.clone()),
                                         )
                                         .await;
-        
+
                                         Self::issue_datacap_allocation_requested(
                                             app_file.clone(),
                                             app_file.get_active_allocation(),
@@ -980,7 +1008,13 @@ impl LDNApplication {
         // Rest of your function logic remains unchanged...
         if threshold_to_use < 2 {
             return self
-                .complete_new_application_approval(signer, request_id, owner, repo, new_allocation_amount)
+                .complete_new_application_approval(
+                    signer,
+                    request_id,
+                    owner,
+                    repo,
+                    new_allocation_amount,
+                )
                 .await;
         }
 
@@ -1004,13 +1038,16 @@ impl LDNApplication {
                         Self::check_and_handle_allowance(
                             &db_multisig_address.clone(),
                             new_allocation_amount.clone(),
-                        ).await?;
+                        )
+                        .await?;
 
-                        let new_allocation_amount_parsed = process_amount(new_allocation_amount.clone().unwrap());
+                        let new_allocation_amount_parsed =
+                            process_amount(new_allocation_amount.clone().unwrap());
 
-                        let _ = app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
+                        let _ =
+                            app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
                     }
-                    
+
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     match LDNPullRequest::add_commit_to(
                         self.file_name.to_string(),
@@ -1095,7 +1132,7 @@ impl LDNApplication {
         request_id: String,
         owner: String,
         repo: String,
-        new_allocation_amount: Option<String>
+        new_allocation_amount: Option<String>,
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from the database
         let db_allocator = match get_allocator(&owner, &repo).await {
@@ -1149,15 +1186,17 @@ impl LDNApplication {
         }
 
         // Check the allowance for the address
-        
+
         if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
             let db_multisig_address = db_allocator.multisig_address.unwrap();
-            
+
             Self::check_and_handle_allowance(
                 &db_multisig_address.clone(),
                 new_allocation_amount.clone(),
-            ).await?;
-            let new_allocation_amount_parsed = process_amount(new_allocation_amount.clone().unwrap());
+            )
+            .await?;
+            let new_allocation_amount_parsed =
+                process_amount(new_allocation_amount.clone().unwrap());
 
             let _ = app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
         }
@@ -1288,12 +1327,13 @@ impl LDNApplication {
                 application_id
             ))
         })?;
-    
-        let db_application: ApplicationFile = ApplicationFile::from_str(&app_str)
-            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))?;
-        
+
+        let db_application: ApplicationFile = ApplicationFile::from_str(&app_str).map_err(|e| {
+            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+        })?;
+
         if db_application.id == application_id {
-            Ok(true)  // It exists
+            Ok(true) // It exists
         } else {
             Ok(false) // Return false if application doesn't exist
         }
@@ -1338,7 +1378,7 @@ impl LDNApplication {
                 items[0].sha.clone(),
                 owner,
                 repo,
-                true
+                true,
             )
             .await?;
             Ok(true)
@@ -1532,7 +1572,7 @@ impl LDNApplication {
                 content.sha,
                 refill_info.owner,
                 refill_info.repo,
-                true
+                true,
             )
             .await?;
             return Ok(true);
@@ -1707,7 +1747,11 @@ impl LDNApplication {
 
         // Check if application is in Submitted state
         let state = application.lifecycle.get_state();
-        if state == AppState::KYCRequested || state == AppState::Submitted || state == AppState::AdditionalInfoRequired || state == AppState::AdditionalInfoSubmitted {
+        if state == AppState::KYCRequested
+            || state == AppState::Submitted
+            || state == AppState::AdditionalInfoRequired
+            || state == AppState::AdditionalInfoSubmitted
+        {
             if !application.lifecycle.validated_by.is_empty() {
                 log::warn!(
                     "- Application has already been validated by: {}",
@@ -1825,7 +1869,7 @@ impl LDNApplication {
                         //         "Val Trigger (RtS) - Not ready to sign - actor is not the bot user"
                         //     );
                         //     false
-                        // } 
+                        // }
                         else if !valid_verifier_list.is_valid(&validated_by) {
                             log::warn!("Val Trigger (RtS) - Not ready to sign - valid_verifier_list is not valid");
                             false
@@ -1958,36 +2002,37 @@ impl LDNApplication {
         branch_name: String,
         filename: String,
         commit_message: String,
-    ) -> Result<ApplicationFile, LDNError> {  // Changed return type to include ApplicationFile
-    
-    // Serialize the updated application file
-    let file_content = match serde_json::to_string_pretty(&db_application_file) {
-        Ok(f) => f,
-        Err(e) => {
-            Self::add_error_label(
-                db_application_file.issue_number.clone(),
-                "".to_string(),
-                owner.clone(),
-                repo.clone(),
-            )
-            .await?;
-            return Err(LDNError::New(format!(
-                "Application issue file is corrupted /// {}",
-                e
-            )));
-        }
-    };
+    ) -> Result<ApplicationFile, LDNError> {
+        // Changed return type to include ApplicationFile
 
-    // Commit the changes to the branch
-    match LDNPullRequest::add_commit_to(
-        filename.clone(),
-        branch_name.clone(),
-        commit_message,
-        file_content,
-        sha.clone(),
-        owner.clone(),
-        repo.clone()
-    )
+        // Serialize the updated application file
+        let file_content = match serde_json::to_string_pretty(&db_application_file) {
+            Ok(f) => f,
+            Err(e) => {
+                Self::add_error_label(
+                    db_application_file.issue_number.clone(),
+                    "".to_string(),
+                    owner.clone(),
+                    repo.clone(),
+                )
+                .await?;
+                return Err(LDNError::New(format!(
+                    "Application issue file is corrupted /// {}",
+                    e
+                )));
+            }
+        };
+
+        // Commit the changes to the branch
+        match LDNPullRequest::add_commit_to(
+            filename.clone(),
+            branch_name.clone(),
+            commit_message,
+            file_content,
+            sha.clone(),
+            owner.clone(),
+            repo.clone(),
+        )
         .await
         {
             Some(()) => {
@@ -2005,16 +2050,21 @@ impl LDNApplication {
                                 Some(filename.clone()),
                             )
                             .await;
-                            
+
                             match update_result {
-                                Ok(_) => return Ok(db_application_file),  // Return the updated ApplicationFile
+                                Ok(_) => return Ok(db_application_file), // Return the updated ApplicationFile
                                 Err(e) => {
                                     log::error!("Failed to update application: {}", e);
-                                    return Err(LDNError::New("Failed to update the application in the database".to_string()));
+                                    return Err(LDNError::New(
+                                        "Failed to update the application in the database"
+                                            .to_string(),
+                                    ));
                                 }
                             }
                         } else {
-                            return Err(LDNError::New("No pull request found for the given branch".to_string()));
+                            return Err(LDNError::New(
+                                "No pull request found for the given branch".to_string(),
+                            ));
                         }
                     }
                     Err(e) => {
@@ -2024,34 +2074,40 @@ impl LDNApplication {
                 }
             }
             None => {
-                return Err(LDNError::New("Adding commit in approve changes failed".to_string()));
+                return Err(LDNError::New(
+                    "Adding commit in approve changes failed".to_string(),
+                ));
             }
         }
     }
 
-    pub async fn approve_changes(
-        self,
-        owner: String,
-        repo: String
-    ) -> Result<String, LDNError> {
+    pub async fn approve_changes(self, owner: String, repo: String) -> Result<String, LDNError> {
         let sha: String = self.file_sha.clone();
         let filename: String = self.file_name.clone();
         let branch_name: String = self.branch_name.clone();
         let application_id: String = self.application_id.clone();
 
-
-        let db_application_file_str_result = database::applications::get_application(application_id, owner.clone(), repo.clone(), None).await;
+        let db_application_file_str_result = database::applications::get_application(
+            application_id,
+            owner.clone(),
+            repo.clone(),
+            None,
+        )
+        .await;
         let db_application_file_str = match db_application_file_str_result {
-            Ok(file) => file.application.unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
+            Ok(file) => file
+                .application
+                .unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
             Err(e) => {
                 return Err(LDNError::New(format!(
                     "Failed to fetch application data from the database: {}",
                     e
                 )));
-            },
+            }
         };
 
-        let mut db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
+        let mut db_application_file: ApplicationFile =
+            serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
         let application_state = db_application_file.lifecycle.state.clone();
 
         if application_state != AppState::ChangesRequested {
@@ -2059,29 +2115,38 @@ impl LDNApplication {
                 "Application is not in the correct state",
             )));
         }
-    
+
         let allocation_count = db_application_file.allocation.0.len();
-    
+
         if allocation_count == 0 {
             return Err(LDNError::New(format!(
                 "Application does not have any allocations",
             )));
         }
-    
+
         let active_allocation = db_application_file.allocation.active();
         let mut remove_allocation = false;
-    
+
         let active_allocation_ref = match active_allocation.as_ref() {
             Some(allocation) => allocation,
             None => {
                 db_application_file.lifecycle.state = AppState::Granted;
                 db_application_file.lifecycle.edited = Some(false);
-        
-                let _ = self.finalize_changes_approval(db_application_file, owner, repo, sha, branch_name, filename).await;
+
+                let _ = self
+                    .finalize_changes_approval(
+                        db_application_file,
+                        owner,
+                        repo,
+                        sha,
+                        branch_name,
+                        filename,
+                    )
+                    .await;
                 return Ok("Changes approved".to_string()); // or return an error if appropriate
             }
         };
-    
+
         if allocation_count == 1 && active_allocation_ref.signers.0.is_empty() {
             // case with exactly ONE allocation which is active, but not signed yet
             remove_allocation = true;
@@ -2101,7 +2166,9 @@ impl LDNApplication {
             db_application_file.remove_active_allocation();
         }
 
-        let _ = self.finalize_changes_approval(db_application_file, owner, repo, sha, branch_name, filename).await;
+        let _ = self
+            .finalize_changes_approval(db_application_file, owner, repo, sha, branch_name, filename)
+            .await;
 
         Ok("Changes approved".to_string())
     }
@@ -2113,7 +2180,7 @@ impl LDNApplication {
         repo: String,
         sha: String,
         branch_name: String,
-        filename: String
+        filename: String,
     ) -> Result<String, LDNError> {
         Self::update_and_commit_application_state(
             self,
@@ -2124,8 +2191,15 @@ impl LDNApplication {
             branch_name.clone(),
             filename.clone(),
             "Changes approved".to_string(),
-        ).await?;
-        Self::issue_changes_approved(db_application_file.issue_number.clone(), owner, repo, db_application_file.lifecycle.state.clone()).await?;
+        )
+        .await?;
+        Self::issue_changes_approved(
+            db_application_file.issue_number.clone(),
+            owner,
+            repo,
+            db_application_file.lifecycle.state.clone(),
+        )
+        .await?;
         Ok("Changes approved".to_string())
     }
 
@@ -2153,19 +2227,23 @@ impl LDNApplication {
         match result {
             Ok(Some(((_, files), app))) => {
                 if let Some(file) = files.get(0) {
-                    sha = file.sha.clone(); 
+                    sha = file.sha.clone();
                     filename = file.filename.clone();
                     application_file = app;
                 } else {
-                    return Err(LDNError::New("No files found in the pull request".to_string()));
+                    return Err(LDNError::New(
+                        "No files found in the pull request".to_string(),
+                    ));
                 }
-            },
+            }
             Ok(None) => {
-                return Err(LDNError::New("Failed to fetch PR files or application file".to_string()));
-            },
+                return Err(LDNError::New(
+                    "Failed to fetch PR files or application file".to_string(),
+                ));
+            }
             Err(e) => {
                 return Err(e);
-            },
+            }
         };
 
         if application_file.lifecycle.edited.unwrap_or(false) == false {
@@ -2174,7 +2252,7 @@ impl LDNApplication {
         }
 
         let allocation_count = application_file.allocation.0.len();
-        
+
         if allocation_count == 0 {
             return Err(LDNError::New(format!(
                 "Application does not have any allocations",
@@ -2183,22 +2261,40 @@ impl LDNApplication {
 
         let application_id: String = application_file.id.clone();
 
-        let db_application_file_str_result = database::applications::get_application(application_file.id.clone(), owner.clone(), repo.clone(), None).await;
+        let db_application_file_str_result = database::applications::get_application(
+            application_file.id.clone(),
+            owner.clone(),
+            repo.clone(),
+            None,
+        )
+        .await;
         let db_application_file_str = match db_application_file_str_result {
-            Ok(file) => file.application.unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
+            Ok(file) => file
+                .application
+                .unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
             Err(e) => {
                 return Err(LDNError::New(format!(
                     "Failed to fetch application data from the database: {}",
                     e
                 )));
-            },
+            }
         };
-        let db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
-        
+        let db_application_file: ApplicationFile =
+            serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
+
         let commit_message;
 
         application_file.lifecycle.edited = Some(false);
-        if allocation_count == 1 && application_file.allocation.active().is_some() && application_file.allocation.active().unwrap().signers.0.is_empty() {
+        if allocation_count == 1
+            && application_file.allocation.active().is_some()
+            && application_file
+                .allocation
+                .active()
+                .unwrap()
+                .signers
+                .0
+                .is_empty()
+        {
             application_file.lifecycle.state = AppState::Submitted;
             application_file.allocation = Allocations(Vec::new());
             commit_message = "Updated application state to Verifier Review due to changes requested on the issue and no signed allocations."
@@ -2239,19 +2335,30 @@ impl LDNApplication {
             }
         };
 
-        match database::applications::get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await {
+        match database::applications::get_application_by_pr_number(
+            owner.clone(),
+            repo.clone(),
+            pr_number,
+        )
+        .await
+        {
             Ok(_) => {
                 let _ = database::applications::update_application(
-                    application_id, 
-                    owner.clone(), 
-                    repo.clone(), 
-                    pr_number, 
-                    file_content.clone(), 
-                    Some(filename.clone())
+                    application_id,
+                    owner.clone(),
+                    repo.clone(),
+                    pr_number,
+                    file_content.clone(),
+                    Some(filename.clone()),
                 )
-                    .await
-                    .map_err(|e| LDNError::Load(format!("Failed to update application in the database: {}", e)))?;
-            },
+                .await
+                .map_err(|e| {
+                    LDNError::Load(format!(
+                        "Failed to update application in the database: {}",
+                        e
+                    ))
+                })?;
+            }
             Err(_) => {
                 let _ = database::applications::create_application(
                     application_id,
@@ -2259,15 +2366,29 @@ impl LDNApplication {
                     repo.clone(),
                     pr_number,
                     file_content.clone(),
-                    filename.clone()
+                    filename.clone(),
                 )
-                .await.map_err(|e| LDNError::Load(format!("Failed to create application in the database: {}", e)))?;
+                .await
+                .map_err(|e| {
+                    LDNError::Load(format!(
+                        "Failed to create application in the database: {}",
+                        e
+                    ))
+                })?;
             }
         }
 
-        gh.update_file(&filename, commit_message, &file_content, &branch_name, &sha).await.map_err(|e| {
-            LDNError::Load(format!("Failed to update file in GitHub repo {}/{}. Reason: {} in file {}", gh.owner.clone(), gh.repo.clone(), e, filename))
-        })?;
+        gh.update_file(&filename, commit_message, &file_content, &branch_name, &sha)
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to update file in GitHub repo {}/{}. Reason: {} in file {}",
+                    gh.owner.clone(),
+                    gh.repo.clone(),
+                    e,
+                    filename
+                ))
+            })?;
 
         let differences = application_file.compare(&db_application_file);
 
@@ -2275,10 +2396,10 @@ impl LDNApplication {
             application_file.clone(),
             owner.clone(),
             repo.clone(),
-            differences
+            differences,
         )
         .await?;
-        
+
         return Ok(true);
     }
 
@@ -2427,10 +2548,10 @@ impl LDNApplication {
 
     /**
      * Updates the application when an issue is modified. It searches for the PR through the issue number and updates the application file.
-     * 
+     *
      * # Arguments
      * `info` - The information to update the application with.
-     * 
+     *
      * # Returns
      * `Result<LDNApplication, LDNError>` - The updated application.
      */
@@ -2445,9 +2566,15 @@ impl LDNApplication {
         .await?;
         let application_id = parsed_ldn.id.clone();
 
-        let application_model = match Self::get_application_model(application_id.clone(), info.owner.clone(), info.repo.clone()).await {
+        let application_model = match Self::get_application_model(
+            application_id.clone(),
+            info.owner.clone(),
+            info.repo.clone(),
+        )
+        .await
+        {
             Ok(app) => app,
-            Err(e) =>  {
+            Err(e) => {
                 log::warn!("Failed to get application model: {}", e);
 
                 //Application Id has not been found. That means the user has modified the wallet address
@@ -2462,28 +2589,37 @@ impl LDNApplication {
                     "".to_string(),
                     info.owner.clone(),
                     info.repo.clone(),
-                ).await?;
-                return Err(LDNError::New(format!("Failed to get application model: {}", e)));
-            
+                )
+                .await?;
+                return Err(LDNError::New(format!(
+                    "Failed to get application model: {}",
+                    e
+                )));
             }
         };
 
-        parsed_ldn.datacap.total_requested_amount = process_amount(parsed_ldn.datacap.total_requested_amount.clone());
-        parsed_ldn.datacap.weekly_allocation = process_amount(parsed_ldn.datacap.weekly_allocation.clone());
-        
+        parsed_ldn.datacap.total_requested_amount =
+            process_amount(parsed_ldn.datacap.total_requested_amount.clone());
+        parsed_ldn.datacap.weekly_allocation =
+            process_amount(parsed_ldn.datacap.weekly_allocation.clone());
+
         //Application was granted. Create a new PR with the updated application file, as if it was a new application
         if application_model.pr_number == 0 {
             return Self::create_pr_from_issue_modification(parsed_ldn, application_model).await;
         }
-        
+
         //Application was in another state. Update PR and add "edited = true" to the application file
         return Self::edit_pr_from_issue_modification(parsed_ldn, application_model).await;
     }
 
-    pub async fn edit_pr_from_issue_modification(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
+    pub async fn edit_pr_from_issue_modification(
+        parsed_ldn: ParsedIssue,
+        application_model: ApplicationModel,
+    ) -> Result<Self, LDNError> {
         //Get existing application file
         let mut pr_application = ApplicationFile::from_str(&application_model.application.unwrap())
-            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e))).unwrap();
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))
+            .unwrap();
 
         if pr_application.lifecycle.get_state() == AppState::AdditionalInfoRequired {
             pr_application.lifecycle.state = AppState::AdditionalInfoSubmitted;
@@ -2491,11 +2627,12 @@ impl LDNApplication {
                 pr_application.issue_number.clone(),
                 application_model.owner.clone(),
                 application_model.repo.clone(),
-            ).await;
+            )
+            .await;
         }
 
         let application_id = parsed_ldn.id.clone();
-        
+
         //Edit the application file with the new info from the issue
         let mut app_file = ApplicationFile::edited(
             pr_application.issue_number.clone(),
@@ -2506,7 +2643,8 @@ impl LDNApplication {
             parsed_ldn.datacap,
             pr_application.allocation.clone(),
             pr_application.lifecycle.clone(),
-        ).await;
+        )
+        .await;
 
         if app_file.allocation.0.len() < 1 {
             app_file.lifecycle.edited = Some(false);
@@ -2530,24 +2668,36 @@ impl LDNApplication {
         };
 
         //Create a new commit with the updated application file
-        let gh = github_async_new(application_model.owner.to_string(), application_model.repo.to_string()).await;
-        let branch_name = gh.get_branch_name_from_pr(application_model.pr_number as u64).await.unwrap();
+        let gh = github_async_new(
+            application_model.owner.to_string(),
+            application_model.repo.to_string(),
+        )
+        .await;
+        let branch_name = gh
+            .get_branch_name_from_pr(application_model.pr_number as u64)
+            .await
+            .unwrap();
         match LDNPullRequest::add_commit_to(
             application_model.path.clone().unwrap(),
             branch_name.clone(),
-            format!("Update application from issue #{}", pr_application.issue_number),
+            format!(
+                "Update application from issue #{}",
+                pr_application.issue_number
+            ),
             file_content.clone(),
             application_model.sha.clone().unwrap(),
             application_model.owner.clone(),
             application_model.repo.clone(),
-        ).await {
+        )
+        .await
+        {
             Some(()) => {
                 if app_file.allocation.0.len() < 1 {
                     match gh.get_pull_request_by_head(&branch_name).await {
                         Ok(prs) => {
                             if let Some(pr) = prs.get(0) {
                                 let number = pr.number;
-    
+
                                 let _ = database::applications::update_application(
                                     app_file.id.clone(),
                                     application_model.owner.clone(),
@@ -2568,7 +2718,7 @@ impl LDNApplication {
                     file_sha: application_model.sha.clone().unwrap(),
                     file_name: application_model.path.clone().unwrap(),
                     branch_name,
-                })
+                });
             }
             None => {
                 return Err(LDNError::New(format!(
@@ -2584,7 +2734,10 @@ impl LDNApplication {
         new_allocation_amount: Option<String>,
     ) -> Result<(), LDNError> {
         let blockchain = BlockchainData::new();
-        match blockchain.get_allowance_for_address("f24siazyti3akorqyvi33rvlq3i73j23rwohdamuy").await {
+        match blockchain
+            .get_allowance_for_address("f24siazyti3akorqyvi33rvlq3i73j23rwohdamuy")
+            .await
+        {
             Ok(allowance) if allowance != "0" => {
                 log::info!("Allowance found and is not zero. Value is {}", allowance);
                 match compare_allowance_and_allocation(&allowance, new_allocation_amount) {
@@ -2596,16 +2749,16 @@ impl LDNApplication {
                             println!("Allowance is not sufficient.");
                             Err(LDNError::New("Multisig address has less allowance than the new allocation amount".to_string()))
                         }
-                    },
+                    }
                     None => {
                         println!("Error parsing sizes.");
                         Err(LDNError::New("Error parsing sizes".to_string()))
-                    },
+                    }
                 }
-            },
-            Ok(_) => {
-                Err(LDNError::New("Multisig address has no remaining allowance".to_string()))
-            },
+            }
+            Ok(_) => Err(LDNError::New(
+                "Multisig address has no remaining allowance".to_string(),
+            )),
             Err(e) => {
                 log::error!("Failed to retrieve allowance: {:?}", e);
                 Err(LDNError::New("Failed to retrieve allowance".to_string()))
@@ -2613,12 +2766,16 @@ impl LDNApplication {
         }
     }
 
-    pub async fn create_pr_from_issue_modification(parsed_ldn: ParsedIssue, application_model: ApplicationModel) -> Result<Self, LDNError> {
+    pub async fn create_pr_from_issue_modification(
+        parsed_ldn: ParsedIssue,
+        application_model: ApplicationModel,
+    ) -> Result<Self, LDNError> {
         let merged_application = ApplicationFile::from_str(&application_model.application.unwrap())
-            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e))).unwrap();
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))
+            .unwrap();
 
         let application_id = parsed_ldn.id.clone();
-        
+
         //Create new application file with updated info from issue
         let application_file = ApplicationFile::edited(
             merged_application.issue_number.clone(),
@@ -2629,7 +2786,8 @@ impl LDNApplication {
             parsed_ldn.datacap,
             merged_application.allocation.clone(),
             merged_application.lifecycle.clone(),
-        ).await;
+        )
+        .await;
 
         let file_content = match serde_json::to_string_pretty(&application_file) {
             Ok(f) => f,
@@ -2661,11 +2819,15 @@ impl LDNApplication {
             application_model.sha.clone().unwrap(),
             application_model.owner.clone(),
             application_model.repo.clone(),
-            false
+            false,
         )
         .await?;
-        
-        let gh = github_async_new(application_model.owner.to_string(), application_model.repo.to_string()).await;
+
+        let gh = github_async_new(
+            application_model.owner.to_string(),
+            application_model.repo.to_string(),
+        )
+        .await;
 
         Ok(LDNApplication {
             github: gh,
@@ -2716,11 +2878,12 @@ impl LDNApplication {
         repo: String,
     ) -> Result<bool, LDNError> {
         Self::add_comment_to_issue(
-            issue_number, 
-            owner, 
-            repo, 
-            "Application is waiting for allocator review".to_string()
-        ).await?;
+            issue_number,
+            owner,
+            repo,
+            "Application is waiting for allocator review".to_string(),
+        )
+        .await?;
 
         Ok(true)
     }
@@ -2735,11 +2898,15 @@ impl LDNApplication {
 
         if let Some(db_model) = db_model {
             //Load application from db_model.application string json
-            let application = ApplicationFile::from_str(&db_model.application.unwrap())
-                .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))?;
-        
-            comment = 
-            if db_model.owner == info_owner && db_model.repo == info_repo && application.issue_number == issue_number {
+            let application =
+                ApplicationFile::from_str(&db_model.application.unwrap()).map_err(|e| {
+                    LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+                })?;
+
+            comment = if db_model.owner == info_owner
+                && db_model.repo == info_repo
+                && application.issue_number == issue_number
+            {
                 //if issue number is the same, do not add the comment
                 "There's no need to retry this application. File already exists.".to_string()
             } else if db_model.owner == info_owner && db_model.repo == info_repo {
@@ -2755,8 +2922,8 @@ impl LDNApplication {
                     db_model.owner, db_model.repo, application.issue_number
                 )
             };
-        } 
-    
+        }
+
         dbg!(&comment);
         let gh = github_async_new(info_owner.clone(), info_repo.clone()).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
@@ -2767,7 +2934,7 @@ impl LDNApplication {
                     issue_number, e
                 ));
             })?;
-    
+
         Ok(true)
     }
 
@@ -2824,7 +2991,7 @@ impl LDNApplication {
         application_file: ApplicationFile,
         owner: String,
         repo: String,
-        differences: Vec<String>
+        differences: Vec<String>,
     ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner.clone(), repo.clone()).await;
 
@@ -2863,13 +3030,11 @@ _(OLD vs NEW)_
         issue_number: String,
         owner: String,
         repo: String,
-        new_state: AppState
+        new_state: AppState,
     ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner.clone(), repo.clone()).await;
 
-        let comment = format!(
-            "#### Issue information change request has been approved."
-        );
+        let comment = format!("#### Issue information change request has been approved.");
 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
@@ -2881,13 +3046,7 @@ _(OLD vs NEW)_
             })
             .unwrap();
 
-        Self::update_issue_labels(
-            issue_number,
-            &[new_state.as_str()],
-            owner,
-            repo,
-        )
-        .await?;
+        Self::update_issue_labels(issue_number, &[new_state.as_str()], owner, repo).await?;
         Ok(true)
     }
 
@@ -3057,7 +3216,7 @@ Your Datacap Allocation Request has been {} by the Notary
         .unwrap();
         Ok(true)
     }
-    
+
     async fn issue_granted(
         issue_number: String,
         owner: String,
@@ -3123,7 +3282,7 @@ Your Datacap Allocation Request has been {} by the Notary
         issue_number: String,
         owner: String,
         repo: String,
-        message: &str
+        message: &str,
     ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner, repo).await;
         gh.add_comment_to_issue(issue_number.parse().unwrap(), message)
@@ -3142,7 +3301,7 @@ Your Datacap Allocation Request has been {} by the Notary
         issue_number: String,
         owner: String,
         repo: String,
-        verifier_message: String
+        verifier_message: String,
     ) -> Result<bool, LDNError> {
         let comment = format!(
             "## Additional Information Requested
@@ -3154,9 +3313,19 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             verifier_message
         );
         let gh = github_async_new(owner, repo).await;
-        gh.add_comment_to_issue(
+        gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
+            .await
+            .map_err(|e| {
+                return LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ));
+            })
+            .unwrap();
+
+        gh.replace_issue_labels(
             issue_number.parse().unwrap(),
-            &comment,
+            &["Additional Info Required".to_string()],
         )
         .await
         .map_err(|e| {
@@ -3166,16 +3335,6 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             ));
         })
         .unwrap();
-
-        gh.replace_issue_labels(issue_number.parse().unwrap(), &["Additional Info Required".to_string()])
-            .await
-            .map_err(|e| {
-                return LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
-                ));
-            })
-            .unwrap();
 
         Ok(true)
     }
@@ -3203,15 +3362,18 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             })
             .unwrap();
 
-        gh.replace_issue_labels(issue_number.parse().unwrap(), &["Additional Info Submitted".to_string()])
-            .await
-            .map_err(|e| {
-                return LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
-                ));
-            })
-            .unwrap();
+        gh.replace_issue_labels(
+            issue_number.parse().unwrap(),
+            &["Additional Info Submitted".to_string()],
+        )
+        .await
+        .map_err(|e| {
+            return LDNError::New(format!(
+                "Error adding comment to issue {} /// {}",
+                issue_number, e
+            ));
+        })
+        .unwrap();
         Ok(true)
     }
 
@@ -3224,9 +3386,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let issue_number = issue_number.clone();
 
-        let comment = format!(
-            "### The application has been declined."
-        );
+        let comment = format!("### The application has been declined.");
 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
@@ -3432,11 +3592,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(())
     }
 
-    pub async fn decline_application(
-        &self,
-        owner: String,
-        repo: String,
-    ) -> Result<(), LDNError> {
+    pub async fn decline_application(&self, owner: String, repo: String) -> Result<(), LDNError> {
         // Retrieve the application model from the database.
         let app_model = database::applications::get_application(
             self.application_id.clone(),
@@ -3446,38 +3602,52 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         )
         .await
         .map_err(|_| LDNError::Load(format!("No application found")))?;
-    
+
         // Check if the application is associated with a PR.
         if app_model.pr_number == 0 {
             return Err(LDNError::New(format!("Application is not in a PR")));
         }
 
-        let db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&app_model.clone().application.unwrap().clone()).unwrap();
+        let db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(
+            &app_model.clone().application.unwrap().clone(),
+        )
+        .unwrap();
 
         if db_application_file.lifecycle.get_state() > AppState::Submitted {
-            return Err(LDNError::New(format!("Application is in a state that cannot be declined")));
+            return Err(LDNError::New(format!(
+                "Application is in a state that cannot be declined"
+            )));
         }
 
-        let issue_number = self.file().await.map_err(|_| LDNError::Load("Failed to retrieve file details".into()))?.issue_number;
+        let issue_number = self
+            .file()
+            .await
+            .map_err(|_| LDNError::Load("Failed to retrieve file details".into()))?
+            .issue_number;
         LDNApplication::issue_application_declined(
             issue_number.clone(),
             owner.clone(),
             repo.clone(),
         )
         .await
-        .map_err(|e| LDNError::New(format!("Failed to issue application declined notification: {}", e)))?;
-    
+        .map_err(|e| {
+            LDNError::New(format!(
+                "Failed to issue application declined notification: {}",
+                e
+            ))
+        })?;
+
         // Attempt to close the associated pull request.
         LDNPullRequest::close_pull_request(owner.clone(), repo.clone(), app_model.pr_number as u64)
             .await
             .map_err(|e| LDNError::New(format!("Failed to close PR: {}", e)))?;
-    
+
         // Attempt to delete the associated branch.
         LDNPullRequest::delete_branch(app_model.id, owner.clone(), repo.clone())
             .await
             .map_err(|e| LDNError::New(format!("Failed to delete branch: {}", e)))?;
-    
-                // Delete the application from the database.
+
+        // Delete the application from the database.
         database::applications::delete_application(
             self.application_id.clone(),
             owner.clone(),
@@ -3486,10 +3656,9 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         )
         .await
         .map_err(|_| LDNError::New(format!("Failed to delete application")))?;
-    
+
         // Issue a notification about the application decline.
-        
-    
+
         Ok(())
     }
 
@@ -3497,29 +3666,41 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         self,
         owner: String,
         repo: String,
-        verifier_message: String
-    ) -> Result<ApplicationFile, LDNError> { // Adjusted return type to include ApplicationFile
+        verifier_message: String,
+    ) -> Result<ApplicationFile, LDNError> {
+        // Adjusted return type to include ApplicationFile
         let sha: String = self.file_sha.clone();
         let filename: String = self.file_name.clone();
         let branch_name: String = self.branch_name.clone();
         let application_id: String = self.application_id.clone();
 
-        let db_application_file_str_result = database::applications::get_application(application_id, owner.clone(), repo.clone(), None).await;
+        let db_application_file_str_result = database::applications::get_application(
+            application_id,
+            owner.clone(),
+            repo.clone(),
+            None,
+        )
+        .await;
         let db_application_file_str = match db_application_file_str_result {
-            Ok(file) => file.application.unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
+            Ok(file) => file
+                .application
+                .unwrap_or_else(|| panic!("Application data is missing")), // Consider more graceful error handling here
             Err(e) => {
                 return Err(LDNError::New(format!(
                     "Failed to fetch application data from the database: {}",
                     e
                 )));
-            },
+            }
         };
 
-        let mut db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
+        let mut db_application_file: ApplicationFile =
+            serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
         db_application_file.lifecycle.state = AppState::AdditionalInfoRequired;
 
         if db_application_file.lifecycle.get_state() > AppState::Submitted {
-            return Err(LDNError::New(format!("Application is in a state in which additional info cannot be requested")));
+            return Err(LDNError::New(format!(
+                "Application is in a state in which additional info cannot be requested"
+            )));
         }
 
         // Adjusted to capture the result of update_and_commit_application_state
@@ -3532,14 +3713,16 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             branch_name.clone(),
             filename.clone(),
             "Additional information required".to_string(),
-        ).await?;
+        )
+        .await?;
 
         let _ = Self::issue_additional_info_required(
             db_application_file.issue_number.clone(),
             owner.clone(),
             repo.clone(),
             verifier_message.clone(),
-        ).await;
+        )
+        .await;
 
         Ok(updated_application) // Return the updated ApplicationFile
     }
@@ -3557,26 +3740,33 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         })?;
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
         if application_file.lifecycle.state != AppState::Submitted {
-            return Err(LDNError::Load(format!("Application state is {:?}. Expected Submitted", application_file.lifecycle.state)));
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected Submitted",
+                application_file.lifecycle.state
+            )));
         }
 
         let application_file = application_file.kyc_request();
 
-        database::applications::update_application( 
+        database::applications::update_application(
             id.to_string(),
             owner.to_string(),
             repo.to_string(),
-            app_model.pr_number.try_into().map_err(|e| 
+            app_model.pr_number.try_into().map_err(|e| {
                 LDNError::Load(format!(
                     "Parse PR number: {} to u64 failed  /// {}",
                     app_model.pr_number, e
-                )))?,
+                ))
+            })?,
             serde_json::to_string_pretty(&application_file).unwrap(),
-            app_model.path.clone()
-        ).await.expect("Failed to update_application in DB!");
+            app_model.path.clone(),
+        )
+        .await
+        .expect("Failed to update_application in DB!");
 
-        self.issue_updates_for_kyc(&application_file.issue_number.parse().unwrap()).await?;
-        
+        self.issue_updates_for_kyc(&application_file.issue_number.parse().unwrap())
+            .await?;
+
         self.update_and_commit_application_state(
             application_file.clone(),
             owner.to_string(),
@@ -3585,7 +3775,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             LDNPullRequest::application_branch_name(&application_file.id),
             app_model.path.unwrap(),
             "KYC requested".to_string(),
-            ).await?;
+        )
+        .await?;
         Ok(())
     }
 
@@ -3599,7 +3790,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             issue_number,
         );
 
-        self.github.add_comment_to_issue(*issue_number, &comment)
+        self.github
+            .add_comment_to_issue(*issue_number, &comment)
             .await
             .map_err(|e| {
                 return LDNError::New(format!(
@@ -3608,7 +3800,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 ));
             })?;
 
-        self.github.replace_issue_labels(*issue_number, &["kyc requested".to_string()])
+        self.github
+            .replace_issue_labels(*issue_number, &["kyc requested".to_string()])
             .await
             .map_err(|e| {
                 return LDNError::New(format!(
@@ -3619,10 +3812,13 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(())
     }
 
-    pub async fn trigger_ssa(id: &str, owner: &str, repo: &str, info: TriggerSSAInfo) -> Result<(), LDNError> {
-        let app_model =
-            Self::get_application_model(id.into(), owner.into(), repo.into())
-                .await?;
+    pub async fn trigger_ssa(
+        id: &str,
+        owner: &str,
+        repo: &str,
+        info: TriggerSSAInfo,
+    ) -> Result<(), LDNError> {
+        let app_model = Self::get_application_model(id.into(), owner.into(), repo.into()).await?;
 
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
@@ -3633,20 +3829,28 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
 
         if application_file.lifecycle.state != AppState::Granted {
-            return Err(LDNError::Load(format!("Application state is {:?}. Expected Granted", application_file.lifecycle.state)));
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected Granted",
+                application_file.lifecycle.state
+            )));
         }
-        let last_allocation = application_file.get_last_request_allowance().ok_or(LDNError::Load("Last allocation not found".into()))?;
+        let last_allocation = application_file
+            .get_last_request_allowance()
+            .ok_or(LDNError::Load("Last allocation not found".into()))?;
         if last_allocation.is_active {
             return Err(LDNError::Load("Last active allocation ID is active".into()));
         }
 
         let requested_so_far = application_file.allocation.total_requested();
-        let total_requested = parse_size_to_bytes(&application_file.datacap.total_requested_amount).ok_or(
-            LDNError::Load("Can not parse total requested amount to bytes".into()),
-            )?;
-        let ssa_amount = parse_size_to_bytes((format!("{}{}", &info.amount, &info.amount_type)).as_str()).ok_or(
-            LDNError::Load("Can not parse requested amount to bytes".into()),
-            )?;
+        let total_requested = parse_size_to_bytes(&application_file.datacap.total_requested_amount)
+            .ok_or(LDNError::Load(
+                "Can not parse total requested amount to bytes".into(),
+            ))?;
+        let ssa_amount =
+            parse_size_to_bytes((format!("{}{}", &info.amount, &info.amount_type)).as_str())
+                .ok_or(LDNError::Load(
+                    "Can not parse requested amount to bytes".into(),
+                ))?;
         if requested_so_far + ssa_amount > total_requested {
             return Err(LDNError::Load("The sum of datacap requested so far and requested amount exceeds total requested amount".into()));
         }
@@ -3666,8 +3870,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let repo = &info.message.allocator_repo_name;
         let owner = &info.message.allocator_repo_owner;
         let app_model =
-            Self::get_application_model(client_id.clone(), owner.clone(), repo.clone())
-                .await?;
+            Self::get_application_model(client_id.clone(), owner.clone(), repo.clone()).await?;
 
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
@@ -3676,25 +3879,37 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             ))
         })?;
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
-        let address_from_signature = LDNApplication::verify_kyc_data_and_get_eth_address(&info.message, &info.signature, &application_file.lifecycle.state)?;
+        let address_from_signature = LDNApplication::verify_kyc_data_and_get_eth_address(
+            &info.message,
+            &info.signature,
+            &application_file.lifecycle.state,
+        )?;
 
         let score = verify_on_gitcoin(&address_from_signature).await?;
         let application_file = application_file.move_back_to_submit_state();
-        database::applications::update_application( 
+        database::applications::update_application(
             client_id.clone(),
             owner.clone(),
             repo.clone(),
-            app_model.pr_number.try_into().map_err(|e| 
+            app_model.pr_number.try_into().map_err(|e| {
                 LDNError::Load(format!(
                     "Parse PR number: {} to u64 failed  /// {}",
                     app_model.pr_number, e
-                )))?,
+                ))
+            })?,
             serde_json::to_string_pretty(&application_file).unwrap(),
-            app_model.path.clone()
-        ).await.expect("Failed to update_application in DB!");
+            app_model.path.clone(),
+        )
+        .await
+        .expect("Failed to update_application in DB!");
 
-        self.issue_updates_for_kyc_submit(&application_file.issue_number.parse().unwrap(), &score, &address_from_signature).await?;
-        
+        self.issue_updates_for_kyc_submit(
+            &application_file.issue_number.parse().unwrap(),
+            &score,
+            &address_from_signature,
+        )
+        .await?;
+
         self.update_and_commit_application_state(
             application_file.clone(),
             owner.clone(),
@@ -3703,16 +3918,23 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             LDNPullRequest::application_branch_name(&application_file.id),
             app_model.path.unwrap(),
             "KYC submitted".to_string(),
-            ).await?;
+        )
+        .await?;
         Ok(())
     }
 
-    async fn issue_updates_for_kyc_submit(&self, issue_number: &u64, score: &f64, eth_address: &Address) -> Result<(), LDNError> {
+    async fn issue_updates_for_kyc_submit(
+        &self,
+        issue_number: &u64,
+        score: &f64,
+        eth_address: &Address,
+    ) -> Result<(), LDNError> {
         let comment = format!(
             "KYC completed for client address `{}` with Optimism address `{}` and passport score `{}`.", &self.application_id, eth_address, score.round() as i64
         );
 
-        self.github.add_comment_to_issue(*issue_number, &comment)
+        self.github
+            .add_comment_to_issue(*issue_number, &comment)
             .await
             .map_err(|e| {
                 return LDNError::New(format!(
@@ -3721,7 +3943,14 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 ));
             })?;
 
-        self.github.replace_issue_labels(*issue_number, &[AppState::Submitted.as_str().into(), "waiting for allocator review".into()])
+        self.github
+            .replace_issue_labels(
+                *issue_number,
+                &[
+                    AppState::Submitted.as_str().into(),
+                    "waiting for allocator review".into(),
+                ],
+            )
             .await
             .map_err(|e| {
                 return LDNError::New(format!(
@@ -3729,33 +3958,52 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     issue_number, e
                 ));
             })?;
-        Ok(())   
+        Ok(())
     }
 
-    fn date_is_expired(expiration_date: &str, current_timestamp: &DateTime<Local>) -> Result<bool, LDNError> {
-        let expiration_date_to_datetime = DateTime::parse_from_rfc3339(expiration_date).map_err(
-            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")))?;
+    fn date_is_expired(
+        expiration_date: &str,
+        current_timestamp: &DateTime<Local>,
+    ) -> Result<bool, LDNError> {
+        let expiration_date_to_datetime = DateTime::parse_from_rfc3339(expiration_date)
+            .map_err(|e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")))?;
         Ok(current_timestamp > &expiration_date_to_datetime)
     }
 
-    fn date_is_from_future(issued_date: &str, current_timestamp: &DateTime<Local>) -> Result<bool, LDNError> {
-        let issued_date_to_datetime = DateTime::parse_from_rfc3339(issued_date).map_err(
-            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")))?;
+    fn date_is_from_future(
+        issued_date: &str,
+        current_timestamp: &DateTime<Local>,
+    ) -> Result<bool, LDNError> {
+        let issued_date_to_datetime = DateTime::parse_from_rfc3339(issued_date)
+            .map_err(|e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")))?;
         Ok(current_timestamp < &issued_date_to_datetime)
     }
 
-    fn verify_kyc_data_and_get_eth_address(message: &KycApproval, signature: &str, application_state: &AppState) -> Result<Address, LDNError> {
+    fn verify_kyc_data_and_get_eth_address(
+        message: &KycApproval,
+        signature: &str,
+        application_state: &AppState,
+    ) -> Result<Address, LDNError> {
         let address_from_signature = get_address_from_signature(message, signature)?;
 
         if application_state.clone() != AppState::KYCRequested {
-            return Err(LDNError::Load(format!("Application state is {:?}. Expected RequestKYC", application_state)));
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected RequestKYC",
+                application_state
+            )));
         }
         let current_timestamp = Local::now();
         if LDNApplication::date_is_expired(&message.expires_at, &current_timestamp)? {
-            return Err(LDNError::Load(format!("Message expired at {}", message.expires_at)));
+            return Err(LDNError::Load(format!(
+                "Message expired at {}",
+                message.expires_at
+            )));
         }
         if LDNApplication::date_is_from_future(&message.issued_at, &current_timestamp)? {
-            return Err(LDNError::Load(format!("Message issued date {} is from future", message.issued_at)));
+            return Err(LDNError::Load(format!(
+                "Message issued date {} is from future",
+                message.issued_at
+            )));
         }
         Ok(address_from_signature)
     }
@@ -3791,7 +4039,10 @@ impl LDNPullRequest {
                 ));
             })?;
 
-        let issue_link = format!("https://github.com/{}/{}/issues/{}", owner, repo, application_id);
+        let issue_link = format!(
+            "https://github.com/{}/{}/issues/{}",
+            owner, repo, application_id
+        );
 
         let (_pr, file_sha) = gh
             .create_merge_request(CreateMergeRequestData {
@@ -3837,8 +4088,11 @@ impl LDNPullRequest {
                 ));
             })?;
 
-        let issue_link = format!("https://github.com/{}/{}/issues/{}", owner, repo, application_id);
-        
+        let issue_link = format!(
+            "https://github.com/{}/{}/issues/{}",
+            owner, repo, application_id
+        );
+
         let pr = match gh
             .create_refill_merge_request(CreateRefillMergeRequestData {
                 issue_link,
@@ -3925,15 +4179,16 @@ impl LDNPullRequest {
         Ok(())
     }
 
-    pub async fn delete_branch(application_id: String, owner: String, repo: String) -> Result<(), LDNError> {
+    pub async fn delete_branch(
+        application_id: String,
+        owner: String,
+        repo: String,
+    ) -> Result<(), LDNError> {
         let gh = github_async_new(owner.clone(), repo.clone()).await;
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
         let request = gh.build_remove_ref_request(branch_name.clone()).unwrap();
         gh.remove_branch(request).await.map_err(|e| {
-            return LDNError::New(format!(
-                "Error deleting branch {} /// {}",
-                branch_name, e
-            ));
+            return LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e));
         })?;
         Ok(())
     }
@@ -3981,15 +4236,13 @@ pub fn get_file_sha(content: &ContentItems) -> Option<String> {
         None => None,
     }
 }
-    
-
 
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
 
 //     #[tokio::test]
-//     async fn test_update_pr_from_isue() { 
+//     async fn test_update_pr_from_isue() {
 //         let _ = fplus_database::setup_test_environment().await;
 //         let info = CreateApplicationInfo {
 //             issue_number: "28".to_string(),
@@ -4013,45 +4266,54 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_app_state_to_kyc_requested() {
-        let application_file = ApplicationFile::new("1".into(),"adres".into(), application::file::Version::Text("1.3".to_string()),"adres2".into(), Default::default(), Default::default(), application::file::Datacap {
-            _group: application::file::DatacapGroup::DA,
-            data_type: application::file::DataType::Slingshot,
-            total_requested_amount: "1 TiB".into(),
-            single_size_dataset: "1 GiB".into(),
-            replicas: 2,
-            weekly_allocation: "1 TiB".into(),
-            custom_multisig: "adres".into(),
-            identifier: "id".into()
-         }).await;
+        let application_file = ApplicationFile::new(
+            "1".into(),
+            "adres".into(),
+            application::file::Version::Text("1.3".to_string()),
+            "adres2".into(),
+            Default::default(),
+            Default::default(),
+            application::file::Datacap {
+                _group: application::file::DatacapGroup::DA,
+                data_type: application::file::DataType::Slingshot,
+                total_requested_amount: "1 TiB".into(),
+                single_size_dataset: "1 GiB".into(),
+                replicas: 2,
+                weekly_allocation: "1 TiB".into(),
+                custom_multisig: "adres".into(),
+                identifier: "id".into(),
+            },
+        )
+        .await;
         let application_file = application_file.kyc_request();
-        assert_eq!(
-            application_file.lifecycle.state,
-            AppState::KYCRequested
-            );
+        assert_eq!(application_file.lifecycle.state, AppState::KYCRequested);
     }
 
     #[tokio::test]
     async fn test_update_app_state_to_submitted_after_kyc() {
-        let mut application_file = ApplicationFile::new("1".into(),"adres".into(), application::file::Version::Text("1.3".to_string()),"adres2".into(), Default::default(), Default::default(), application::file::Datacap {
-            _group: application::file::DatacapGroup::DA,
-            data_type: application::file::DataType::Slingshot,
-            total_requested_amount: "1 TiB".into(),
-            single_size_dataset: "1 GiB".into(),
-            replicas: 2,
-            weekly_allocation: "1 TiB".into(),
-            custom_multisig: "adres".into(),
-            identifier: "id".into()
-         }).await;
+        let mut application_file = ApplicationFile::new(
+            "1".into(),
+            "adres".into(),
+            application::file::Version::Text("1.3".to_string()),
+            "adres2".into(),
+            Default::default(),
+            Default::default(),
+            application::file::Datacap {
+                _group: application::file::DatacapGroup::DA,
+                data_type: application::file::DataType::Slingshot,
+                total_requested_amount: "1 TiB".into(),
+                single_size_dataset: "1 GiB".into(),
+                replicas: 2,
+                weekly_allocation: "1 TiB".into(),
+                custom_multisig: "adres".into(),
+                identifier: "id".into(),
+            },
+        )
+        .await;
         application_file.lifecycle = application_file.lifecycle.finish_approval();
-        assert_eq!(
-            application_file.lifecycle.state,
-            AppState::Granted
-        );
+        assert_eq!(application_file.lifecycle.state, AppState::Granted);
         let application_file = application_file.move_back_to_submit_state();
-        assert_eq!(
-            application_file.lifecycle.state,
-            AppState::Submitted
-        );
+        assert_eq!(application_file.lifecycle.state, AppState::Submitted);
     }
 
     #[tokio::test]
@@ -4065,9 +4327,12 @@ mod tests {
             allocator_repo_owner: "test".into()
         };
         let fixed_current_date = "2024-05-28T09:04:51.126Z";
-        let fixed_current_date = DateTime::parse_from_rfc3339(fixed_current_date).map_err(
-            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")));
-        let is_expired = LDNApplication::date_is_expired(&message.expires_at, &fixed_current_date.unwrap().into());
+        let fixed_current_date = DateTime::parse_from_rfc3339(fixed_current_date)
+            .map_err(|e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")));
+        let is_expired = LDNApplication::date_is_expired(
+            &message.expires_at,
+            &fixed_current_date.unwrap().into(),
+        );
         assert_eq!(false, is_expired.unwrap())
     }
 
@@ -4082,9 +4347,12 @@ mod tests {
             allocator_repo_owner: "test".into()
         };
         let fixed_current_date = "2024-05-28T09:04:51.126Z";
-        let fixed_current_date = DateTime::parse_from_rfc3339(fixed_current_date).map_err(
-            |e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")));
-        let is_from_future = LDNApplication::date_is_from_future(&message.issued_at, &fixed_current_date.unwrap().into());
+        let fixed_current_date = DateTime::parse_from_rfc3339(fixed_current_date)
+            .map_err(|e| LDNError::New(format!("Parse &str to DateTime failed: {e:?}")));
+        let is_from_future = LDNApplication::date_is_from_future(
+            &message.issued_at,
+            &fixed_current_date.unwrap().into(),
+        );
         assert_eq!(false, is_from_future.unwrap())
     }
 }

@@ -2,7 +2,9 @@ use serde_json::json;
 
 use crate::{config::get_env_var_or_default, models::filecoin::StateReadStateResponse};
 
-pub async fn state_get_state(actor_address: &str) -> Result<StateReadStateResponse, reqwest::Error> {
+pub async fn state_get_state(
+    actor_address: &str,
+) -> Result<StateReadStateResponse, reqwest::Error> {
     let node_url = get_env_var_or_default("GLIF_NODE_URL");
 
     let client = reqwest::Client::new();
@@ -15,7 +17,11 @@ pub async fn state_get_state(actor_address: &str) -> Result<StateReadStateRespon
 
     let request = client.post(&node_url).json(&body);
 
-    let response = request.send().await?.json::<StateReadStateResponse>().await?;
+    let response = request
+        .send()
+        .await?
+        .json::<StateReadStateResponse>()
+        .await?;
     Ok(response)
 }
 

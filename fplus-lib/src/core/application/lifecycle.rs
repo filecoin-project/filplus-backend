@@ -31,7 +31,7 @@ impl LifeCycle {
             active_request: Some(empty),
             client_on_chain_address,
             multisig_address,
-            edited: Some(false)
+            edited: Some(false),
         }
     }
 

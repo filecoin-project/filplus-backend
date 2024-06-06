@@ -10,7 +10,7 @@ pub struct BlockchainData {
 /// BlockchainDataError is an error type for BlockchainData.
 #[derive(Debug)]
 pub enum BlockchainDataError {
-   Err(String),
+    Err(String),
 }
 
 //Implement Display for BlockchainDataError
@@ -52,14 +52,14 @@ impl BlockchainData {
             Ok(res) => res,
             Err(e) => {
                 println!("Error: {}", e);
-                return Err(BlockchainDataError::Err(e.to_string()))
+                return Err(BlockchainDataError::Err(e.to_string()));
             }
         };
         let body = match res.text().await {
             Ok(body) => body,
             Err(e) => {
                 log::error!("Error: {}", e);
-                return Err(BlockchainDataError::Err(e.to_string()))
+                return Err(BlockchainDataError::Err(e.to_string()));
             }
         };
         return Ok(body);
@@ -76,7 +76,7 @@ impl BlockchainData {
             Ok(res) => res,
             Err(e) => {
                 log::error!("Error: {}", e);
-                return Err(BlockchainDataError::Err(e.to_string()))
+                return Err(BlockchainDataError::Err(e.to_string()));
             }
         };
         let body = res.text().await.unwrap();
@@ -87,7 +87,9 @@ impl BlockchainData {
             Ok(json) => json,
             Err(e) => {
                 log::error!("Error: {}", e);
-                return Err(BlockchainDataError::Err("Error accessing DMOB api".to_string()))
+                return Err(BlockchainDataError::Err(
+                    "Error accessing DMOB api".to_string(),
+                ));
             }
         };
         match json["type"].as_str() {
@@ -103,11 +105,8 @@ impl BlockchainData {
                 let message = json["message"].as_str().unwrap_or("");
                 Err(BlockchainDataError::Err(message.to_string()))
             }
-            _ => {
-                Err(BlockchainDataError::Err("Unknown error".to_string()))
-            }
+            _ => Err(BlockchainDataError::Err("Unknown error".to_string())),
         }
-
     }
 
     /// Build URL

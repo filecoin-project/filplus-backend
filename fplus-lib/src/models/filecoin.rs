@@ -37,6 +37,5 @@ pub struct MultisigState {
     #[serde(rename = "UnlockDuration")]
     pub unlock_duration: u64,
     #[serde(rename = "PendingTxns")]
-    pub pending_txns: Code
+    pub pending_txns: Code,
 }
-

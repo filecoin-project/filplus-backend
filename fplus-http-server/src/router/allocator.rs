@@ -1,17 +1,22 @@
-use actix_web::{get, post, put, delete, web, HttpResponse, Responder};
-use fplus_database::database::allocators as allocators_db;
+use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
 use fplus_database::database::allocation_amounts as allocation_amounts_db;
+use fplus_database::database::allocators as allocators_db;
 use fplus_lib::core::allocator::fetch_installation_ids;
 use fplus_lib::core::allocator::generate_github_app_jwt;
-use fplus_lib::core::{allocator::{
-    create_allocator_repo, force_update_allocators, is_allocator_repo_created, process_allocator_file, update_single_installation_id_logic, validate_amount_type_and_options
-}, AllocatorUpdateForceInfo, AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo};
+use fplus_lib::core::{
+    allocator::{
+        create_allocator_repo, force_update_allocators, is_allocator_repo_created,
+        process_allocator_file, update_single_installation_id_logic,
+        validate_amount_type_and_options,
+    },
+    AllocatorUpdateForceInfo, AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo,
+};
 use fplus_lib::helpers::process_amount;
 use reqwest::Client;
 
 /**
  * Get all allocators
- * 
+ *
  * # Returns
  * @return HttpResponse - The result of the operation
  */
@@ -21,22 +26,24 @@ pub async fn allocators() -> impl Responder {
     match allocators {
         Ok(allocators) => HttpResponse::Ok().json(allocators),
         Err(e) => {
-          log::error!("Failed to fetch allocators: {}", e);
-          HttpResponse::InternalServerError().body(e.to_string())
-        },
+            log::error!("Failed to fetch allocators: {}", e);
+            HttpResponse::InternalServerError().body(e.to_string())
+        }
     }
 }
 /**
  * Creates new Allocator in the db from a JSON file in the repository
- * 
+ *
  * # Arguments
  * @param files: web::Json<ChangedAllocators> - The list of changed JSON file names
- * 
+ *
  * # Returns
  * @return HttpResponse - The result of the operation
  */
 #[post("/allocator/create")]
-pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web::Result<impl Responder> {
+pub async fn create_from_json(
+    files: web::Json<ChangedAllocators>,
+) -> actix_web::Result<impl Responder> {
     let mut error_response: Option<HttpResponse> = None;
 
     for file_name in &files.files_changed {
@@ -46,12 +53,21 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
             Ok(mut model) => {
                 let mut quantity_options: Vec<String>;
                 if let Some(allocation_amount) = model.application.allocation_amount.clone() {
-                    if allocation_amount.amount_type.clone() == None || allocation_amount.quantity_options.clone() == None {
-                        error_response = Some(HttpResponse::BadRequest().body("Amount type and quantity options are required"));
+                    if allocation_amount.amount_type.clone() == None
+                        || allocation_amount.quantity_options.clone() == None
+                    {
+                        error_response = Some(
+                            HttpResponse::BadRequest()
+                                .body("Amount type and quantity options are required"),
+                        );
                         break;
                     }
 
-                    let amount_type = allocation_amount.amount_type.clone().unwrap().to_lowercase(); // Assuming you still want to unwrap here
+                    let amount_type = allocation_amount
+                        .amount_type
+                        .clone()
+                        .unwrap()
+                        .to_lowercase(); // Assuming you still want to unwrap here
                     quantity_options = allocation_amount.quantity_options.unwrap(); // Assuming unwrap is desired
 
                     for option in quantity_options.iter_mut() {
@@ -66,7 +82,12 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                         }
                     }
 
-                    model.application.allocation_amount.as_mut().unwrap().quantity_options = Some(quantity_options);
+                    model
+                        .application
+                        .allocation_amount
+                        .as_mut()
+                        .unwrap()
+                        .quantity_options = Some(quantity_options);
                 }
 
                 let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {
@@ -86,69 +107,80 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
                     owner.clone(),
                     repo.clone(),
                     None,
-                    Some(model.pathway_addresses.msig),      
+                    Some(model.pathway_addresses.msig),
                     verifiers_gh_handles,
                     model.multisig_threshold,
-                    model.application.allocation_amount.clone().map(|a| a.amount_type.clone()).flatten(), // Flattens Option<Option<String>> to Option<String>
+                    model
+                        .application
+                        .allocation_amount
+                        .clone()
+                        .map(|a| a.amount_type.clone())
+                        .flatten(), // Flattens Option<Option<String>> to Option<String>
                     model.address,
                     tooling,
-                ).await;
+                )
+                .await;
 
                 match allocator_creation_result {
-                    Ok(_) => {
-                        match is_allocator_repo_created(&owner, &repo).await {
-                            Ok(true) => (),
-                            Ok(false) => {
-                                match create_allocator_repo(&owner, &repo).await {
-                                    Ok(_) => (),
-                                    Err(e) => {
-                                        error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
-                                        break;
-                                    }
-                                }
-                            },
+                    Ok(_) => match is_allocator_repo_created(&owner, &repo).await {
+                        Ok(true) => (),
+                        Ok(false) => match create_allocator_repo(&owner, &repo).await {
+                            Ok(_) => (),
                             Err(e) => {
-                                error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
+                                error_response =
+                                    Some(HttpResponse::BadRequest().body(e.to_string()));
                                 break;
-                            },
+                            }
+                        },
+                        Err(e) => {
+                            error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
+                            break;
                         }
                     },
                     Err(e) => {
                         error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
                         break;
-                    },
+                    }
                 }
 
                 let allocator_id = allocator_creation_result.unwrap().id;
 
-                 // Delete all old allocation amounts by allocator id
-                 match allocation_amounts_db::delete_allocation_amounts_by_allocator_id(allocator_id).await {
+                // Delete all old allocation amounts by allocator id
+                match allocation_amounts_db::delete_allocation_amounts_by_allocator_id(allocator_id)
+                    .await
+                {
                     Ok(_) => (),
                     Err(err) => {
                         error_response = Some(HttpResponse::BadRequest().body(err.to_string()));
                         break;
                     }
                 }
-    
+
                 if let Some(allocation_amount) = model.application.allocation_amount.clone() {
                     let allocation_amounts = allocation_amount.quantity_options.unwrap();
 
                     for allocation_amount in allocation_amounts {
                         let parsed_allocation_amount = allocation_amount.replace("%", "");
-                        match allocation_amounts_db::create_allocation_amount(allocator_id, parsed_allocation_amount).await {
+                        match allocation_amounts_db::create_allocation_amount(
+                            allocator_id,
+                            parsed_allocation_amount,
+                        )
+                        .await
+                        {
                             Ok(_) => (),
                             Err(err) => {
-                                error_response = Some(HttpResponse::BadRequest().body(err.to_string()));
+                                error_response =
+                                    Some(HttpResponse::BadRequest().body(err.to_string()));
                                 break;
                             }
                         }
                     }
                 }
-            },
+            }
             Err(e) => {
                 error_response = Some(HttpResponse::BadRequest().body(e.to_string()));
                 break;
-            },
+            }
         }
     }
 
@@ -159,21 +191,20 @@ pub async fn create_from_json(files: web::Json<ChangedAllocators>) -> actix_web:
     Ok(HttpResponse::Ok().body("All files processed successfully"))
 }
 
-
 /**
  * Update an allocator
- * 
+ *
  * # Arguments
  * @param path: web::Path<(String, String)> - The owner and repo of the allocator
  * @param info: web::Json<AllocatorUpdateInfo> - The updated allocator information
- * 
+ *
  * # Returns
  * @return HttpResponse - The result of the operation
  */
 #[put("/allocator/{owner}/{repo}")]
 pub async fn update(
-    path: web::Path<(String, String)>, 
-    info: web::Json<AllocatorUpdateInfo>
+    path: web::Path<(String, String)>,
+    info: web::Json<AllocatorUpdateInfo>,
 ) -> impl Responder {
     let (owner, repo) = path.into_inner();
     match allocators_db::update_allocator(
@@ -185,7 +216,9 @@ pub async fn update(
         info.multisig_threshold,
         info.address.clone(),
         info.tooling.clone(),
-    ).await {
+    )
+    .await
+    {
         Ok(allocator_model) => HttpResponse::Ok().json(allocator_model),
         Err(e) => {
             if e.to_string().contains("Allocator not found") {
@@ -198,10 +231,10 @@ pub async fn update(
 
 /**
  * Get an allocator
- * 
+ *
  * # Arguments
  * @param path: web::Path<(String, String)> - The owner and repo of the allocator
- * 
+ *
  * # Returns
  * @return HttpResponse - The result of the operation
  */
@@ -209,24 +242,20 @@ pub async fn update(
 pub async fn allocator(path: web::Path<(String, String)>) -> impl Responder {
     let (owner, repo) = path.into_inner();
     match allocators_db::get_allocator(&owner, &repo).await {
-        Ok(allocator) => {
-            match allocator {
-                Some(allocator) => HttpResponse::Ok().json(allocator),
-                None => HttpResponse::NotFound().finish(),
-            }
+        Ok(allocator) => match allocator {
+            Some(allocator) => HttpResponse::Ok().json(allocator),
+            None => HttpResponse::NotFound().finish(),
         },
-        Err(e) => {
-            HttpResponse::InternalServerError().body(e.to_string())
-        }
+        Err(e) => HttpResponse::InternalServerError().body(e.to_string()),
     }
 }
 
 /**
  * Delete an allocator
- * 
+ *
  * # Arguments
  * @param path: web::Path<(String, String)> - The owner and repo of the allocator
- * 
+ *
  * # Returns
  * @return HttpResponse - The result of the operation
  */
@@ -244,7 +273,6 @@ pub async fn delete(path: web::Path<(String, String)>) -> impl Responder {
     }
 }
 
-
 // #[post("/allocator/update_installation_ids")]
 // pub async fn update_installation_ids() -> impl Responder {
 //     match update_installation_ids_logic().await {
@@ -257,7 +285,9 @@ pub async fn delete(path: web::Path<(String, String)>) -> impl Responder {
 // }
 
 #[get("/allocator/update_installation_id")]
-pub async fn update_single_installation_id(query: web::Query<InstallationIdUpdateInfo>,) -> impl Responder {
+pub async fn update_single_installation_id(
+    query: web::Query<InstallationIdUpdateInfo>,
+) -> impl Responder {
     match update_single_installation_id_logic(query.installation_id.to_string()).await {
         Ok(results) => HttpResponse::Ok().json(results),
         Err(e) => {
@@ -271,14 +301,17 @@ pub async fn update_single_installation_id(query: web::Query<InstallationIdUpdat
  * Force updating allocator files from template.
  * It receives a list of changed files and allocators to update.
  * If allocators is not provided, it will update all allocators as long as they have an installation id.
- * 
+ *
  * # Arguments
  * @param AllocatorUpdateForceInfo - The list of changed JSON file names and allocators to update
  */
 #[post("/allocator/update/force")]
 pub async fn update_allocator_force(body: web::Json<AllocatorUpdateForceInfo>) -> impl Responder {
     // First we need to deconstruct the body
-    let AllocatorUpdateForceInfo { files, allocators: affected_allocators } = body.into_inner();
+    let AllocatorUpdateForceInfo {
+        files,
+        allocators: affected_allocators,
+    } = body.into_inner();
 
     // Logic will be implemented in allocator::update_allocator_force
     match force_update_allocators(files, affected_allocators).await {
@@ -305,7 +338,7 @@ pub async fn get_installation_ids() -> impl Responder {
         Ok(ids) => {
             // Assuming `ids` can be serialized directly; adjust based on your actual data structure
             HttpResponse::Ok().json(ids)
-        },
+        }
         Err(e) => {
             log::error!("Failed to fetch installation IDs: {}", e);
             HttpResponse::InternalServerError().finish()
