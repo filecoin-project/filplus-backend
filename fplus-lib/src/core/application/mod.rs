@@ -1,12 +1,11 @@
-
 use self::file::{AllocationRequest, Allocations, LifeCycle, Verifier, Version};
 
 pub mod allocation;
 pub mod client;
 pub mod datacap;
 pub mod file;
-pub mod lifecycle;
 pub mod gitcoin_interaction;
+pub mod lifecycle;
 
 impl file::ApplicationFile {
     pub async fn new(
@@ -43,7 +42,7 @@ impl file::ApplicationFile {
         lifecycle: file::LifeCycle,
     ) -> Self {
         //set lifecycle.edited = true
-        let lifecycle =  LifeCycle {
+        let lifecycle = LifeCycle {
             edited: Some(true),
             ..lifecycle
         };
@@ -137,20 +136,17 @@ impl file::ApplicationFile {
     pub fn move_back_to_submit_state(self) -> Self {
         let new_life_cycle = self.lifecycle.clone().move_back_to_submit_state();
         Self {
-          lifecycle: new_life_cycle,
-          ..self.clone()
-      }
+            lifecycle: new_life_cycle,
+            ..self.clone()
+        }
     }
-  
+
     pub fn kyc_request(&self) -> Self {
-      let new_life_cycle = self
-          .lifecycle
-          .clone()
-          .kyc_request();
-      Self {
-          lifecycle: new_life_cycle,
-          ..self.clone()
-      }
+        let new_life_cycle = self.lifecycle.clone().kyc_request();
+        Self {
+            lifecycle: new_life_cycle,
+            ..self.clone()
+        }
     }
 }
 

@@ -321,7 +321,8 @@ impl ApplicationFile {
             self.lifecycle.validated_by = "".to_string();
             self.lifecycle.active_request = Some("".to_string());
         } else {
-            self.lifecycle.active_request = Some(self.allocation.0[self.allocation.0.len() - 1].id.clone());
+            self.lifecycle.active_request =
+                Some(self.allocation.0[self.allocation.0.len() - 1].id.clone());
         }
     }
 
@@ -329,7 +330,10 @@ impl ApplicationFile {
         self.allocation.0.iter().find(|alloc| alloc.is_active)
     }
 
-    pub fn adjust_active_allocation_amount(&mut self, new_amount: String) -> Result<(), &'static str> {
+    pub fn adjust_active_allocation_amount(
+        &mut self,
+        new_amount: String,
+    ) -> Result<(), &'static str> {
         // Find the first active allocation
         if let Some(allocation) = self.allocation.0.iter_mut().find(|alloc| alloc.is_active) {
             // Update the amount
@@ -397,7 +401,8 @@ pub struct ValidVerifierList {
 
 impl ValidVerifierList {
     pub fn is_valid(&self, member: &str) -> bool {
-        let lowercased_verifiers: Vec<String> = self.verifiers.iter().map(|v| v.to_lowercase()).collect();
+        let lowercased_verifiers: Vec<String> =
+            self.verifiers.iter().map(|v| v.to_lowercase()).collect();
         let lowercased_member = member.to_lowercase();
         lowercased_verifiers.contains(&lowercased_member)
     }
@@ -407,7 +412,6 @@ impl ValidVerifierList {
 pub struct LDNActorsResponse {
     pub verifier_gh_handles: Vec<String>,
 }
-
 
 pub trait DeepCompare {
     fn compare(&self, other: &Self) -> Vec<String>;
@@ -420,7 +424,10 @@ impl DeepCompare for ApplicationFile {
             differences.push(format!("ID: {} vs {}", self.id, other.id));
         }
         if self.issue_number != other.issue_number {
-            differences.push(format!("Issue Number: {} vs {}", self.issue_number, other.issue_number));
+            differences.push(format!(
+                "Issue Number: {} vs {}",
+                self.issue_number, other.issue_number
+            ));
         }
         differences.append(&mut self.client.compare(&other.client));
         differences.append(&mut self.datacap.compare(&other.datacap));
@@ -437,19 +444,34 @@ impl DeepCompare for Client {
             differences.push(format!("Client Name: {} vs {}", self.name, other.name));
         }
         if self.region != other.region {
-            differences.push(format!("Client Region: {} vs {}", self.region, other.region));
+            differences.push(format!(
+                "Client Region: {} vs {}",
+                self.region, other.region
+            ));
         }
         if self.industry != other.industry {
-            differences.push(format!("Client Industry: {} vs {}", self.industry, other.industry));
+            differences.push(format!(
+                "Client Industry: {} vs {}",
+                self.industry, other.industry
+            ));
         }
         if self.website != other.website {
-            differences.push(format!("Client Website: {} vs {}", self.website, other.website));
+            differences.push(format!(
+                "Client Website: {} vs {}",
+                self.website, other.website
+            ));
         }
         if self.social_media != other.social_media {
-            differences.push(format!("Client Social Media: {} vs {}", self.social_media, other.social_media));
+            differences.push(format!(
+                "Client Social Media: {} vs {}",
+                self.social_media, other.social_media
+            ));
         }
         if self.social_media_type != other.social_media_type {
-            differences.push(format!("Client Social Media Type: {} vs {}", self.social_media_type, other.social_media_type));
+            differences.push(format!(
+                "Client Social Media Type: {} vs {}",
+                self.social_media_type, other.social_media_type
+            ));
         }
         if self.role != other.role {
             differences.push(format!("Client Role: {} vs {}", self.role, other.role));
@@ -462,28 +484,49 @@ impl DeepCompare for Datacap {
     fn compare(&self, other: &Self) -> Vec<String> {
         let mut differences = Vec::new();
         if self._group != other._group {
-            differences.push(format!("Datacap Group: {:?} vs {:?}", self._group, other._group));
+            differences.push(format!(
+                "Datacap Group: {:?} vs {:?}",
+                self._group, other._group
+            ));
         }
         if self.data_type != other.data_type {
-            differences.push(format!("Datacap Group: {:?} vs {:?}", self._group, other._group));
+            differences.push(format!(
+                "Datacap Group: {:?} vs {:?}",
+                self._group, other._group
+            ));
         }
         if self.total_requested_amount != other.total_requested_amount {
-            differences.push(format!("Total Requested Amount: {} vs {}", self.total_requested_amount, other.total_requested_amount));
+            differences.push(format!(
+                "Total Requested Amount: {} vs {}",
+                self.total_requested_amount, other.total_requested_amount
+            ));
         }
         if self.single_size_dataset != other.single_size_dataset {
-            differences.push(format!("Single Size Dataset: {} vs {}", self.single_size_dataset, other.single_size_dataset));
+            differences.push(format!(
+                "Single Size Dataset: {} vs {}",
+                self.single_size_dataset, other.single_size_dataset
+            ));
         }
         if self.replicas != other.replicas {
             differences.push(format!("Replicas: {} vs {}", self.replicas, other.replicas));
         }
         if self.weekly_allocation != other.weekly_allocation {
-            differences.push(format!("Weekly Allocation: {} vs {}", self.weekly_allocation, other.weekly_allocation));
+            differences.push(format!(
+                "Weekly Allocation: {} vs {}",
+                self.weekly_allocation, other.weekly_allocation
+            ));
         }
         if self.custom_multisig != other.custom_multisig {
-            differences.push(format!("Custom Multisig: {} vs {}", self.custom_multisig, other.custom_multisig));
+            differences.push(format!(
+                "Custom Multisig: {} vs {}",
+                self.custom_multisig, other.custom_multisig
+            ));
         }
         if self.identifier != other.identifier {
-            differences.push(format!("Identifier: {} vs {}", self.identifier, other.identifier));
+            differences.push(format!(
+                "Identifier: {} vs {}",
+                self.identifier, other.identifier
+            ));
         }
         differences
     }
@@ -493,43 +536,76 @@ impl DeepCompare for Project {
     fn compare(&self, other: &Self) -> Vec<String> {
         let mut differences = Vec::new();
         if self.history != other.history {
-            differences.push(format!("Brief history of your project and organization: {} vs {}", self.history, other.history));
+            differences.push(format!(
+                "Brief history of your project and organization: {} vs {}",
+                self.history, other.history
+            ));
         }
         if self.associated_projects != other.associated_projects {
-            differences.push(format!("Is this project associated with other projects/ecosystem stakeholders?: {} vs {}", self.associated_projects, other.associated_projects));
+            differences.push(format!(
+                "Is this project associated with other projects/ecosystem stakeholders?: {} vs {}",
+                self.associated_projects, other.associated_projects
+            ));
         }
         if self.stored_data_desc != other.stored_data_desc {
-            differences.push(format!("Describe the data being stored onto Filecoin: {} vs {}", self.stored_data_desc, other.stored_data_desc));
+            differences.push(format!(
+                "Describe the data being stored onto Filecoin: {} vs {}",
+                self.stored_data_desc, other.stored_data_desc
+            ));
         }
         if self.previous_stoarge != other.previous_stoarge {
-            differences.push(format!("Where was the data currently stored in this dataset sourced from: {} vs {}", self.previous_stoarge, other.previous_stoarge));
+            differences.push(format!(
+                "Where was the data currently stored in this dataset sourced from: {} vs {}",
+                self.previous_stoarge, other.previous_stoarge
+            ));
         }
         if self.dataset_prepare != other.dataset_prepare {
-            differences.push(format!("How do you plan to prepare the dataset: {} vs {}", self.dataset_prepare, other.dataset_prepare));
+            differences.push(format!(
+                "How do you plan to prepare the dataset: {} vs {}",
+                self.dataset_prepare, other.dataset_prepare
+            ));
         }
         if self.data_sample_link != other.data_sample_link {
-            differences.push(format!("Please share a sample of the data: {} vs {}", self.data_sample_link, other.data_sample_link));
+            differences.push(format!(
+                "Please share a sample of the data: {} vs {}",
+                self.data_sample_link, other.data_sample_link
+            ));
         }
         if self.public_dataset != other.public_dataset {
             differences.push(format!("Confirm that this is a public dataset that can be retrieved by anyone on the network: {} vs {}", self.public_dataset, other.public_dataset));
         }
         if self.retrival_frequency != other.retrival_frequency {
-            differences.push(format!("What is the expected retrieval frequency for this data: {} vs {}", self.retrival_frequency, other.retrival_frequency));
+            differences.push(format!(
+                "What is the expected retrieval frequency for this data: {} vs {}",
+                self.retrival_frequency, other.retrival_frequency
+            ));
         }
         if self.dataset_life_span != other.dataset_life_span {
-            differences.push(format!("For how long do you plan to keep this dataset stored on Filecoin: {} vs {}", self.dataset_life_span, other.dataset_life_span));
+            differences.push(format!(
+                "For how long do you plan to keep this dataset stored on Filecoin: {} vs {}",
+                self.dataset_life_span, other.dataset_life_span
+            ));
         }
         if self.geographis != other.geographis {
-            differences.push(format!("In which geographies do you plan on making storage deals: {} vs {}", self.geographis, other.geographis));
+            differences.push(format!(
+                "In which geographies do you plan on making storage deals: {} vs {}",
+                self.geographis, other.geographis
+            ));
         }
         if self.distribution != other.distribution {
-            differences.push(format!("How will you be distributing your data to storage providers: {} vs {}", self.distribution, other.distribution));
+            differences.push(format!(
+                "How will you be distributing your data to storage providers: {} vs {}",
+                self.distribution, other.distribution
+            ));
         }
         if self.providers != other.providers {
             differences.push(format!("Please list the provider IDs and location of the storage providers you will be working with: {} vs {}", self.providers, other.providers));
         }
         if self.filplus_guideline != other.filplus_guideline {
-            differences.push(format!("Can you confirm that you will follow the Fil+ guideline: {} vs {}", self.filplus_guideline, other.filplus_guideline));
+            differences.push(format!(
+                "Can you confirm that you will follow the Fil+ guideline: {} vs {}",
+                self.filplus_guideline, other.filplus_guideline
+            ));
         }
         differences
     }
@@ -542,25 +618,43 @@ impl DeepCompare for LifeCycle {
             differences.push(format!("State: {:?} vs {:?}", self.state, other.state));
         }
         if self.validated_at != other.validated_at {
-            differences.push(format!("Validated At: {} vs {}", self.validated_at, other.validated_at));
+            differences.push(format!(
+                "Validated At: {} vs {}",
+                self.validated_at, other.validated_at
+            ));
         }
         if self.validated_by != other.validated_by {
-            differences.push(format!("Validated By: {} vs {}", self.validated_by, other.validated_by));
+            differences.push(format!(
+                "Validated By: {} vs {}",
+                self.validated_by, other.validated_by
+            ));
         }
         if self.is_active != other.is_active {
             differences.push(format!("Active: {} vs {}", self.is_active, other.is_active));
         }
         if self.updated_at != other.updated_at {
-            differences.push(format!("Updated At: {} vs {}", self.updated_at, other.updated_at));
+            differences.push(format!(
+                "Updated At: {} vs {}",
+                self.updated_at, other.updated_at
+            ));
         }
         if self.active_request != other.active_request {
-            differences.push(format!("Active Request ID: {:?} vs {:?}", self.active_request, other.active_request));
+            differences.push(format!(
+                "Active Request ID: {:?} vs {:?}",
+                self.active_request, other.active_request
+            ));
         }
         if self.client_on_chain_address != other.client_on_chain_address {
-            differences.push(format!("On Chain Address: {} vs {}", self.client_on_chain_address, other.client_on_chain_address));
+            differences.push(format!(
+                "On Chain Address: {} vs {}",
+                self.client_on_chain_address, other.client_on_chain_address
+            ));
         }
         if self.multisig_address != other.multisig_address {
-            differences.push(format!("Multisig Address: {} vs {}", self.multisig_address, other.multisig_address));
+            differences.push(format!(
+                "Multisig Address: {} vs {}",
+                self.multisig_address, other.multisig_address
+            ));
         }
         differences
     }

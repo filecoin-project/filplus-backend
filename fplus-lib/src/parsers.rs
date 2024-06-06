@@ -3,7 +3,10 @@ use std::str::FromStr;
 use markdown::{mdast::Node, to_mdast, ParseOptions};
 use serde::{Deserialize, Serialize};
 
-use crate::{config::get_env_var_or_default, core::application::file::{Client, DataType, Datacap, DatacapGroup, Project, Version}};
+use crate::{
+    config::get_env_var_or_default,
+    core::application::file::{Client, DataType, Datacap, DatacapGroup, Project, Version},
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ParsedApplicationDataFields {
@@ -149,7 +152,7 @@ impl ParsedIssue {
             .find(|(prop, _)| prop.0 == "On-chain address for first allocation")
             .unwrap()
             .1
-            .0;
+             .0;
 
         let version = get_env_var_or_default("ISSUE_TEMPLATE_VERSION");
 

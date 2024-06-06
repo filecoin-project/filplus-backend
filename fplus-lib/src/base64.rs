@@ -1,6 +1,6 @@
+use base64;
 use base64::read::DecoderReader;
 use serde_json::from_reader;
-use base64;
 
 use crate::core::{allocator::file::AllocatorModel, application::file::ApplicationFile};
 
@@ -16,7 +16,6 @@ pub fn decode_application_file(i: &str) -> Option<ApplicationFile> {
 
 use std::io::Cursor;
 
-
 pub fn decode_allocator_model(encoded_str: &str) -> Option<AllocatorModel> {
     let mut binding = Cursor::new(encoded_str);
     let decoder = DecoderReader::new(&mut binding, base64::STANDARD);
@@ -25,7 +24,7 @@ pub fn decode_allocator_model(encoded_str: &str) -> Option<AllocatorModel> {
         Ok(model) => Some(model),
         Err(e) => {
             log::error!("Error decoding allocator model: {}", e.to_string());
-            return None
-        },
+            return None;
+        }
     }
 }

@@ -1,7 +1,7 @@
 use chrono::Utc;
 
 use super::file::{
-    Allocation, AllocationRequest, AllocationRequestType, Allocations, Verifiers, Verifier,
+    Allocation, AllocationRequest, AllocationRequestType, Allocations, Verifier, Verifiers,
 };
 use crate::helpers::parse_size_to_bytes;
 

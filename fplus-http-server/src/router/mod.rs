@@ -1,9 +1,9 @@
 use actix_web::{get, HttpResponse, Responder};
 
+pub mod allocator;
 pub mod application;
 pub mod blockchain;
 pub mod verifier;
-pub mod allocator;
 
 /// Return server health status
 #[get("/health")]

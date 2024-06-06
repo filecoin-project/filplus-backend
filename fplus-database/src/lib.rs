@@ -1,11 +1,11 @@
-pub mod models;
-pub mod database;
 pub mod config;
+pub mod database;
+pub mod models;
 
-use sea_orm::{Database, DatabaseConnection, DbErr};
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
 use crate::config::get_env_or_throw;
+use once_cell::sync::Lazy;
+use sea_orm::{Database, DatabaseConnection, DbErr};
+use std::sync::Mutex;
 
 /**
  * The global database connection
@@ -14,7 +14,7 @@ static DB_CONN: Lazy<Mutex<Option<DatabaseConnection>>> = Lazy::new(|| Mutex::ne
 
 /**
  * Initialize the database (Just for testing purposes, not used in the actual application, as dotenv is called in the main function of the application)
- * 
+ *
  * # Returns
  * @return () - The result of the operation
  */
@@ -38,7 +38,7 @@ pub async fn setup() -> Result<(), DbErr> {
 
 /**
  * Get a reference to the established database connection
- * 
+ *
  * # Returns
  * @return Result<DatabaseConnection, &'static str> - The database connection or an error message
  */
@@ -47,7 +47,9 @@ pub async fn get_database_connection() -> Result<DatabaseConnection, DbErr> {
     if let Some(ref conn) = *db_conn {
         Ok(conn.clone())
     } else {
-        Err(DbErr::Custom("Database connection is not established".into()))
+        Err(DbErr::Custom(
+            "Database connection is not established".into(),
+        ))
     }
 }
 
@@ -55,20 +57,20 @@ pub async fn get_database_connection() -> Result<DatabaseConnection, DbErr> {
 * Sets up the initial test environment (database connection and env variables)
 */
 pub async fn setup_test_environment() {
-   init();
-   setup().await.expect("Failed to setup database connection.");
+    init();
+    setup().await.expect("Failed to setup database connection.");
 }
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
-    use tokio;
     use serial_test::serial;
+    use tokio;
 
     /**
      * Test the establish_connection function
-     * 
+     *
      * # Returns
      * @return () - The result of the test
      */
@@ -82,7 +84,7 @@ mod tests {
 
     /**
      * Test the create_allocator function
-     * 
+     *
      * # Returns
      * @return () - The result of the test
      */
@@ -94,12 +96,14 @@ mod tests {
         let owner = "test_owner".to_string();
         let repo = "test_repo".to_string();
 
-        let existing_allocator = database::allocators::get_allocator(&owner, &repo).await.unwrap();
+        let existing_allocator = database::allocators::get_allocator(&owner, &repo)
+            .await
+            .unwrap();
         if let Some(_) = existing_allocator {
             let result = database::allocators::delete_allocator(&owner, &repo).await;
             return assert!(result.is_ok());
         }
-        
+
         let installation_id = Some(1234);
         let multisig_address = Some("0x1234567890".to_string());
         let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
@@ -117,14 +121,15 @@ mod tests {
             multisig_threshold,
             amount_type,
             address,
-            tooling
-        ).await;
+            tooling,
+        )
+        .await;
         assert!(result.is_ok());
     }
 
     /**
      * Test the get_allocators function
-     * 
+     *
      * # Returns
      * @return () - The result of the test
      */
@@ -132,14 +137,14 @@ mod tests {
     #[serial]
     async fn test_get_allocators() {
         setup_test_environment().await;
-        
+
         let result = database::allocators::get_allocators().await;
         assert!(result.is_ok());
     }
 
     /**
      * Test the update_allocator function
-     * 
+     *
      * # Returns
      * @return () - The result of the test
      */
@@ -155,8 +160,7 @@ mod tests {
             let owner = "test_owner".to_string();
             let repo = "test_repo".to_string();
             let installation_id = Some(1234);
-            let multisig_address = Some
-            ("0x1234567890".to_string());
+            let multisig_address = Some("0x1234567890".to_string());
             let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
             let multisig_threshold = Some(2);
             let amount_type = Some("Fixed".to_string());
@@ -173,7 +177,8 @@ mod tests {
                 amount_type,
                 address,
                 tooling,
-            ).await;
+            )
+            .await;
             assert!(result.is_ok());
         }
 
@@ -194,14 +199,15 @@ mod tests {
             verifiers_gh_handles,
             multisig_threshold,
             address,
-            tooling
-        ).await;
+            tooling,
+        )
+        .await;
         assert!(result.is_ok());
     }
 
     /**
      * Test the get_allocator function
-     * 
+     *
      * # Returns
      * @return () - The result of the test
      */
@@ -210,7 +216,11 @@ mod tests {
     async fn test_get_allocator() {
         setup_test_environment().await;
 
-        let allocator = database::allocators::get_allocators().await.expect("Failed to get allocators").pop().expect("No allocators found");
+        let allocator = database::allocators::get_allocators()
+            .await
+            .expect("Failed to get allocators")
+            .pop()
+            .expect("No allocators found");
 
         let result = database::allocators::get_allocator(&allocator.owner, &allocator.repo).await;
         assert!(result.is_ok());
@@ -218,7 +228,7 @@ mod tests {
 
     /**
      * Test the delete_allocator function
-     * 
+     *
      * # Returns
      * @return () - The result of the test
      */
@@ -230,7 +240,9 @@ mod tests {
         let owner = "test_owner".to_string();
         let repo = "test_repo".to_string();
 
-        let existing_allocator = database::allocators::get_allocator(&owner, &repo).await.unwrap();
+        let existing_allocator = database::allocators::get_allocator(&owner, &repo)
+            .await
+            .unwrap();
         if let Some(_) = existing_allocator {
             let result = database::allocators::delete_allocator(&owner, &repo).await;
             return assert!(result.is_ok());
@@ -254,13 +266,12 @@ mod tests {
             amount_type,
             address,
             tooling,
-        ).await;
+        )
+        .await;
 
         assert!(result.is_ok());
 
         let result = database::allocators::delete_allocator(&owner, &repo).await;
         assert!(result.is_ok());
-        
     }
-
 }
