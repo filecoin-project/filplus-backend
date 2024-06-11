@@ -31,6 +31,7 @@ pub async fn get_allocators() -> Result<Vec<AllocatorModel>, sea_orm::DbErr> {
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
  */
+#[allow(clippy::too_many_arguments)]
 pub async fn update_allocator(
     owner: &str,
     repo: &str,
@@ -48,19 +49,19 @@ pub async fn update_allocator(
         let mut allocator_active_model = allocator_model.into_active_model();
 
         //if fields are not None, update them
-        if Some(installation_id) != None {
+        if Some(installation_id).is_some() {
             allocator_active_model.installation_id = Set(installation_id);
         }
 
-        if Some(multisig_address.clone()) != None {
+        if Some(multisig_address.clone()).is_some() {
             allocator_active_model.multisig_address = Set(multisig_address);
         }
 
-        if Some(verifiers_gh_handles.clone()) != None {
+        if Some(verifiers_gh_handles.clone()).is_some() {
             allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
         }
 
-        if Some(multisig_threshold) != None {
+        if Some(multisig_threshold).is_some() {
             allocator_active_model.multisig_threshold = Set(multisig_threshold);
         }
 
@@ -76,7 +77,7 @@ pub async fn update_allocator(
 
         Ok(updated_model)
     } else {
-        Err(DbErr::Custom(format!("Allocator not found").into()))
+        Err(DbErr::Custom("Allocator not found".to_string()))
     }
 }
 
@@ -117,6 +118,7 @@ pub async fn get_allocator(
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
  */
+#[allow(clippy::too_many_arguments)]
 pub async fn create_or_update_allocator(
     owner: String,
     repo: String,
@@ -259,7 +261,7 @@ pub async fn delete_allocator(owner: &str, repo: &str) -> Result<(), sea_orm::Db
     let allocator = get_allocator(owner, repo).await?;
     let allocator = match allocator {
         Some(allocator) => allocator,
-        None => return Err(DbErr::Custom(format!("Allocator not found").into())),
+        None => return Err(DbErr::Custom("Allocator not found".to_string())),
     };
     allocator.delete(&conn).await?;
     Ok(())

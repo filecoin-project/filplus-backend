@@ -131,7 +131,7 @@ impl ParsedIssue {
         let child_iter = children.iter();
 
         for chunk in child_iter.collect::<Vec<_>>().chunks_exact(2) {
-            if let (Some(prop_node), Some(value_node)) = (chunk.get(0), chunk.get(1)) {
+            if let (Some(prop_node), Some(value_node)) = (chunk.first(), chunk.get(1)) {
                 let prop = prop_node.to_string();
                 let value = value_node.to_string();
 

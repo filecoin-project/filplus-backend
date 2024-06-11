@@ -24,7 +24,7 @@ pub fn decode_allocator_model(encoded_str: &str) -> Option<AllocatorModel> {
         Ok(model) => Some(model),
         Err(e) => {
             log::error!("Error decoding allocator model: {}", e.to_string());
-            return None;
+            None
         }
     }
 }

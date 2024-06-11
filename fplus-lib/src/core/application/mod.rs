@@ -31,6 +31,7 @@ impl file::ApplicationFile {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn edited(
         issue_number: String,
         version: Version,

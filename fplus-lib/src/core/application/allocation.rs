@@ -147,6 +147,6 @@ impl Allocations {
                 total_amount += amount;
             }
         }
-        return total_amount;
+        total_amount
     }
 }

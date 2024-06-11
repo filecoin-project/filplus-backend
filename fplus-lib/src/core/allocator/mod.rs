@@ -51,7 +51,7 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
 }
 
 fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel, LDNError> {
-    let encoded_content = match file.items.get(0).and_then(|f| f.content.clone()) {
+    let encoded_content = match file.items.first().and_then(|f| f.content.clone()) {
         Some(content) => {
             log::info!("Fetched content: {:?}", content);
             content
@@ -62,7 +62,7 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
         }
     };
 
-    let cleaned_content = encoded_content.replace("\n", "");
+    let cleaned_content = encoded_content.replace('\n', "");
     log::info!("Cleaned content: {:?}", cleaned_content);
 
     match decode_allocator_model(&cleaned_content) {
@@ -238,8 +238,8 @@ pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNErr
 
     dirs.push("".to_string());
 
-    while dirs.len() > 0 {
-        let dir = dirs.pop().unwrap();
+    while let Some(dir) = dirs.pop() {
+        
         let files_list = gh
             .get_files_from_public_repo(
                 &allocator_template_owner,
@@ -261,7 +261,7 @@ pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNErr
                 dirs.push(file_path);
                 continue;
             }
-            self::create_file_in_repo(&gh, &file, false).await?;
+            self::create_file_in_repo(&gh, file, false).await?;
         }
     }
 
@@ -358,8 +358,8 @@ pub async fn fetch_repositories_for_installation_id(
     jwt: &str,
     id: u64,
 ) -> Result<Vec<RepositoryInfo>> {
-    let token = fetch_access_token(&client, &jwt, id).await.unwrap();
-    let repositories = fetch_repositories(&client, &token).await.unwrap();
+    let token = fetch_access_token(client, jwt, id).await.unwrap();
+    let repositories = fetch_repositories(client, &token).await.unwrap();
     Ok(repositories)
 }
 
@@ -433,7 +433,7 @@ pub async fn update_single_installation_id_logic(
         repositories,
     };
     update_installation_ids_in_db(installation.clone()).await;
-    return Ok(installation);
+    Ok(installation)
 }
 
 pub async fn force_update_allocators(
@@ -494,7 +494,7 @@ pub async fn force_update_allocators(
                     &allocator_template_owner,
                     &allocator_template_repo,
                     branch,
-                    Some(&file),
+                    Some(file),
                 )
                 .await
             {
@@ -538,8 +538,8 @@ pub fn validate_fixed_amount_options(amount_options: &[String]) -> Result<(), St
 
 pub fn validate_percentage_amount_options(amount_options: &[String]) -> Result<(), String> {
     for option in amount_options {
-        let no_percentage_option = option.replace("%", "");
-        if !no_percentage_option.parse::<i32>().is_ok() {
+        let no_percentage_option = option.replace('%', "");
+        if no_percentage_option.parse::<i32>().is_err() {
             return Err(format!("Invalid percentage amount option: {}", option));
         }
     }
@@ -548,8 +548,8 @@ pub fn validate_percentage_amount_options(amount_options: &[String]) -> Result<(
 
 pub fn is_valid_fixed_option(option: &str) -> bool {
     let allowed_units = ["GiB", "TiB", "PiB", "GB", "TB", "PB"];
-    let number_part = option.trim_end_matches(|c: char| !c.is_digit(10));
-    let unit_part = option.trim_start_matches(|c: char| c.is_digit(10));
+    let number_part = option.trim_end_matches(|c: char| !c.is_ascii_digit());
+    let unit_part = option.trim_start_matches(|c: char| c.is_ascii_digit());
 
     number_part.parse::<i32>().is_ok() && allowed_units.contains(&unit_part)
 }

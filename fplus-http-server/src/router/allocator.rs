@@ -53,8 +53,8 @@ pub async fn create_from_json(
             Ok(mut model) => {
                 let mut quantity_options: Vec<String>;
                 if let Some(allocation_amount) = model.application.allocation_amount.clone() {
-                    if allocation_amount.amount_type.clone() == None
-                        || allocation_amount.quantity_options.clone() == None
+                    if allocation_amount.amount_type.clone().is_none()
+                        || allocation_amount.quantity_options.clone().is_none()
                     {
                         error_response = Some(
                             HttpResponse::BadRequest()
@@ -114,8 +114,7 @@ pub async fn create_from_json(
                         .application
                         .allocation_amount
                         .clone()
-                        .map(|a| a.amount_type.clone())
-                        .flatten(), // Flattens Option<Option<String>> to Option<String>
+                        .and_then(|a| a.amount_type.clone()),
                     model.address,
                     tooling,
                 )
@@ -160,7 +159,7 @@ pub async fn create_from_json(
                     let allocation_amounts = allocation_amount.quantity_options.unwrap();
 
                     for allocation_amount in allocation_amounts {
-                        let parsed_allocation_amount = allocation_amount.replace("%", "");
+                        let parsed_allocation_amount = allocation_amount.replace('%', "");
                         match allocation_amounts_db::create_allocation_amount(
                             allocator_id,
                             parsed_allocation_amount,
@@ -224,7 +223,7 @@ pub async fn update(
             if e.to_string().contains("Allocator not found") {
                 return HttpResponse::NotFound().body(e.to_string());
             }
-            return HttpResponse::InternalServerError().body(e.to_string());
+            HttpResponse::InternalServerError().body(e.to_string())
         }
     }
 }
@@ -268,7 +267,7 @@ pub async fn delete(path: web::Path<(String, String)>) -> impl Responder {
             if e.to_string().contains("Allocator not found") {
                 return HttpResponse::NotFound().body(e.to_string());
             }
-            return HttpResponse::InternalServerError().body(e.to_string());
+            HttpResponse::InternalServerError().body(e.to_string())
         }
     }
 }

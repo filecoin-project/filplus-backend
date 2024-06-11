@@ -66,7 +66,7 @@ mod tests {
 
     use super::*;
     use serial_test::serial;
-    use tokio;
+    
 
     /**
      * Test the establish_connection function
@@ -99,7 +99,7 @@ mod tests {
         let existing_allocator = database::allocators::get_allocator(&owner, &repo)
             .await
             .unwrap();
-        if let Some(_) = existing_allocator {
+        if existing_allocator.is_some() {
             let result = database::allocators::delete_allocator(&owner, &repo).await;
             return assert!(result.is_ok());
         }
@@ -243,7 +243,7 @@ mod tests {
         let existing_allocator = database::allocators::get_allocator(&owner, &repo)
             .await
             .unwrap();
-        if let Some(_) = existing_allocator {
+        if existing_allocator.is_some() {
             let result = database::allocators::delete_allocator(&owner, &repo).await;
             return assert!(result.is_ok());
         }

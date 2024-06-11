@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use futures::stream::All;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -316,7 +315,7 @@ pub struct Allocation {
 impl ApplicationFile {
     pub fn remove_active_allocation(&mut self) {
         self.allocation.0.retain(|alloc| !alloc.is_active);
-        if self.allocation.0.len() == 0 {
+        if self.allocation.0.is_empty() {
             self.lifecycle.validated_at = "".to_string();
             self.lifecycle.validated_by = "".to_string();
             self.lifecycle.active_request = Some("".to_string());

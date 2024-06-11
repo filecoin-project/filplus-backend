@@ -62,7 +62,7 @@ impl BlockchainData {
                 return Err(BlockchainDataError::Err(e.to_string()));
             }
         };
-        return Ok(body);
+        Ok(body)
     }
 
     /// Get Allowance For Address

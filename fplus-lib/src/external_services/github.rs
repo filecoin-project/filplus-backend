@@ -105,7 +105,7 @@ pub async fn github_async_new(owner: String, repo: String) -> GithubWrapper {
 
     let installation_id = allocator.unwrap().installation_id.unwrap_or(0).to_string();
 
-    return GithubWrapper::new(owner, repo, installation_id);
+    GithubWrapper::new(owner, repo, installation_id)
 }
 
 impl GithubWrapper {
@@ -156,7 +156,7 @@ impl GithubWrapper {
             }))
             .build()
             .expect("Could not create Octocrab instance");
-        let iod: InstallationId = installation_id.try_into().expect("Invalid installation id");
+        let iod: InstallationId = installation_id.into();
         let installation = octocrab.installation(iod);
         Self {
             owner,
@@ -231,15 +231,13 @@ impl GithubWrapper {
         number: u64,
         new_labels: &[&str],
     ) -> Result<(), OctocrabError> {
-        let search_labels = vec![
-            "waiting for allocator review",
+        let search_labels = ["waiting for allocator review",
             AppState::Submitted.as_str(),
             AppState::KYCRequested.as_str(),
             AppState::ReadyToSign.as_str(),
             AppState::StartSignDatacap.as_str(),
             AppState::Granted.as_str(),
-            AppState::TotalDatacapReached.as_str(),
-        ];
+            AppState::TotalDatacapReached.as_str()];
 
         let issue = self.list_issue(number).await?;
 
@@ -296,7 +294,7 @@ impl GithubWrapper {
             .media_type(octocrab::params::pulls::MediaType::Full)
             .list_files(pr_number)
             .await?;
-        Ok((pr_number, iid.items.into_iter().map(|i| i.into()).collect()))
+        Ok((pr_number, iid.items.into_iter().collect()))
     }
 
     pub async fn get_last_modification_date(
@@ -467,15 +465,15 @@ impl GithubWrapper {
         path: &str,
         branch: &str,
     ) -> Result<ContentItems, octocrab::Error> {
-        let iid = self
+        
+        self
             .inner
             .repos(&self.owner, &self.repo)
             .get_content()
             .r#ref(branch)
             .path(path)
             .send()
-            .await;
-        iid
+            .await
     }
 
     pub async fn update_file_content(
@@ -555,23 +553,23 @@ impl GithubWrapper {
     }
 
     pub async fn create_issue(&self, title: &str, body: &str) -> Result<Issue, OctocrabError> {
-        Ok(self
+        self
             .inner
             .issues(&self.owner, &self.repo)
             .create(title)
             .body(body)
             .send()
-            .await?)
+            .await
     }
 
     pub async fn close_issue(&self, issue_number: u64) -> Result<Issue, OctocrabError> {
-        Ok(self
+        self
             .inner
             .issues(&self.owner, &self.repo)
             .update(issue_number)
             .state(IssueState::Closed)
             .send()
-            .await?)
+            .await
     }
 
     pub async fn get_pull_request_by_head(
@@ -592,13 +590,13 @@ impl GithubWrapper {
     }
 
     pub async fn close_pull_request(&self, number: u64) -> Result<PullRequest, OctocrabError> {
-        Ok(self
+        self
             .inner
             .pulls(&self.owner, &self.repo)
             .update(number)
             .state(PullState::Closed)
             .send()
-            .await?)
+            .await
     }
 
     pub async fn create_refill_merge_request(
@@ -622,7 +620,7 @@ impl GithubWrapper {
             .create_pull_request(
                 &format!("Datacap for {}", owner_name),
                 &branch_name,
-                &format!("{}", issue_link),
+                &issue_link.to_string(),
             )
             .await?;
 
@@ -651,7 +649,7 @@ impl GithubWrapper {
             .create_pull_request(
                 &format!("Datacap for {}", owner_name),
                 &branch_name,
-                &format!("{}", issue_link),
+                &issue_link.to_string(),
             )
             .await?;
 

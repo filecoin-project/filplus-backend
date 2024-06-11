@@ -1,5 +1,6 @@
 use super::file::Client;
 
+#[warn(dead_code)]
 impl Client {
     fn new(i: Client) -> Self {
         Self { ..i }
@@ -15,12 +16,12 @@ impl Client {
             social_media_type,
             role,
         } = self;
-        name.len() > 0
-            && region.len() > 0
-            && industry.len() > 0
-            && website.len() > 0
-            && social_media.len() > 0
-            && social_media_type.len() > 0
-            && role.len() > 0
+        !name.is_empty()
+            && !region.is_empty()
+            && !industry.is_empty()
+            && !website.is_empty()
+            && !social_media.is_empty()
+            && !social_media_type.is_empty()
+            && !role.is_empty()
     }
 }

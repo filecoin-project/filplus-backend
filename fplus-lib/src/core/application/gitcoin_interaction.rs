@@ -32,7 +32,7 @@ sol! {
 
 pub async fn verify_on_gitcoin(address_from_signature: &Address) -> Result<f64, LDNError> {
     let rpc_url = get_env_var_or_default("RPC_URL");
-    let score = get_gitcoin_score_for_address(&rpc_url, address_from_signature.clone()).await?;
+    let score = get_gitcoin_score_for_address(&rpc_url, *address_from_signature).await?;
 
     let minimum_score = get_env_var_or_default("GITCOIN_MINIMUM_SCORE");
     let minimum_score = minimum_score
@@ -80,21 +80,21 @@ pub fn get_address_from_signature(
     let domain = eip712_domain! {
         name: "Fil+ KYC",
         version: "1",
-        chain_id: get_env_var_or_default("PASSPORT_VERIFIER_CHAIN_ID").parse().map_err(|_| LDNError::New(format!("Parse chain Id to u64 failed")))?, // Filecoin Chain Id
+        chain_id: get_env_var_or_default("PASSPORT_VERIFIER_CHAIN_ID").parse().map_err(|_| LDNError::New("Parse chain Id to u64 failed".to_string()))?, // Filecoin Chain Id
         verifying_contract: address!("0000000000000000000000000000000000000000"),
     };
     let hash = message.eip712_signing_hash(&domain);
-    let signature = Signature::from_str(&signature)
+    let signature = Signature::from_str(signature)
         .map_err(|e| LDNError::New(format!("Signature parsing failed: {e:?}")))?;
-    Ok(signature
+    signature
         .recover_address_from_prehash(&hash)
-        .map_err(|e| LDNError::New(format!("Recover address from prehash failed: {e:?}")))?)
+        .map_err(|e| LDNError::New(format!("Recover address from prehash failed: {e:?}")))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use std::str::FromStr;
+    
+    
 
     use alloy::node_bindings::{Anvil, AnvilInstance};
 
@@ -184,12 +184,12 @@ mod tests {
         let rpc_url = "https://sepolia.optimism.io/";
         let block_number = 12507578;
 
-        let anvil = Anvil::new()
+        
+
+        Anvil::new()
             .fork(rpc_url)
             .fork_block_number(block_number)
             .try_spawn()
-            .unwrap();
-
-        anvil
+            .unwrap()
     }
 }

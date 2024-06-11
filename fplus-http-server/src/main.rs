@@ -1,4 +1,3 @@
-use env_logger;
 use fplus_lib::core::allocator::update_installation_ids_logic;
 use log::info;
 mod middleware;
