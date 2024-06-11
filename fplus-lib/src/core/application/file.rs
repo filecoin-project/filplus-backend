@@ -274,7 +274,7 @@ pub struct LifeCycle {
     pub edited: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Allocations(pub Vec<Allocation>);
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -284,15 +284,16 @@ pub enum AllocationRequestType {
     Refill(u8),
 }
 
-impl ToString for AllocationRequestType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for AllocationRequestType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AllocationRequestType::First => "First".to_string(),
-            AllocationRequestType::Removal => "Removal".to_string(),
-            AllocationRequestType::Refill(_) => "Refill".to_string(),
+            AllocationRequestType::First => write!(f, "First"),
+            AllocationRequestType::Removal => write!(f, "Removal"),
+            AllocationRequestType::Refill(_) => write!(f, "Refill"),
         }
+      
     }
-}
+  }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Allocation {
@@ -350,7 +351,7 @@ impl ApplicationFile {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Verifiers(pub Vec<Verifier>);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

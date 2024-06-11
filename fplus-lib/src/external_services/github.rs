@@ -231,13 +231,15 @@ impl GithubWrapper {
         number: u64,
         new_labels: &[&str],
     ) -> Result<(), OctocrabError> {
-        let search_labels = ["waiting for allocator review",
+        let search_labels = [
+            "waiting for allocator review",
             AppState::Submitted.as_str(),
             AppState::KYCRequested.as_str(),
             AppState::ReadyToSign.as_str(),
             AppState::StartSignDatacap.as_str(),
             AppState::Granted.as_str(),
-            AppState::TotalDatacapReached.as_str()];
+            AppState::TotalDatacapReached.as_str(),
+        ];
 
         let issue = self.list_issue(number).await?;
 
@@ -465,9 +467,7 @@ impl GithubWrapper {
         path: &str,
         branch: &str,
     ) -> Result<ContentItems, octocrab::Error> {
-        
-        self
-            .inner
+        self.inner
             .repos(&self.owner, &self.repo)
             .get_content()
             .r#ref(branch)
@@ -553,8 +553,7 @@ impl GithubWrapper {
     }
 
     pub async fn create_issue(&self, title: &str, body: &str) -> Result<Issue, OctocrabError> {
-        self
-            .inner
+        self.inner
             .issues(&self.owner, &self.repo)
             .create(title)
             .body(body)
@@ -563,8 +562,7 @@ impl GithubWrapper {
     }
 
     pub async fn close_issue(&self, issue_number: u64) -> Result<Issue, OctocrabError> {
-        self
-            .inner
+        self.inner
             .issues(&self.owner, &self.repo)
             .update(issue_number)
             .state(IssueState::Closed)
@@ -590,8 +588,7 @@ impl GithubWrapper {
     }
 
     pub async fn close_pull_request(&self, number: u64) -> Result<PullRequest, OctocrabError> {
-        self
-            .inner
+        self.inner
             .pulls(&self.owner, &self.repo)
             .update(number)
             .state(PullState::Closed)

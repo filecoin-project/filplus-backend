@@ -311,13 +311,7 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<Option<(String, String, ApplicationFile, PullRequest)>, LDNError> {
-        let result: Result<
-            Option<(
-                (u64, Vec<octocrab::models::pulls::FileDiff>),
-                ApplicationFile,
-            )>,
-            LDNError,
-        > = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr.number).await;
+        let result = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr.number).await;
         if let Some((files, app)) = result? {
             Ok(Some((
                 files.1.first().unwrap().sha.clone(),
@@ -482,12 +476,10 @@ impl LDNApplication {
                 }
                 Ok(all_apps)
             }
-            Err(e) => {
-                Err(vec![LDNError::Load(format!(
-                    "Failed to retrieve applications from the database /// {}",
-                    e
-                ))])
-            }
+            Err(e) => Err(vec![LDNError::Load(format!(
+                "Failed to retrieve applications from the database /// {}",
+                e
+            ))]),
         }
     }
 
@@ -549,20 +541,18 @@ impl LDNApplication {
         )
         .await
         .unwrap();
-        for r in pull_requests {
-            if let Some((sha, path, app_file, pr_info)) = r {
-                if let Some(updated_at) = pr_info.updated_at {
-                    let app_with_date = ApplicationFileWithDate {
-                        application_file: app_file.clone(),
-                        updated_at,
-                        pr_number: pr_info.number,
-                        sha,
-                        path,
-                    };
+        for (sha, path, app_file, pr_info) in pull_requests.into_iter().flatten() {
+            if let Some(updated_at) = pr_info.updated_at {
+                let app_with_date = ApplicationFileWithDate {
+                    application_file: app_file.clone(),
+                    updated_at,
+                    pr_number: pr_info.number,
+                    sha,
+                    path,
+                };
 
-                    if filter.as_ref().map_or(true, |f| &app_file.id == f) {
-                        apps.push(app_with_date);
-                    }
+                if filter.as_ref().map_or(true, |f| &app_file.id == f) {
+                    apps.push(app_with_date);
                 }
             }
         }
@@ -943,12 +933,10 @@ impl LDNApplication {
                             };
                             Ok(app_file)
                         }
-                        None => {
-                            Err(LDNError::New(format!(
-                                "Application issue {} cannot be triggered(1)",
-                                self.application_id
-                            )))
-                        }
+                        None => Err(LDNError::New(format!(
+                            "Application issue {} cannot be triggered(1)",
+                            self.application_id
+                        ))),
                     }
                 }
                 _ => Err(LDNError::New(format!(
@@ -1104,12 +1092,10 @@ impl LDNApplication {
                             };
                             Ok(app_file)
                         }
-                        None => {
-                            Err(LDNError::New(format!(
-                                "Application issue {} cannot be proposed(1)",
-                                self.application_id
-                            )))
-                        }
+                        None => Err(LDNError::New(format!(
+                            "Application issue {} cannot be proposed(1)",
+                            self.application_id
+                        ))),
                     }
                 }
                 _ => Err(LDNError::New(format!(
@@ -1391,7 +1377,8 @@ impl LDNApplication {
     fn content_items_to_app_file(file: ContentItems) -> Result<ApplicationFile, LDNError> {
         let f = &file
             .clone()
-            .take_items().first()
+            .take_items()
+            .first()
             .and_then(|f| f.content.clone())
             .and_then(|f| base64::decode_application_file(&f.replace('\n', "")))
             .ok_or(LDNError::Load("Application file is corrupted".to_string()))?;
@@ -1404,9 +1391,7 @@ impl LDNApplication {
             .get_file(&self.file_name, &self.branch_name)
             .await
         {
-            Ok(file) => {
-                LDNApplication::content_items_to_app_file(file)
-            }
+            Ok(file) => LDNApplication::content_items_to_app_file(file),
             Err(e) => {
                 dbg!(&e);
                 Err(LDNError::Load(format!(
@@ -1515,15 +1500,14 @@ impl LDNApplication {
         for app_model in merged_app_models {
             // Try to deserialize the `application` field to `ApplicationFile`.
             if let Some(app_json) = app_model.application {
-                match from_str::<ApplicationFile>(&app_json) {
-                    Ok(app) => merged_apps.push((
+                if let Ok(app) = from_str::<ApplicationFile>(&app_json) {
+                    merged_apps.push((
                         ApplicationGithubInfo {
                             sha: app_model.sha.unwrap(),
                             path: app_model.path.unwrap(),
                         },
                         app,
-                    )),
-                    Err(_) => {}
+                    ));
                 }
             }
         }
@@ -1531,8 +1515,7 @@ impl LDNApplication {
         let active_apps = Self::active(owner, repo, None).await?;
         let mut apps: Vec<(ApplicationGithubInfo, ApplicationFile)> = vec![];
         for app in merged_apps {
-            if !active_apps.iter().any(|a| a.id == app.1.id) && app.1.lifecycle.is_active
-            {
+            if !active_apps.iter().any(|a| a.id == app.1.id) && app.1.lifecycle.is_active {
                 apps.push(app);
             }
         }
@@ -1860,8 +1843,7 @@ impl LDNApplication {
                                 "Val Trigger (RtS) - Not ready to sign - validated_by is empty"
                             );
                             false
-                        }
-                        else if !valid_verifier_list.is_valid(&validated_by) {
+                        } else if !valid_verifier_list.is_valid(&validated_by) {
                             log::warn!("Val Trigger (RtS) - Not ready to sign - valid_verifier_list is not valid");
                             false
                         } else {
@@ -1930,11 +1912,6 @@ impl LDNApplication {
                     log::warn!("Val Trigger (TDR) - Application state is Error");
                     return Ok(false);
                 }
-                //TODO: Remove this when merge with other changes
-                _ => {
-                    log::warn!("Val Trigger (TDR) - Application state is not valid");
-                    return Ok(false);
-                }
             };
 
             if res {
@@ -1955,7 +1932,7 @@ impl LDNApplication {
                 owner.clone(),
                 repo.clone(),
             )
-            .await 
+            .await
             {
                 let gh = github_async_new(owner.to_string(), repo.to_string()).await;
                 match gh
@@ -2068,11 +2045,9 @@ impl LDNApplication {
                     }
                 }
             }
-            None => {
-                Err(LDNError::New(
-                    "Adding commit in approve changes failed".to_string(),
-                ))
-            }
+            None => Err(LDNError::New(
+                "Adding commit in approve changes failed".to_string(),
+            )),
         }
     }
 
@@ -2106,13 +2081,17 @@ impl LDNApplication {
         let application_state = db_application_file.lifecycle.state.clone();
 
         if application_state != AppState::ChangesRequested {
-            return Err(LDNError::New("Application is not in the correct state".to_string()));
+            return Err(LDNError::New(
+                "Application is not in the correct state".to_string(),
+            ));
         }
 
         let allocation_count = db_application_file.allocation.0.len();
 
         if allocation_count == 0 {
-            return Err(LDNError::New("Application does not have any allocations".to_string()));
+            return Err(LDNError::New(
+                "Application does not have any allocations".to_string(),
+            ));
         }
 
         let active_allocation = db_application_file.allocation.active();
@@ -2245,7 +2224,9 @@ impl LDNApplication {
         let allocation_count = application_file.allocation.0.len();
 
         if allocation_count == 0 {
-            return Err(LDNError::New("Application does not have any allocations".to_string()));
+            return Err(LDNError::New(
+                "Application does not have any allocations".to_string(),
+            ));
         }
 
         let application_id: String = application_file.id.clone();
@@ -2271,10 +2252,8 @@ impl LDNApplication {
         let db_application_file: ApplicationFile =
             serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
 
-        let commit_message;
-
         application_file.lifecycle.edited = Some(false);
-        if allocation_count == 1
+        let commit_message = if allocation_count == 1
             && application_file.allocation.active().is_some()
             && application_file
                 .allocation
@@ -2286,11 +2265,11 @@ impl LDNApplication {
         {
             application_file.lifecycle.state = AppState::Submitted;
             application_file.allocation = Allocations(Vec::new());
-            commit_message = "Updated application state to Verifier Review due to changes requested on the issue and no signed allocations."
+            "Updated application state to Verifier Review due to changes requested on the issue and no signed allocations."
         } else {
             application_file.lifecycle.state = AppState::ChangesRequested;
-            commit_message = "Updated application state to Changes Requested due to changes requested on the issue and at leasts one partially or fully signed allocation."
-        }
+            "Updated application state to Changes Requested due to changes requested on the issue and at leasts one partially or fully signed allocation."
+        };
         let file_content = match serde_json::to_string_pretty(&application_file) {
             Ok(f) => f,
             Err(e) => {
@@ -2709,12 +2688,10 @@ impl LDNApplication {
                     branch_name,
                 })
             }
-            None => {
-                Err(LDNError::New(format!(
-                    "Application issue {} cannot be modified",
-                    app_file.issue_number
-                )))
-            }
+            None => Err(LDNError::New(format!(
+                "Application issue {} cannot be modified",
+                app_file.issue_number
+            ))),
         }
     }
 
@@ -3337,7 +3314,9 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let issue_number = issue_number.clone();
 
-        let comment = "#### The application's issue was edited after additional information was requested".to_string();
+        let comment =
+            "#### The application's issue was edited after additional information was requested"
+                .to_string();
 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
@@ -3601,7 +3580,9 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         .unwrap();
 
         if db_application_file.lifecycle.get_state() > AppState::Submitted {
-            return Err(LDNError::New("Application is in a state that cannot be declined".to_string()));
+            return Err(LDNError::New(
+                "Application is in a state that cannot be declined".to_string(),
+            ));
         }
 
         let issue_number = self
@@ -3683,7 +3664,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         db_application_file.lifecycle.state = AppState::AdditionalInfoRequired;
 
         if db_application_file.lifecycle.get_state() > AppState::Submitted {
-            return Err(LDNError::New("Application is in a state in which additional info cannot be requested".to_string()));
+            return Err(LDNError::New(
+                "Application is in a state in which additional info cannot be requested"
+                    .to_string(),
+            ));
         }
 
         // Adjusted to capture the result of update_and_commit_application_state

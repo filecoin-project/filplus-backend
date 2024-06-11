@@ -239,7 +239,6 @@ pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNErr
     dirs.push("".to_string());
 
     while let Some(dir) = dirs.pop() {
-        
         let files_list = gh
             .get_files_from_public_repo(
                 &allocator_template_owner,

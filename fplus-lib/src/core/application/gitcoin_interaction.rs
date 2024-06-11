@@ -93,8 +93,6 @@ pub fn get_address_from_signature(
 
 #[cfg(test)]
 mod tests {
-    
-    
 
     use alloy::node_bindings::{Anvil, AnvilInstance};
 
@@ -183,8 +181,6 @@ mod tests {
     fn init_anvil() -> AnvilInstance {
         let rpc_url = "https://sepolia.optimism.io/";
         let block_number = 12507578;
-
-        
 
         Anvil::new()
             .fork(rpc_url)

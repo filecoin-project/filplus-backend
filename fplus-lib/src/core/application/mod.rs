@@ -1,8 +1,6 @@
 use self::file::{AllocationRequest, Allocations, LifeCycle, Verifier, Version};
 
 pub mod allocation;
-pub mod client;
-pub mod datacap;
 pub mod file;
 pub mod gitcoin_interaction;
 pub mod lifecycle;

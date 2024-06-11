@@ -73,12 +73,10 @@ impl LifeCycle {
     }
 
     pub fn get_state(&self) -> AppState {
-        
         self.state.clone()
     }
 
     pub fn get_active_status(&self) -> bool {
-        
         self.is_active
     }
 

@@ -66,7 +66,6 @@ mod tests {
 
     use super::*;
     use serial_test::serial;
-    
 
     /**
      * Test the establish_connection function

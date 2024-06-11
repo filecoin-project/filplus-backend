@@ -5,12 +5,6 @@ use super::file::{
 };
 use crate::helpers::parse_size_to_bytes;
 
-impl Default for Verifiers {
-    fn default() -> Self {
-        Self(vec![])
-    }
-}
-
 impl Verifiers {
     pub fn add(&self, signer: Verifier) -> Self {
         let mut res = self.0.clone();
@@ -47,12 +41,6 @@ impl Allocation {
             amount: request_information.allocation_amount,
             signers: Verifiers::default(),
         }
-    }
-}
-
-impl Default for Allocations {
-    fn default() -> Self {
-        Self(vec![])
     }
 }
 

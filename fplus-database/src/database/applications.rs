@@ -374,8 +374,6 @@ pub async fn create_application(
         ..Default::default()
     };
 
-    
-
     match new_application.insert(&conn).await {
         Ok(application) => Ok(application),
         Err(e) => Err(sea_orm::DbErr::Custom(format!(
