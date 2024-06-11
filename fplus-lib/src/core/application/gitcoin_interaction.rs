@@ -92,6 +92,7 @@ pub fn get_address_from_signature(
 }
 
 #[cfg(test)]
+#[cfg(feature = "online-tests")]
 mod tests {
 
     use alloy::node_bindings::{Anvil, AnvilInstance};
@@ -101,7 +102,6 @@ mod tests {
     const SIGNATURE: &str = "0x0d65d92f0f6774ca40a232422329421183dca5479a17b552a9f2d98ad0bb22ac65618c83061d988cd657c239754253bf66ce6e169252710894041b345797aaa21b";
 
     #[actix_rt::test]
-    #[cfg(feature = "online-tests")]
     async fn getting_score_from_gitcoin_passport_decoder_works() {
         env::set_var(
             "GITCOIN_PASSPORT_DECODER",
@@ -120,7 +120,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(feature = "online-tests")]
     async fn getting_score_with_not_verified_score_should_return_zero() {
         env::set_var(
             "GITCOIN_PASSPORT_DECODER",
@@ -138,7 +137,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(feature = "online-tests")]
     async fn verifier_returns_valid_address_for_valid_message() {
         env::set_var("PASSPORT_VERIFIER_CHAIN_ID", "11155420");
         let signature_message: KycApproval = KycApproval {
@@ -158,7 +156,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(feature = "online-tests")]
     async fn verifier_returns_invalid_address_for_invalid_message() {
         env::set_var("PASSPORT_VERIFIER_CHAIN_ID", "11155420");
         let message: KycApproval = KycApproval {

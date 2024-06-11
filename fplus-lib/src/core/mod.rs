@@ -158,16 +158,6 @@ pub struct AllocatorUpdateForceInfo {
 }
 
 #[derive(Deserialize)]
-pub struct AllocatorUpdateInfo {
-    pub installation_id: Option<i64>,
-    pub multisig_address: Option<String>,
-    pub verifiers_gh_handles: Option<String>,
-    pub multisig_threshold: Option<i32>,
-    pub address: Option<String>,
-    pub tooling: Option<String>,
-}
-
-#[derive(Deserialize)]
 pub struct InstallationIdUpdateInfo {
     pub installation_id: i64,
 }

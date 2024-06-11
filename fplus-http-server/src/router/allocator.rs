@@ -1,4 +1,4 @@
-use actix_web::{delete, get, post, put, web, HttpResponse, Responder};
+use actix_web::{delete, get, post, web, HttpResponse, Responder};
 use fplus_database::database::allocation_amounts as allocation_amounts_db;
 use fplus_database::database::allocators as allocators_db;
 use fplus_lib::core::allocator::fetch_installation_ids;
@@ -9,7 +9,7 @@ use fplus_lib::core::{
         process_allocator_file, update_single_installation_id_logic,
         validate_amount_type_and_options,
     },
-    AllocatorUpdateForceInfo, AllocatorUpdateInfo, ChangedAllocators, InstallationIdUpdateInfo,
+    AllocatorUpdateForceInfo, ChangedAllocators, InstallationIdUpdateInfo,
 };
 use fplus_lib::helpers::process_amount;
 use reqwest::Client;
@@ -188,44 +188,6 @@ pub async fn create_from_json(
     }
 
     Ok(HttpResponse::Ok().body("All files processed successfully"))
-}
-
-/**
- * Update an allocator
- *
- * # Arguments
- * @param path: web::Path<(String, String)> - The owner and repo of the allocator
- * @param info: web::Json<AllocatorUpdateInfo> - The updated allocator information
- *
- * # Returns
- * @return HttpResponse - The result of the operation
- */
-#[put("/allocator/{owner}/{repo}")]
-pub async fn update(
-    path: web::Path<(String, String)>,
-    info: web::Json<AllocatorUpdateInfo>,
-) -> impl Responder {
-    let (owner, repo) = path.into_inner();
-    match allocators_db::update_allocator(
-        &owner,
-        &repo,
-        None,
-        info.multisig_address.clone(),
-        info.verifiers_gh_handles.clone(),
-        info.multisig_threshold,
-        info.address.clone(),
-        info.tooling.clone(),
-    )
-    .await
-    {
-        Ok(allocator_model) => HttpResponse::Ok().json(allocator_model),
-        Err(e) => {
-            if e.to_string().contains("Allocator not found") {
-                return HttpResponse::NotFound().body(e.to_string());
-            }
-            HttpResponse::InternalServerError().body(e.to_string())
-        }
-    }
 }
 
 /**
