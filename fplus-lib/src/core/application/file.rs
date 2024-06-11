@@ -291,9 +291,8 @@ impl std::fmt::Display for AllocationRequestType {
             AllocationRequestType::Removal => write!(f, "Removal"),
             AllocationRequestType::Refill(_) => write!(f, "Refill"),
         }
-      
     }
-  }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Allocation {
