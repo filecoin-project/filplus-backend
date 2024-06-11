@@ -2686,12 +2686,12 @@ impl LDNApplication {
     }
 
     async fn check_and_handle_allowance(
-        _db_multisig_address: &str,
+        db_multisig_address: &str,
         new_allocation_amount: Option<String>,
     ) -> Result<(), LDNError> {
         let blockchain = BlockchainData::new();
         match blockchain
-            .get_allowance_for_address("f24siazyti3akorqyvi33rvlq3i73j23rwohdamuy")
+            .get_allowance_for_address(db_multisig_address)
             .await
         {
             Ok(allowance) if allowance != "0" => {
