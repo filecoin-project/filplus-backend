@@ -26,6 +26,9 @@ jobs:
         run: cargo clippy
 
   formatting:
+    strategy:
+      fail-fast: true
+
     name: cargo fmt
     runs-on: ubuntu-latest
     steps:
