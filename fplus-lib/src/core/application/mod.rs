@@ -1,8 +1,6 @@
 use self::file::{AllocationRequest, Allocations, LifeCycle, Verifier, Version};
 
 pub mod allocation;
-pub mod client;
-pub mod datacap;
 pub mod file;
 pub mod gitcoin_interaction;
 pub mod lifecycle;
@@ -31,6 +29,7 @@ impl file::ApplicationFile {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn edited(
         issue_number: String,
         version: Version,

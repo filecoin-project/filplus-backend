@@ -16,71 +16,6 @@ pub async fn get_allocators() -> Result<Vec<AllocatorModel>, sea_orm::DbErr> {
 }
 
 /**
- * Update an allocator in the database
- *
- * # Arguments
- * @param owner: &str - The owner of the repository
- * @param repo: &str - The repository name
- * @param installation_id: Option<i64> - The installation ID
- * @param multisig_address: Option<String> - The multisig address
- * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
- * @param multisig_threshold: Option<i32> - The multisig threshold
- * @param address: Option<String> - Address of the Allocator
- * @param tooling: Option<String> - Supported tooling
- *
- * # Returns
- * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
- */
-pub async fn update_allocator(
-    owner: &str,
-    repo: &str,
-    installation_id: Option<i64>,
-    multisig_address: Option<String>,
-    verifiers_gh_handles: Option<String>,
-    multisig_threshold: Option<i32>,
-    address: Option<String>,
-    tooling: Option<String>,
-) -> Result<AllocatorModel, sea_orm::DbErr> {
-    let conn = get_database_connection().await?;
-
-    let existing_allocator = get_allocator(owner, repo).await?;
-    if let Some(allocator_model) = existing_allocator {
-        let mut allocator_active_model = allocator_model.into_active_model();
-
-        //if fields are not None, update them
-        if Some(installation_id) != None {
-            allocator_active_model.installation_id = Set(installation_id);
-        }
-
-        if Some(multisig_address.clone()) != None {
-            allocator_active_model.multisig_address = Set(multisig_address);
-        }
-
-        if Some(verifiers_gh_handles.clone()) != None {
-            allocator_active_model.verifiers_gh_handles = Set(verifiers_gh_handles);
-        }
-
-        if Some(multisig_threshold) != None {
-            allocator_active_model.multisig_threshold = Set(multisig_threshold);
-        }
-
-        if address.is_some() {
-            allocator_active_model.address = Set(address);
-        }
-
-        if tooling.is_some() {
-            allocator_active_model.tooling = Set(tooling);
-        }
-
-        let updated_model = allocator_active_model.update(&conn).await?;
-
-        Ok(updated_model)
-    } else {
-        Err(DbErr::Custom(format!("Allocator not found").into()))
-    }
-}
-
-/**
  * Get an allocator from the database
  *
  * # Arguments
@@ -117,6 +52,7 @@ pub async fn get_allocator(
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
  */
+#[allow(clippy::too_many_arguments)]
 pub async fn create_or_update_allocator(
     owner: String,
     repo: String,
@@ -259,7 +195,7 @@ pub async fn delete_allocator(owner: &str, repo: &str) -> Result<(), sea_orm::Db
     let allocator = get_allocator(owner, repo).await?;
     let allocator = match allocator {
         Some(allocator) => allocator,
-        None => return Err(DbErr::Custom(format!("Allocator not found").into())),
+        None => return Err(DbErr::Custom("Allocator not found".to_string())),
     };
     allocator.delete(&conn).await?;
     Ok(())

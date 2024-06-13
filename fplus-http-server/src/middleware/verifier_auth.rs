@@ -62,9 +62,9 @@ where
             Err(e) => {
                 println!("{}", e);
                 return Box::pin(async {
-                    return Err(actix_web::error::ErrorBadRequest(
+                    Err(actix_web::error::ErrorBadRequest(
                         "Wrong query string format",
-                    ));
+                    ))
                 });
             }
         };
@@ -154,7 +154,7 @@ where
             }
 
             let res = fut.await?;
-            return Ok(res);
+            Ok(res)
         })
     }
 }

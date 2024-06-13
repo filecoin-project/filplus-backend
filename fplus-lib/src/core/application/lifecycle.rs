@@ -73,13 +73,11 @@ impl LifeCycle {
     }
 
     pub fn get_state(&self) -> AppState {
-        let res = self.state.clone();
-        res
+        self.state.clone()
     }
 
     pub fn get_active_status(&self) -> bool {
-        let res = self.is_active.clone();
-        res
+        self.is_active
     }
 
     pub fn start_refill_request(&self, request_id: String) -> Self {

@@ -60,7 +60,7 @@ pub async fn create_allocation_amount(
     let conn = get_database_connection().await?;
 
     let new_allocation_amount = ActiveModel {
-        allocator_id: Set(allocator_id.clone()),
+        allocator_id: Set(allocator_id),
         quantity_option: Set(allocation_amount.clone()),
         ..Default::default()
     };

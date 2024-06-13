@@ -66,7 +66,6 @@ mod tests {
 
     use super::*;
     use serial_test::serial;
-    use tokio;
 
     /**
      * Test the establish_connection function
@@ -99,7 +98,7 @@ mod tests {
         let existing_allocator = database::allocators::get_allocator(&owner, &repo)
             .await
             .unwrap();
-        if let Some(_) = existing_allocator {
+        if existing_allocator.is_some() {
             let result = database::allocators::delete_allocator(&owner, &repo).await;
             return assert!(result.is_ok());
         }
@@ -143,69 +142,6 @@ mod tests {
     }
 
     /**
-     * Test the update_allocator function
-     *
-     * # Returns
-     * @return () - The result of the test
-     */
-    #[tokio::test]
-    #[serial]
-    async fn test_update_allocator() {
-        setup_test_environment().await;
-
-        let allocator = database::allocators::get_allocator("test_owner", "test_repo")
-            .await
-            .expect("Allocator not found");
-        if allocator.is_none() {
-            let owner = "test_owner".to_string();
-            let repo = "test_repo".to_string();
-            let installation_id = Some(1234);
-            let multisig_address = Some("0x1234567890".to_string());
-            let verifiers_gh_handles = Some("test_verifier_1, test_verifier_2".to_string());
-            let multisig_threshold = Some(2);
-            let amount_type = Some("Fixed".to_string());
-            let address = Some("0x1234567890".to_string());
-            let tooling = Some("common_ui, smart_contract_allocator".to_string());
-
-            let result = database::allocators::create_or_update_allocator(
-                owner.clone(),
-                repo.clone(),
-                installation_id,
-                multisig_address,
-                verifiers_gh_handles,
-                multisig_threshold,
-                amount_type,
-                address,
-                tooling,
-            )
-            .await;
-            assert!(result.is_ok());
-        }
-
-        let owner = "test_owner".to_string();
-        let repo = "test_repo".to_string();
-        let installation_id = Some(1234);
-        let multisig_address = Some("0x0987654321".to_string());
-        let verifiers_gh_handles = Some("test_verifier_3, test_verifier_4".to_string());
-        let multisig_threshold = Some(1);
-        let address = Some("0xababababa".to_string());
-        let tooling = Some("common_ui".to_string());
-
-        let result = database::allocators::update_allocator(
-            &owner,
-            &repo,
-            installation_id,
-            multisig_address,
-            verifiers_gh_handles,
-            multisig_threshold,
-            address,
-            tooling,
-        )
-        .await;
-        assert!(result.is_ok());
-    }
-
-    /**
      * Test the get_allocator function
      *
      * # Returns
@@ -243,7 +179,7 @@ mod tests {
         let existing_allocator = database::allocators::get_allocator(&owner, &repo)
             .await
             .unwrap();
-        if let Some(_) = existing_allocator {
+        if existing_allocator.is_some() {
             let result = database::allocators::delete_allocator(&owner, &repo).await;
             return assert!(result.is_ok());
         }

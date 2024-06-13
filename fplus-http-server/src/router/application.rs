@@ -14,9 +14,7 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
             "Created new application for issue: {}",
             app.application_id.clone()
         )),
-        Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
-        }
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
@@ -24,11 +22,9 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
 pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder {
     let ApplicationQueryParams { id, owner, repo } = query.into_inner();
     match LDNApplication::load_from_db(id, owner, repo).await {
-        Ok(app_file) => {
-            return HttpResponse::Ok().body(serde_json::to_string_pretty(&app_file).unwrap())
-        }
-        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
-    };
+        Ok(app_file) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app_file).unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
 }
 
 #[get("/application/with-allocation-amount")]
@@ -68,10 +64,8 @@ pub async fn trigger(
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
-        Err(e) => {
-            return HttpResponse::BadRequest()
-                .body(format!("Application is not in the correct state {}", e));
-        }
+        Err(e) => HttpResponse::BadRequest()
+            .body(format!("Application is not in the correct state {}", e)),
     }
 }
 
@@ -90,12 +84,8 @@ pub async fn approve_changes(query: web::Query<VerifierActionsQueryParams>) -> i
         .approve_changes(query.owner.clone(), query.repo.clone())
         .await
     {
-        Ok(result) => {
-            return HttpResponse::Ok().body(result);
-        }
-        Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
-        }
+        Ok(result) => HttpResponse::Ok().body(result),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
@@ -134,9 +124,7 @@ pub async fn propose(
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
-        Err(_) => {
-            return HttpResponse::BadRequest().body("Application is not in the correct state");
-        }
+        Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
     }
 }
 
@@ -252,9 +240,7 @@ pub async fn merged(query: web::Query<GithubQueryParams>) -> actix_web::Result<i
     let GithubQueryParams { owner, repo } = query.into_inner();
     match LDNApplication::merged(owner, repo).await {
         Ok(apps) => Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap())),
-        Err(e) => {
-            return Ok(HttpResponse::InternalServerError().body(e.to_string()));
-        }
+        Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
     }
 }
 
@@ -454,12 +440,10 @@ pub async fn submit_kyc(info: web::Json<SubmitKYCInfo>) -> impl Responder {
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
     match ldn_application.submit_kyc(&info.into_inner()).await {
-        Ok(()) => {
-            return HttpResponse::Ok()
-                .body(serde_json::to_string_pretty("Address verified with score").unwrap())
-        }
-        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
-    };
+        Ok(()) => HttpResponse::Ok()
+            .body(serde_json::to_string_pretty("Address verified with score").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
 }
 
 #[get("/health")]
@@ -479,9 +463,9 @@ pub async fn request_kyc(query: web::Query<VerifierActionsQueryParams>) -> impl 
         .request_kyc(&query.id, &query.owner, &query.repo)
         .await
     {
-        Ok(()) => return HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
-        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
-    };
+        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
 }
 
 #[post("application/trigger_ssa")]
@@ -491,7 +475,7 @@ pub async fn trigger_ssa(
 ) -> impl Responder {
     match LDNApplication::trigger_ssa(&query.id, &query.owner, &query.repo, info.into_inner()).await
     {
-        Ok(()) => return HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
-        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
-    };
+        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
 }

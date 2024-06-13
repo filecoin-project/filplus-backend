@@ -158,16 +158,6 @@ pub struct AllocatorUpdateForceInfo {
 }
 
 #[derive(Deserialize)]
-pub struct AllocatorUpdateInfo {
-    pub installation_id: Option<i64>,
-    pub multisig_address: Option<String>,
-    pub verifiers_gh_handles: Option<String>,
-    pub multisig_threshold: Option<i32>,
-    pub address: Option<String>,
-    pub tooling: Option<String>,
-}
-
-#[derive(Deserialize)]
 pub struct InstallationIdUpdateInfo {
     pub installation_id: i64,
 }
@@ -244,7 +234,7 @@ impl LDNApplication {
     ) -> Result<ApplicationFile, LDNError> {
         let gh = github_async_new(owner, repo).await;
         let (_, pull_request) = gh.get_pull_request_files(pr_number).await.unwrap();
-        let pull_request = pull_request.get(0).unwrap();
+        let pull_request = pull_request.first().unwrap();
         let pull_request: Response = reqwest::Client::new()
             .get(&pull_request.raw_url.to_string())
             .send()
@@ -281,7 +271,7 @@ impl LDNApplication {
             Ok(files) => files,
             Err(_) => return Ok(None),
         };
-        let raw_url = match files.1.get(0) {
+        let raw_url = match files.1.first() {
             Some(f) => f.raw_url.clone(),
             None => return Ok(None),
         };
@@ -311,17 +301,11 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<Option<(String, String, ApplicationFile, PullRequest)>, LDNError> {
-        let result: Result<
-            Option<(
-                (u64, Vec<octocrab::models::pulls::FileDiff>),
-                ApplicationFile,
-            )>,
-            LDNError,
-        > = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr.number).await;
+        let result = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr.number).await;
         if let Some((files, app)) = result? {
             Ok(Some((
-                files.1.get(0).unwrap().sha.clone(),
-                files.1.get(0).unwrap().filename.clone(),
+                files.1.first().unwrap().sha.clone(),
+                files.1.first().unwrap().filename.clone(),
                 app,
                 pr.clone(),
             )))
@@ -439,32 +423,30 @@ impl LDNApplication {
             .par_iter()
             .filter(|pr| {
                 if let Some(r) = pr {
-                    String::from(r.2.id.clone()) == application_id.clone()
+                    r.2.id.clone() == application_id.clone()
                 } else {
                     false
                 }
             })
             .collect::<Vec<_>>();
-        if let Some(r) = result.get(0) {
-            if let Some(r) = r {
-                return Ok(Self {
-                    github: gh,
-                    application_id: r.2.id.clone(),
-                    file_sha: r.0.clone(),
-                    file_name: r.1.clone(),
-                    branch_name: r.3.head.ref_field.clone(),
-                });
-            }
+        if let Some(Some(r)) = result.first() {
+            return Ok(Self {
+                github: gh,
+                application_id: r.2.id.clone(),
+                file_sha: r.0.clone(),
+                file_name: r.1.clone(),
+                branch_name: r.3.head.ref_field.clone(),
+            });
         }
 
         let app = Self::single_merged(application_id, owner.clone(), repo.clone()).await?;
-        return Ok(Self {
+        Ok(Self {
             github: gh,
             application_id: app.1.id.clone(),
             file_sha: app.0.sha.clone(),
             file_name: app.0.path.clone(),
             branch_name: "main".to_string(),
-        });
+        })
     }
 
     pub async fn all_applications() -> Result<Vec<(ApplicationFile, String, String)>, Vec<LDNError>>
@@ -482,14 +464,12 @@ impl LDNApplication {
                     };
                     all_apps.push((app_file, app.owner, app.repo));
                 }
-                return Ok(all_apps);
+                Ok(all_apps)
             }
-            Err(e) => {
-                return Err(vec![LDNError::Load(format!(
-                    "Failed to retrieve applications from the database /// {}",
-                    e
-                ))]);
-            }
+            Err(e) => Err(vec![LDNError::Load(format!(
+                "Failed to retrieve applications from the database /// {}",
+                e
+            ))]),
         }
     }
 
@@ -551,20 +531,18 @@ impl LDNApplication {
         )
         .await
         .unwrap();
-        for r in pull_requests {
-            if let Some((sha, path, app_file, pr_info)) = r {
-                if let Some(updated_at) = pr_info.updated_at {
-                    let app_with_date = ApplicationFileWithDate {
-                        application_file: app_file.clone(),
-                        updated_at,
-                        pr_number: pr_info.number,
-                        sha,
-                        path,
-                    };
+        for (sha, path, app_file, pr_info) in pull_requests.into_iter().flatten() {
+            if let Some(updated_at) = pr_info.updated_at {
+                let app_with_date = ApplicationFileWithDate {
+                    application_file: app_file.clone(),
+                    updated_at,
+                    pr_number: pr_info.number,
+                    sha,
+                    path,
+                };
 
-                    if filter.as_ref().map_or(true, |f| &app_file.id == f) {
-                        apps.push(app_with_date);
-                    }
+                if filter.as_ref().map_or(true, |f| &app_file.id == f) {
+                    apps.push(app_with_date);
                 }
             }
         }
@@ -779,7 +757,7 @@ impl LDNApplication {
                 .await?;
                 match gh.get_pull_request_by_head(&branch_name).await {
                     Ok(prs) => {
-                        if let Some(pr) = prs.get(0) {
+                        if let Some(pr) = prs.first() {
                             let number = pr.number;
                             database::applications::create_application(
                                 application_id.clone(),
@@ -791,10 +769,10 @@ impl LDNApplication {
                             )
                             .await
                             .map_err(|e| {
-                                return LDNError::New(format!(
+                                LDNError::New(format!(
                                     "Application issue {} cannot create application in DB /// {}",
                                     application_id, e
-                                ));
+                                ))
                             })?;
                         }
                     }
@@ -838,9 +816,9 @@ impl LDNApplication {
                 .await?;
 
                 // Return an error as the application already exists
-                return Err(LDNError::New(
+                Err(LDNError::New(
                     "Pathway mismatch: Allocator already assigned".to_string(),
-                ));
+                ))
             }
         }
     }
@@ -907,7 +885,7 @@ impl LDNApplication {
                         Some(()) => {
                             match self.github.get_pull_request_by_head(&app_branch).await {
                                 Ok(prs) => {
-                                    if let Some(pr) = prs.get(0) {
+                                    if let Some(pr) = prs.first() {
                                         let number = pr.number;
                                         let _ = database::applications::update_application(
                                             app_file.id.clone(),
@@ -945,12 +923,10 @@ impl LDNApplication {
                             };
                             Ok(app_file)
                         }
-                        None => {
-                            return Err(LDNError::New(format!(
-                                "Application issue {} cannot be triggered(1)",
-                                self.application_id
-                            )))
-                        }
+                        None => Err(LDNError::New(format!(
+                            "Application issue {} cannot be triggered(1)",
+                            self.application_id
+                        ))),
                     }
                 }
                 _ => Err(LDNError::New(format!(
@@ -1069,7 +1045,7 @@ impl LDNApplication {
                                 .await
                             {
                                 Ok(prs) => {
-                                    if let Some(pr) = prs.get(0) {
+                                    if let Some(pr) = prs.first() {
                                         let number = pr.number;
                                         let _ = database::applications::update_application(
                                             app_file.id.clone(),
@@ -1106,12 +1082,10 @@ impl LDNApplication {
                             };
                             Ok(app_file)
                         }
-                        None => {
-                            return Err(LDNError::New(format!(
-                                "Application issue {} cannot be proposed(1)",
-                                self.application_id
-                            )))
-                        }
+                        None => Err(LDNError::New(format!(
+                            "Application issue {} cannot be proposed(1)",
+                            self.application_id
+                        ))),
                     }
                 }
                 _ => Err(LDNError::New(format!(
@@ -1228,7 +1202,7 @@ impl LDNApplication {
                     .await
                 {
                     Ok(prs) => {
-                        if let Some(pr) = prs.get(0) {
+                        if let Some(pr) = prs.first() {
                             let number = pr.number;
                             if let Err(e) = database::applications::update_application(
                                 app_file.id.clone(),
@@ -1284,10 +1258,10 @@ impl LDNApplication {
                     "Failed to add commit for application issue {}",
                     self.application_id
                 );
-                return Err(LDNError::New(format!(
+                Err(LDNError::New(format!(
                                 "Commit operation failed for application issue {} and no error details available",
                                 self.application_id
-                            )));
+                            )))
             }
         }
     }
@@ -1383,10 +1357,10 @@ impl LDNApplication {
             .await?;
             Ok(true)
         } else {
-            return Err(LDNError::Load(format!(
+            Err(LDNError::Load(format!(
                 "Application issue {} does not exist",
                 application_id
-            )));
+            )))
         }
     }
 
@@ -1394,11 +1368,11 @@ impl LDNApplication {
         let f = &file
             .clone()
             .take_items()
-            .get(0)
+            .first()
             .and_then(|f| f.content.clone())
-            .and_then(|f| base64::decode_application_file(&f.replace("\n", "")))
-            .ok_or(LDNError::Load(format!("Application file is corrupted",)))?;
-        return Ok(ApplicationFile::from(f.clone()));
+            .and_then(|f| base64::decode_application_file(&f.replace('\n', "")))
+            .ok_or(LDNError::Load("Application file is corrupted".to_string()))?;
+        Ok(f.clone())
     }
 
     pub async fn file(&self) -> Result<ApplicationFile, LDNError> {
@@ -1407,15 +1381,13 @@ impl LDNApplication {
             .get_file(&self.file_name, &self.branch_name)
             .await
         {
-            Ok(file) => {
-                return Ok(LDNApplication::content_items_to_app_file(file)?);
-            }
+            Ok(file) => LDNApplication::content_items_to_app_file(file),
             Err(e) => {
                 dbg!(&e);
-                return Err(LDNError::Load(format!(
+                Err(LDNError::Load(format!(
                     "Application issue {} file does not exist ///",
                     self.application_id
-                )));
+                )))
             }
         }
     }
@@ -1453,19 +1425,19 @@ impl LDNApplication {
         owner: String,
         repo: String,
     ) -> Result<(ApplicationGithubInfo, ApplicationFile), LDNError> {
-        Ok(LDNApplication::merged(owner, repo)
+        LDNApplication::merged(owner, repo)
             .await?
             .into_iter()
             .find(|(_, app)| app.id == application_id)
             .map_or_else(
                 || {
-                    return Err(LDNError::Load(format!(
+                    Err(LDNError::Load(format!(
                         "Application issue {} does not exist",
                         application_id
-                    )));
+                    )))
                 },
-                |app| Ok(app),
-            )?)
+                Ok,
+            )
     }
 
     async fn map_merged(item: Content) -> Result<Option<(Content, ApplicationFile)>, LDNError> {
@@ -1518,15 +1490,14 @@ impl LDNApplication {
         for app_model in merged_app_models {
             // Try to deserialize the `application` field to `ApplicationFile`.
             if let Some(app_json) = app_model.application {
-                match from_str::<ApplicationFile>(&app_json) {
-                    Ok(app) => merged_apps.push((
+                if let Ok(app) = from_str::<ApplicationFile>(&app_json) {
+                    merged_apps.push((
                         ApplicationGithubInfo {
                             sha: app_model.sha.unwrap(),
                             path: app_model.path.unwrap(),
                         },
                         app,
-                    )),
-                    Err(_) => {}
+                    ));
                 }
             }
         }
@@ -1534,8 +1505,7 @@ impl LDNApplication {
         let active_apps = Self::active(owner, repo, None).await?;
         let mut apps: Vec<(ApplicationGithubInfo, ApplicationFile)> = vec![];
         for app in merged_apps {
-            if active_apps.iter().find(|a| a.id == app.1.id).is_none() && app.1.lifecycle.is_active
-            {
+            if !active_apps.iter().any(|a| a.id == app.1.id) && app.1.lifecycle.is_active {
                 apps.push(app);
             }
         }
@@ -1622,7 +1592,7 @@ impl LDNApplication {
                 log::warn!("- Application has an active request");
                 return Ok(false);
             }
-            if application.lifecycle.edited.unwrap_or(false) == true {
+            if application.lifecycle.edited.unwrap_or(false) {
                 log::warn!("Val Trigger - Application has been edited");
                 return Ok(false);
             }
@@ -1633,7 +1603,7 @@ impl LDNApplication {
         }
 
         log::warn!("- Application is not in a valid state");
-        return Ok(false);
+        Ok(false)
     }
 
     pub async fn merge_application(
@@ -1659,7 +1629,7 @@ impl LDNApplication {
                 ))
             })?;
 
-        return Ok(true);
+        Ok(true)
     }
 
     pub async fn validate_flow(
@@ -1785,7 +1755,7 @@ impl LDNApplication {
         // }
 
         log::info!("- Application is in a valid state");
-        return Ok(true);
+        Ok(true)
     }
 
     pub async fn validate_trigger(
@@ -1804,7 +1774,7 @@ impl LDNApplication {
         if let Ok(application_file) =
             LDNApplication::single_active(pr_number, owner.clone(), repo.clone()).await
         {
-            if application_file.lifecycle.get_active_status() == false {
+            if !application_file.lifecycle.get_active_status() {
                 log::info!("No trigger to validate. Application lifecycle is inactive so the Total DC was reached.");
                 return Ok(true);
             }
@@ -1814,7 +1784,7 @@ impl LDNApplication {
             let valid_verifier_list = Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
             // let bot_user = get_env_var_or_default("BOT_USER");
 
-            if application_file.lifecycle.edited.unwrap_or(false) == true {
+            if application_file.lifecycle.edited.unwrap_or(false) {
                 log::warn!("Val Trigger - Application has been edited");
                 return Ok(false);
             }
@@ -1850,7 +1820,7 @@ impl LDNApplication {
                         if active_allocation.is_none() {
                             log::warn!("Val Trigger (RtS) - Active allocation not found");
                             false
-                        } else if active_allocation.unwrap().signers.0.len() > 0 {
+                        } else if !active_allocation.unwrap().signers.0.is_empty() {
                             log::warn!("Val Trigger (RtS) - Active allocation has signers");
                             false
                         } else if validated_at.is_empty() {
@@ -1863,6 +1833,12 @@ impl LDNApplication {
                                 "Val Trigger (RtS) - Not ready to sign - validated_by is empty"
                             );
                             false
+                        } else if !valid_verifier_list.is_valid(&validated_by) {
+                            log::warn!("Val Trigger (RtS) - Not ready to sign - valid_verifier_list is not valid");
+                            false
+                        } else {
+                            log::info!("Val Trigger (RtS) - Validated!");
+                            true
                         }
                         // else if actor != bot_user {
                         //     log::warn!(
@@ -1870,13 +1846,6 @@ impl LDNApplication {
                         //     );
                         //     false
                         // }
-                        else if !valid_verifier_list.is_valid(&validated_by) {
-                            log::warn!("Val Trigger (RtS) - Not ready to sign - valid_verifier_list is not valid");
-                            false
-                        } else {
-                            log::info!("Val Trigger (RtS) - Validated!");
-                            true
-                        }
                     }
                 }
                 AppState::StartSignDatacap => {
@@ -1933,11 +1902,6 @@ impl LDNApplication {
                     log::warn!("Val Trigger (TDR) - Application state is Error");
                     return Ok(false);
                 }
-                //TODO: Remove this when merge with other changes
-                _ => {
-                    log::warn!("Val Trigger (TDR) - Application state is not valid");
-                    return Ok(false);
-                }
             };
 
             if res {
@@ -1949,10 +1913,10 @@ impl LDNApplication {
             let ldn_application =
                 LDNApplication::load(app_file.id.clone(), owner.clone(), repo.clone()).await?;
 
-            match LDNPullRequest::add_commit_to(
+            if let Some(()) = LDNPullRequest::add_commit_to(
                 ldn_application.file_name.clone(),
                 ldn_application.branch_name.clone(),
-                format!("Move application back to review"),
+                "Move application back to review".to_string(),
                 serde_json::to_string_pretty(&app_file).unwrap(),
                 ldn_application.file_sha.clone(),
                 owner.clone(),
@@ -1960,30 +1924,27 @@ impl LDNApplication {
             )
             .await
             {
-                Some(()) => {
-                    let gh = github_async_new(owner.to_string(), repo.to_string()).await;
-                    match gh
-                        .get_pull_request_by_head(&ldn_application.branch_name)
-                        .await
-                    {
-                        Ok(prs) => {
-                            if let Some(pr) = prs.get(0) {
-                                let number = pr.number;
-                                let _ = database::applications::update_application(
-                                    app_file.id.clone(),
-                                    owner,
-                                    repo,
-                                    number,
-                                    serde_json::to_string_pretty(&app_file).unwrap(),
-                                    Some(ldn_application.file_name.clone()),
-                                )
-                                .await;
-                            }
+                let gh = github_async_new(owner.to_string(), repo.to_string()).await;
+                match gh
+                    .get_pull_request_by_head(&ldn_application.branch_name)
+                    .await
+                {
+                    Ok(prs) => {
+                        if let Some(pr) = prs.first() {
+                            let number = pr.number;
+                            let _ = database::applications::update_application(
+                                app_file.id.clone(),
+                                owner,
+                                repo,
+                                number,
+                                serde_json::to_string_pretty(&app_file).unwrap(),
+                                Some(ldn_application.file_name.clone()),
+                            )
+                            .await;
                         }
-                        Err(e) => log::warn!("Failed to get pull request by head: {}", e),
-                    };
-                }
-                None => {}
+                    }
+                    Err(e) => log::warn!("Failed to get pull request by head: {}", e),
+                };
             };
 
             return Ok(false);
@@ -1993,6 +1954,7 @@ impl LDNApplication {
         Ok(false)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn update_and_commit_application_state(
         self,
         db_application_file: ApplicationFile,
@@ -2039,7 +2001,7 @@ impl LDNApplication {
                 // Retrieve and update the pull request
                 match self.github.get_pull_request_by_head(&branch_name).await {
                     Ok(prs) => {
-                        if let Some(pr) = prs.get(0) {
+                        if let Some(pr) = prs.first() {
                             let number = pr.number;
                             let update_result = database::applications::update_application(
                                 db_application_file.id.clone(),
@@ -2052,32 +2014,30 @@ impl LDNApplication {
                             .await;
 
                             match update_result {
-                                Ok(_) => return Ok(db_application_file), // Return the updated ApplicationFile
+                                Ok(_) => Ok(db_application_file), // Return the updated ApplicationFile
                                 Err(e) => {
                                     log::error!("Failed to update application: {}", e);
-                                    return Err(LDNError::New(
+                                    Err(LDNError::New(
                                         "Failed to update the application in the database"
                                             .to_string(),
-                                    ));
+                                    ))
                                 }
                             }
                         } else {
-                            return Err(LDNError::New(
+                            Err(LDNError::New(
                                 "No pull request found for the given branch".to_string(),
-                            ));
+                            ))
                         }
                     }
                     Err(e) => {
                         log::warn!("Failed to get pull request by head: {}", e);
-                        return Err(LDNError::New(format!("Failed to get pull request: {}", e)));
+                        Err(LDNError::New(format!("Failed to get pull request: {}", e)))
                     }
                 }
             }
-            None => {
-                return Err(LDNError::New(
-                    "Adding commit in approve changes failed".to_string(),
-                ));
-            }
+            None => Err(LDNError::New(
+                "Adding commit in approve changes failed".to_string(),
+            )),
         }
     }
 
@@ -2111,17 +2071,17 @@ impl LDNApplication {
         let application_state = db_application_file.lifecycle.state.clone();
 
         if application_state != AppState::ChangesRequested {
-            return Err(LDNError::New(format!(
-                "Application is not in the correct state",
-            )));
+            return Err(LDNError::New(
+                "Application is not in the correct state".to_string(),
+            ));
         }
 
         let allocation_count = db_application_file.allocation.0.len();
 
         if allocation_count == 0 {
-            return Err(LDNError::New(format!(
-                "Application does not have any allocations",
-            )));
+            return Err(LDNError::New(
+                "Application does not have any allocations".to_string(),
+            ));
         }
 
         let active_allocation = db_application_file.allocation.active();
@@ -2162,7 +2122,7 @@ impl LDNApplication {
 
         db_application_file.lifecycle.edited = Some(false);
 
-        if remove_allocation == true {
+        if remove_allocation {
             db_application_file.remove_active_allocation();
         }
 
@@ -2226,7 +2186,7 @@ impl LDNApplication {
 
         match result {
             Ok(Some(((_, files), app))) => {
-                if let Some(file) = files.get(0) {
+                if let Some(file) = files.first() {
                     sha = file.sha.clone();
                     filename = file.filename.clone();
                     application_file = app;
@@ -2246,7 +2206,7 @@ impl LDNApplication {
             }
         };
 
-        if application_file.lifecycle.edited.unwrap_or(false) == false {
+        if !application_file.lifecycle.edited.unwrap_or(false) {
             log::warn!("Val Trigger - Application has not been edited");
             return Ok(true);
         }
@@ -2254,9 +2214,9 @@ impl LDNApplication {
         let allocation_count = application_file.allocation.0.len();
 
         if allocation_count == 0 {
-            return Err(LDNError::New(format!(
-                "Application does not have any allocations",
-            )));
+            return Err(LDNError::New(
+                "Application does not have any allocations".to_string(),
+            ));
         }
 
         let application_id: String = application_file.id.clone();
@@ -2282,10 +2242,8 @@ impl LDNApplication {
         let db_application_file: ApplicationFile =
             serde_json::from_str::<ApplicationFile>(&db_application_file_str.clone()).unwrap();
 
-        let commit_message;
-
         application_file.lifecycle.edited = Some(false);
-        if allocation_count == 1
+        let commit_message = if allocation_count == 1
             && application_file.allocation.active().is_some()
             && application_file
                 .allocation
@@ -2297,11 +2255,11 @@ impl LDNApplication {
         {
             application_file.lifecycle.state = AppState::Submitted;
             application_file.allocation = Allocations(Vec::new());
-            commit_message = "Updated application state to Verifier Review due to changes requested on the issue and no signed allocations."
+            "Updated application state to Verifier Review due to changes requested on the issue and no signed allocations."
         } else {
             application_file.lifecycle.state = AppState::ChangesRequested;
-            commit_message = "Updated application state to Changes Requested due to changes requested on the issue and at leasts one partially or fully signed allocation."
-        }
+            "Updated application state to Changes Requested due to changes requested on the issue and at leasts one partially or fully signed allocation."
+        };
         let file_content = match serde_json::to_string_pretty(&application_file) {
             Ok(f) => f,
             Err(e) => {
@@ -2400,7 +2358,7 @@ impl LDNApplication {
         )
         .await?;
 
-        return Ok(true);
+        Ok(true)
     }
 
     pub async fn validate_approval(
@@ -2412,12 +2370,12 @@ impl LDNApplication {
         log::info!("Validating approval for PR number {}", pr_number);
         match LDNApplication::single_active(pr_number, owner.clone(), repo.clone()).await {
             Ok(application_file) => {
-                if application_file.lifecycle.get_active_status() == false {
+                if !application_file.lifecycle.get_active_status() {
                     log::info!("No approval to validate. Application lifecycle is inactive so the Total DC was reached.");
                     return Ok(true);
                 }
                 let app_state: AppState = application_file.lifecycle.get_state();
-                if application_file.lifecycle.edited.unwrap_or(false) == true {
+                if application_file.lifecycle.edited.unwrap_or(false) {
                     log::warn!("Val Trigger - Application has been edited");
                     return Ok(false);
                 }
@@ -2425,7 +2383,7 @@ impl LDNApplication {
                 log::info!("Val Approval - App state is {:?}", app_state.as_str());
                 if app_state < AppState::Granted {
                     log::warn!("Val Approval < (G)- State is less than Granted");
-                    return Ok(false);
+                    Ok(false)
                 } else if app_state == AppState::Granted {
                     let active_request_id = match application_file
                         .clone()
@@ -2498,20 +2456,20 @@ impl LDNApplication {
         log::info!("- Validating proposal for PR number {}", pr_number);
         match LDNApplication::single_active(pr_number, owner.clone(), repo.clone()).await {
             Ok(application_file) => {
-                if application_file.lifecycle.get_active_status() == false {
+                if !application_file.lifecycle.get_active_status() {
                     log::info!("No proposal to validate. Application lifecycle is inactive so the Total DC was reached.");
                     return Ok(true);
                 }
                 let app_state: AppState = application_file.lifecycle.get_state();
                 log::info!("Val Proposal - App state is {:?}", app_state.as_str());
-                if application_file.lifecycle.edited.unwrap_or(false) == true {
+                if application_file.lifecycle.edited.unwrap_or(false) {
                     log::warn!("Val Trigger - Application has been edited");
                     return Ok(false);
                 }
 
                 if app_state < AppState::StartSignDatacap {
                     log::warn!("Val Proposal (< SSD) - State is less than StartSignDatacap");
-                    return Ok(false);
+                    Ok(false)
                 } else if app_state == AppState::StartSignDatacap {
                     let active_request = application_file.allocation.active();
                     if active_request.is_none() {
@@ -2524,7 +2482,7 @@ impl LDNApplication {
                         log::warn!("Val Proposal (SSD) - Not enough signers");
                         return Ok(false);
                     }
-                    let signer = signers.0.get(0).unwrap();
+                    let signer = signers.0.first().unwrap();
                     let signer_gh_handle = signer.github_username.clone();
                     let valid_verifiers =
                         Self::fetch_verifiers(owner.clone(), repo.clone()).await?;
@@ -2609,7 +2567,7 @@ impl LDNApplication {
         }
 
         //Application was in another state. Update PR and add "edited = true" to the application file
-        return Self::edit_pr_from_issue_modification(parsed_ldn, application_model).await;
+        Self::edit_pr_from_issue_modification(parsed_ldn, application_model).await
     }
 
     pub async fn edit_pr_from_issue_modification(
@@ -2646,7 +2604,7 @@ impl LDNApplication {
         )
         .await;
 
-        if app_file.allocation.0.len() < 1 {
+        if app_file.allocation.0.is_empty() {
             app_file.lifecycle.edited = Some(false);
         }
 
@@ -2692,17 +2650,17 @@ impl LDNApplication {
         .await
         {
             Some(()) => {
-                if app_file.allocation.0.len() < 1 {
+                if app_file.allocation.0.is_empty() {
                     match gh.get_pull_request_by_head(&branch_name).await {
                         Ok(prs) => {
-                            if let Some(pr) = prs.get(0) {
+                            if let Some(pr) = prs.first() {
                                 let number = pr.number;
 
                                 let _ = database::applications::update_application(
                                     app_file.id.clone(),
                                     application_model.owner.clone(),
                                     application_model.repo.clone(),
-                                    number as u64,
+                                    number,
                                     serde_json::to_string_pretty(&app_file).unwrap(),
                                     Some(application_model.path.clone().unwrap()),
                                 )
@@ -2712,20 +2670,18 @@ impl LDNApplication {
                         Err(e) => log::warn!("Failed to get pull request by head: {}", e),
                     };
                 }
-                return Ok(LDNApplication {
+                Ok(LDNApplication {
                     github: gh,
                     application_id,
                     file_sha: application_model.sha.clone().unwrap(),
                     file_name: application_model.path.clone().unwrap(),
                     branch_name,
-                });
+                })
             }
-            None => {
-                return Err(LDNError::New(format!(
-                    "Application issue {} cannot be modified",
-                    app_file.issue_number
-                )))
-            }
+            None => Err(LDNError::New(format!(
+                "Application issue {} cannot be modified",
+                app_file.issue_number
+            ))),
         }
     }
 
@@ -2735,7 +2691,7 @@ impl LDNApplication {
     ) -> Result<(), LDNError> {
         let blockchain = BlockchainData::new();
         match blockchain
-            .get_allowance_for_address("f24siazyti3akorqyvi33rvlq3i73j23rwohdamuy")
+            .get_allowance_for_address(db_multisig_address)
             .await
         {
             Ok(allowance) if allowance != "0" => {
@@ -2847,7 +2803,7 @@ impl LDNApplication {
         let request = gh.build_remove_ref_request(branch_name.clone()).unwrap();
 
         gh.remove_branch(request).await.map_err(|e| {
-            return LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e));
+            LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e))
         })?;
 
         Ok(true)
@@ -2863,10 +2819,10 @@ impl LDNApplication {
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })?;
 
         Ok(true)
@@ -2929,10 +2885,10 @@ impl LDNApplication {
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })?;
 
         Ok(true)
@@ -2978,10 +2934,10 @@ impl LDNApplication {
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
         Ok(true)
@@ -3009,10 +2965,10 @@ _(OLD vs NEW)_
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
 
@@ -3034,15 +2990,15 @@ _(OLD vs NEW)_
     ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner.clone(), repo.clone()).await;
 
-        let comment = format!("#### Issue information change request has been approved.");
+        let comment = "#### Issue information change request has been approved.".to_string();
 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
 
@@ -3064,8 +3020,8 @@ _(OLD vs NEW)_
         let mut id = String::new();
 
         if let Some(allocation) = active_allocation {
-            datacap_allocation_requested = allocation.amount.clone();
-            id = allocation.id.clone();
+            datacap_allocation_requested.clone_from(&allocation.amount);
+            id.clone_from(&allocation.id);
         }
 
         let comment = format!(
@@ -3091,10 +3047,10 @@ _(OLD vs NEW)_
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
         Ok(true)
@@ -3129,12 +3085,12 @@ _(OLD vs NEW)_
         let mut message_cid = String::new();
 
         if let Some(allocation) = active_allocation {
-            datacap_allocation_requested = allocation.amount.clone();
-            id = allocation.id.clone();
+            datacap_allocation_requested.clone_from(&allocation.amount);
+            id.clone_from(&allocation.id);
 
-            if let Some(first_verifier) = allocation.signers.0.get(0) {
-                signing_address = first_verifier.signing_address.clone();
-                message_cid = first_verifier.message_cid.clone();
+            if let Some(first_verifier) = allocation.signers.0.first() {
+                signing_address.clone_from(&first_verifier.signing_address);
+                message_cid.clone_from(&first_verifier.message_cid);
             }
         }
 
@@ -3165,10 +3121,10 @@ Your Datacap Allocation Request has been {} by the Notary
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
 
@@ -3187,10 +3143,10 @@ Your Datacap Allocation Request has been {} by the Notary
         )
         .await
         .map_err(|e| {
-            return LDNError::New(format!(
+            LDNError::New(format!(
                 "Error adding comment to issue {} /// {}",
                 issue_number, e
-            ));
+            ))
         })
         .unwrap();
         Ok(true)
@@ -3208,10 +3164,10 @@ Your Datacap Allocation Request has been {} by the Notary
         )
         .await
         .map_err(|e| {
-            return LDNError::New(format!(
+            LDNError::New(format!(
                 "Error adding comment to issue {} /// {}",
                 issue_number, e
-            ));
+            ))
         })
         .unwrap();
         Ok(true)
@@ -3226,10 +3182,10 @@ Your Datacap Allocation Request has been {} by the Notary
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Granted")
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
         Ok(true)
@@ -3243,19 +3199,19 @@ Your Datacap Allocation Request has been {} by the Notary
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is in Refill")
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
         gh.replace_issue_labels(issue_number.parse().unwrap(), &["Refill".to_string()])
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
         Ok(true)
@@ -3269,10 +3225,10 @@ Your Datacap Allocation Request has been {} by the Notary
         gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Completed")
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
         Ok(true)
@@ -3288,10 +3244,10 @@ Your Datacap Allocation Request has been {} by the Notary
         gh.add_comment_to_issue(issue_number.parse().unwrap(), message)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
         Ok(true)
@@ -3316,10 +3272,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
 
@@ -3329,10 +3285,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         )
         .await
         .map_err(|e| {
-            return LDNError::New(format!(
+            LDNError::New(format!(
                 "Error adding comment to issue {} /// {}",
                 issue_number, e
-            ));
+            ))
         })
         .unwrap();
 
@@ -3348,17 +3304,17 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let issue_number = issue_number.clone();
 
-        let comment = format!(
+        let comment =
             "#### The application's issue was edited after additional information was requested"
-        );
+                .to_string();
 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
 
@@ -3368,10 +3324,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         )
         .await
         .map_err(|e| {
-            return LDNError::New(format!(
+            LDNError::New(format!(
                 "Error adding comment to issue {} /// {}",
                 issue_number, e
-            ));
+            ))
         })
         .unwrap();
         Ok(true)
@@ -3386,25 +3342,25 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let issue_number = issue_number.clone();
 
-        let comment = format!("### The application has been declined.");
+        let comment = "### The application has been declined.".to_string();
 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
 
         gh.replace_issue_labels(issue_number.parse().unwrap(), &["Declined".to_string()])
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
         Ok(true)
@@ -3421,10 +3377,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         gh.add_error_label(num, comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding labels to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
 
@@ -3443,10 +3399,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         gh.replace_issue_labels(num, &new_labels)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding labels t to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })
             .unwrap();
 
@@ -3510,7 +3466,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     gh_app.application_file.id.clone(),
                     owner.clone(),
                     repo.clone(),
-                    gh_app.pr_number as u64,
+                    gh_app.pr_number,
                     serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
                     gh_app.path,
                 )
@@ -3601,11 +3557,11 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             None,
         )
         .await
-        .map_err(|_| LDNError::Load(format!("No application found")))?;
+        .map_err(|_| LDNError::Load("No application found".to_string()))?;
 
         // Check if the application is associated with a PR.
         if app_model.pr_number == 0 {
-            return Err(LDNError::New(format!("Application is not in a PR")));
+            return Err(LDNError::New("Application is not in a PR".to_string()));
         }
 
         let db_application_file: ApplicationFile = serde_json::from_str::<ApplicationFile>(
@@ -3614,9 +3570,9 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         .unwrap();
 
         if db_application_file.lifecycle.get_state() > AppState::Submitted {
-            return Err(LDNError::New(format!(
-                "Application is in a state that cannot be declined"
-            )));
+            return Err(LDNError::New(
+                "Application is in a state that cannot be declined".to_string(),
+            ));
         }
 
         let issue_number = self
@@ -3655,7 +3611,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             app_model.pr_number as u64,
         )
         .await
-        .map_err(|_| LDNError::New(format!("Failed to delete application")))?;
+        .map_err(|_| LDNError::New("Failed to delete application".to_string()))?;
 
         // Issue a notification about the application decline.
 
@@ -3698,9 +3654,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         db_application_file.lifecycle.state = AppState::AdditionalInfoRequired;
 
         if db_application_file.lifecycle.get_state() > AppState::Submitted {
-            return Err(LDNError::New(format!(
+            return Err(LDNError::New(
                 "Application is in a state in which additional info cannot be requested"
-            )));
+                    .to_string(),
+            ));
         }
 
         // Adjusted to capture the result of update_and_commit_application_state
@@ -3794,20 +3751,20 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .add_comment_to_issue(*issue_number, &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })?;
 
         self.github
             .replace_issue_labels(*issue_number, &["kyc requested".to_string()])
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding labels to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })?;
         Ok(())
     }
@@ -3937,10 +3894,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .add_comment_to_issue(*issue_number, &comment)
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding comment to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })?;
 
         self.github
@@ -3953,10 +3910,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             )
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Error adding labels to issue {} /// {}",
                     issue_number, e
-                ));
+                ))
             })?;
         Ok(())
     }
@@ -4033,10 +3990,10 @@ impl LDNPullRequest {
         let create_ref_request = gh
             .build_create_ref_request(app_branch_name.clone(), head_hash)
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Application issue {} cannot create branch /// {}",
                     application_id, e
-                ));
+                ))
             })?;
 
         let issue_link = format!(
@@ -4056,15 +4013,16 @@ impl LDNPullRequest {
             })
             .await
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Application issue {} cannot create merge request /// {}",
                     application_id, e
-                ));
+                ))
             })?;
 
         Ok(file_sha)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn create_pr_for_existing_application(
         application_id: String,
         owner_name: String,
@@ -4082,10 +4040,10 @@ impl LDNPullRequest {
         let create_ref_request = gh
             .build_create_ref_request(branch_name.clone(), head_hash)
             .map_err(|e| {
-                return LDNError::New(format!(
+                LDNError::New(format!(
                     "Application issue {} cannot create branch /// {}",
                     application_id, e
-                ));
+                ))
             })?;
 
         let issue_link = format!(
@@ -4118,10 +4076,10 @@ impl LDNPullRequest {
                     )
                     .await
                     .map_err(|e| {
-                        return LDNError::New(format!(
+                        LDNError::New(format!(
                             "Application issue {} cannot create application in DB /// {}",
                             application_id, e
-                        ));
+                        ))
                     })?;
                 }
                 pr
@@ -4171,10 +4129,10 @@ impl LDNPullRequest {
     ) -> Result<(), LDNError> {
         let gh = github_async_new(owner.clone(), repo.clone()).await;
         gh.close_pull_request(pr_number).await.map_err(|e| {
-            return LDNError::New(format!(
+            LDNError::New(format!(
                 "Error closing pull request {} /// {}",
                 pr_number, e
-            ));
+            ))
         })?;
         Ok(())
     }
@@ -4188,7 +4146,7 @@ impl LDNPullRequest {
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
         let request = gh.build_remove_ref_request(branch_name.clone()).unwrap();
         gh.remove_branch(request).await.map_err(|e| {
-            return LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e));
+            LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e))
         })?;
         Ok(())
     }
@@ -4228,7 +4186,7 @@ impl LDNPullRequest {
 }
 
 pub fn get_file_sha(content: &ContentItems) -> Option<String> {
-    match content.items.get(0) {
+    match content.items.first() {
         Some(item) => {
             let sha = item.sha.clone();
             Some(sha)
@@ -4333,7 +4291,7 @@ mod tests {
             &message.expires_at,
             &fixed_current_date.unwrap().into(),
         );
-        assert_eq!(false, is_expired.unwrap())
+        assert!(!is_expired.unwrap())
     }
 
     #[tokio::test]
@@ -4353,7 +4311,7 @@ mod tests {
             &message.issued_at,
             &fixed_current_date.unwrap().into(),
         );
-        assert_eq!(false, is_from_future.unwrap())
+        assert!(!is_from_future.unwrap())
     }
 }
 

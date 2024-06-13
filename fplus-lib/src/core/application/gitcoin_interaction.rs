@@ -32,7 +32,7 @@ sol! {
 
 pub async fn verify_on_gitcoin(address_from_signature: &Address) -> Result<f64, LDNError> {
     let rpc_url = get_env_var_or_default("RPC_URL");
-    let score = get_gitcoin_score_for_address(&rpc_url, address_from_signature.clone()).await?;
+    let score = get_gitcoin_score_for_address(&rpc_url, *address_from_signature).await?;
 
     let minimum_score = get_env_var_or_default("GITCOIN_MINIMUM_SCORE");
     let minimum_score = minimum_score
@@ -80,21 +80,20 @@ pub fn get_address_from_signature(
     let domain = eip712_domain! {
         name: "Fil+ KYC",
         version: "1",
-        chain_id: get_env_var_or_default("PASSPORT_VERIFIER_CHAIN_ID").parse().map_err(|_| LDNError::New(format!("Parse chain Id to u64 failed")))?, // Filecoin Chain Id
+        chain_id: get_env_var_or_default("PASSPORT_VERIFIER_CHAIN_ID").parse().map_err(|_| LDNError::New("Parse chain Id to u64 failed".to_string()))?, // Filecoin Chain Id
         verifying_contract: address!("0000000000000000000000000000000000000000"),
     };
     let hash = message.eip712_signing_hash(&domain);
-    let signature = Signature::from_str(&signature)
+    let signature = Signature::from_str(signature)
         .map_err(|e| LDNError::New(format!("Signature parsing failed: {e:?}")))?;
-    Ok(signature
+    signature
         .recover_address_from_prehash(&hash)
-        .map_err(|e| LDNError::New(format!("Recover address from prehash failed: {e:?}")))?)
+        .map_err(|e| LDNError::New(format!("Recover address from prehash failed: {e:?}")))
 }
 
 #[cfg(test)]
+#[cfg(feature = "online-tests")]
 mod tests {
-    use std::env;
-    use std::str::FromStr;
 
     use alloy::node_bindings::{Anvil, AnvilInstance};
 
@@ -103,7 +102,6 @@ mod tests {
     const SIGNATURE: &str = "0x0d65d92f0f6774ca40a232422329421183dca5479a17b552a9f2d98ad0bb22ac65618c83061d988cd657c239754253bf66ce6e169252710894041b345797aaa21b";
 
     #[actix_rt::test]
-    #[cfg(feature = "online-tests")]
     async fn getting_score_from_gitcoin_passport_decoder_works() {
         env::set_var(
             "GITCOIN_PASSPORT_DECODER",
@@ -122,7 +120,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(feature = "online-tests")]
     async fn getting_score_with_not_verified_score_should_return_zero() {
         env::set_var(
             "GITCOIN_PASSPORT_DECODER",
@@ -140,7 +137,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(feature = "online-tests")]
     async fn verifier_returns_valid_address_for_valid_message() {
         env::set_var("PASSPORT_VERIFIER_CHAIN_ID", "11155420");
         let signature_message: KycApproval = KycApproval {
@@ -160,7 +156,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    #[cfg(feature = "online-tests")]
     async fn verifier_returns_invalid_address_for_invalid_message() {
         env::set_var("PASSPORT_VERIFIER_CHAIN_ID", "11155420");
         let message: KycApproval = KycApproval {
@@ -184,12 +179,10 @@ mod tests {
         let rpc_url = "https://sepolia.optimism.io/";
         let block_number = 12507578;
 
-        let anvil = Anvil::new()
+        Anvil::new()
             .fork(rpc_url)
             .fork_block_number(block_number)
             .try_spawn()
-            .unwrap();
-
-        anvil
+            .unwrap()
     }
 }

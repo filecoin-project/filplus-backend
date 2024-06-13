@@ -49,7 +49,7 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
             id: app.get("id").unwrap().as_str().unwrap().to_string(),
             owner: app.get("owner").unwrap().as_str().unwrap().to_string(),
             repo: app.get("repo").unwrap().as_str().unwrap().to_string(),
-            pr_number: app.get("pr_number").unwrap().as_i64().unwrap() as i64,
+            pr_number: app.get("pr_number").unwrap().as_i64().unwrap(),
             application: Some(
                 app.get("application")
                     .unwrap()
@@ -95,7 +95,7 @@ pub async fn get_merged_applications(
     if let Some(repo) = repo {
         if owner.is_none() {
             return Err(DbErr::Custom(
-                format!("Owner is required to get merged applications").into(),
+                "Owner is required to get merged applications".to_string(),
             ));
         }
         query = query.filter(Column::Repo.contains(repo));
@@ -129,7 +129,7 @@ pub async fn get_active_applications(
     if let Some(repo) = repo {
         if owner.is_none() {
             return Err(DbErr::Custom(
-                format!("Owner is required to get merged applications").into(),
+                "Owner is required to get merged applications".to_string(),
             ));
         }
         query = query.filter(Column::Repo.contains(repo));
@@ -175,7 +175,7 @@ pub async fn get_application(
 
     match result {
         Some(application) => Ok(application),
-        None => return Err(DbErr::Custom(format!("Application not found").into())),
+        None => Err(DbErr::Custom("Application not found".to_string())),
     }
 }
 
@@ -205,7 +205,7 @@ pub async fn get_application_by_pr_number(
 
     match result {
         Some(application) => Ok(application),
-        None => return Err(DbErr::Custom(format!("Application not found").into())),
+        None => Err(DbErr::Custom("Application not found".to_string())),
     }
 }
 
@@ -374,15 +374,13 @@ pub async fn create_application(
         ..Default::default()
     };
 
-    let result = match new_application.insert(&conn).await {
+    match new_application.insert(&conn).await {
         Ok(application) => Ok(application),
         Err(e) => Err(sea_orm::DbErr::Custom(format!(
             "Failed to insert new application: {}",
             e
         ))),
-    };
-
-    result
+    }
 }
 
 /**

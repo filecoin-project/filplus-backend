@@ -22,6 +22,8 @@ impl std::fmt::Display for BlockchainDataError {
     }
 }
 
+// TODO: Change new function to get api_key and base_url as arguments
+#[allow(clippy::new_without_default)]
 impl BlockchainData {
     /// Setup new BlockchainData client.
     pub fn new() -> Self {
@@ -62,7 +64,7 @@ impl BlockchainData {
                 return Err(BlockchainDataError::Err(e.to_string()));
             }
         };
-        return Ok(body);
+        Ok(body)
     }
 
     /// Get Allowance For Address
