@@ -48,6 +48,7 @@ pub async fn get_allocator(
  * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
  * @param address: Option<String> - Address of the Allocator
  * @param tooling: Option<String> - Supported tooling
+ * @param disable_ssa_bot: Option<bool> - Disable SSA bot
  *
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
@@ -63,6 +64,7 @@ pub async fn create_or_update_allocator(
     allocation_amount_type: Option<String>,
     address: Option<String>,
     tooling: Option<String>,
+    disable_ssa_bot: Option<bool>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
     let existing_allocator = get_allocator(&owner, &repo).await?;
     if let Some(allocator_model) = existing_allocator {
@@ -98,6 +100,10 @@ pub async fn create_or_update_allocator(
 
         if tooling.is_some() {
             allocator_active_model.tooling = Set(tooling);
+        }
+
+        if disable_ssa_bot.is_some() {
+            allocator_active_model.disable_ssa_bot = Set(disable_ssa_bot);
         }
 
         let updated_model = allocator_active_model.update(&conn).await?;
@@ -138,6 +144,10 @@ pub async fn create_or_update_allocator(
 
         if tooling.is_some() {
             new_allocator.tooling = Set(tooling);
+        }
+
+        if disable_ssa_bot.is_some() {
+            new_allocator.disable_ssa_bot = Set(disable_ssa_bot);
         }
 
         let conn = get_database_connection()

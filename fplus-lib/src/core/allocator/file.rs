@@ -23,6 +23,7 @@ pub struct Application {
     pub allocation_bookkeeping: String,
     pub allocation_amount: Option<AllocationAmount>,
     pub tooling: Vec<String>,
+    pub disable_ssa_bot: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

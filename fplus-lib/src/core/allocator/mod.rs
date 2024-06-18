@@ -377,6 +377,7 @@ pub async fn update_installation_ids_in_db(installation: InstallationRepositorie
             None,
             None,
             None,
+            None,
         )
         .await;
     }

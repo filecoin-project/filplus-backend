@@ -110,6 +110,7 @@ mod tests {
         let amount_type = Some("Fixed".to_string());
         let address = Some("0x1234567890".to_string());
         let tooling = Some("common_ui, smart_contract_allocator".to_string());
+        let disable_ssa_bot = Some(false);
 
         let result = database::allocators::create_or_update_allocator(
             owner,
@@ -121,6 +122,7 @@ mod tests {
             amount_type,
             address,
             tooling,
+            disable_ssa_bot,
         )
         .await;
         assert!(result.is_ok());
@@ -191,6 +193,7 @@ mod tests {
         let amount_type = Some("Fixed".to_string());
         let address = Some("0x1234567890".to_string());
         let tooling = Some("common_ui, smart_contract_allocator".to_string());
+        let disable_ssa_bot = Some(false);
 
         let result = database::allocators::create_or_update_allocator(
             owner.clone(),
@@ -202,6 +205,7 @@ mod tests {
             amount_type,
             address,
             tooling,
+            disable_ssa_bot,
         )
         .await;
 

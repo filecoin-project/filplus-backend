@@ -100,6 +100,9 @@ pub async fn create_from_json(
                 } else {
                     Some(model.application.tooling.join(", "))
                 };
+
+                let disable_ssa_bot = model.application.disable_ssa_bot.or(Some(false));
+
                 let owner = model.owner.clone().unwrap_or_default().to_string();
                 let repo = model.repo.clone().unwrap_or_default().to_string();
 
@@ -117,6 +120,7 @@ pub async fn create_from_json(
                         .and_then(|a| a.amount_type.clone()),
                     model.address,
                     tooling,
+                    disable_ssa_bot,
                 )
                 .await;
 

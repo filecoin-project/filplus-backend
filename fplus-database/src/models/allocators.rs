@@ -18,6 +18,7 @@ pub struct Model {
     pub allocation_amount_type: Option<String>,
     pub address: Option<String>,
     pub tooling: Option<String>,
+    pub disable_ssa_bot: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
