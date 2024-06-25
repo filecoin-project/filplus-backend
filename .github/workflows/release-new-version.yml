@@ -6,7 +6,7 @@ on:
     types: [opened, synchronize]
   push:
     branches:
-      - main
+      - workflows
 
 jobs:
   build:
@@ -14,13 +14,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install Clippy
+        run: rustup update && rustup component add clippy
+
+      - name: Run Clippy
+        run: cargo clippy
 
       - name: Build
         run: cargo build --release
