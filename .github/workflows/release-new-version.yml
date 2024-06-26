@@ -46,7 +46,7 @@ jobs:
           echo "Building Docker image $IMAGE_TAG"
           docker build -t "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" .
 
-      - name: Push Docker image to Amazon ECR
+      - name: Push Docker image into Amazon ECR
         env:
           BRANCH_NAME: ${{ github.ref_name }}
           ECR_REPOSITORY: "filplus-backend"
