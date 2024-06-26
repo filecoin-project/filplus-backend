@@ -43,11 +43,19 @@ jobs:
         with:
           mask-password: "true"
 
+      - name: Extract branch name
+        id: extract_branch
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "BRANCH_NAME=$(echo ${{ github.head_ref }})" >> $GITHUB_ENV
+          else
+            echo "BRANCH_NAME=$(echo ${{ github.ref_name }})" >> $GITHUB_ENV
+          fi
+
       - name: Build and tag Docker image
         env:
-          IMAGE_TAG: ${{ github.ref_name }}
           ECR_REPOSITORY: "filplus-backend"
         run: |
-          BRANCH_NAME=$(echo $IMAGE_TAG | tr '/' '-')
-          echo "Building Docker image $BRANCH_NAME"
-          docker build -t "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$BRANCH_NAME" .
+          IMAGE_TAG=$(echo $BRANCH_NAME | tr '/' '-')
+          echo "Building Docker image $IMAGE_TAG"
+          docker build -t "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" .
