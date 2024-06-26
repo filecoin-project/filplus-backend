@@ -8,26 +8,27 @@ on:
       - workflows
 
 jobs:
-  set-branch-tag-name:
-    runs-on: ubuntu-latest
-    outputs:
-      branch-tag-name: ${{ steps.set-branch-tag-name.outputs.branch-tag-name }}
-    steps:
-      - name: Extract tag name
-        id: set-branch-tag-name
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            BRANCH_TAG=$(echo "${{ github.head_ref }}" | tr '/' '-')
-          else
-            BRANCH_TAG=$(echo "${{ github.ref_name }}" | tr '/' '-')
-          fi
-          echo "::set-output name=tag-branch-name::${BRANCH_TAG}"
+  #   set-branch-tag-name:
+  #     runs-on: ubuntu-latest
+  #     outputs:
+  #       branch-tag-name: ${{ steps.set-branch-tag-name.outputs.branch-tag-name }}
+  #     steps:
+  #       - name: Extract tag name
+  #         id: set-branch-tag-name
+  #         run: |
+  #           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+  #             BRANCH_TAG=$(echo "${{ github.head_ref }}" | tr '/' '-')
+  #           else
+  #             BRANCH_TAG=$(echo "${{ github.ref_name }}" | tr '/' '-')
+  #           fi
+  #           echo "::set-output name=tag-branch-name::${BRANCH_TAG}"
 
   build:
     runs-on: ubuntu-latest
-    name: New release for "${{ needs.set-branch-tag-name.outputs.branch-tag-name }}" triggered by ${{ github.actor }}
+    name: New release for ${{ github.event.pull_request.base.ref }} triggered by ${{ github.actor }}
     env:
-      BRANCH_TAG: ${{ needs.set-branch-tag-name.outputs.branch-tag-name }}
+      # BRANCH_TAG: ${{ needs.set-branch-tag-name.outputs.branch-tag-name }}
+      BRANCH_TAG: ${{ github.event.pull_request.base.ref }}
 
     steps:
       - name: Checkout code
