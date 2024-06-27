@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: production-fidl
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
