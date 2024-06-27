@@ -29,7 +29,6 @@ jobs:
         run: cargo clippy
 
   end_to_end_tests:
-    name: Perform end-to-end tests
     runs-on: ubuntu-latest
     needs: format_and_lint
     environment: staging-fidl
