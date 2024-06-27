@@ -7,48 +7,71 @@ on:
   #   branches:
   #     - workflows
 jobs:
-  build:
+  format_and_lint:
     runs-on: ubuntu-latest
-    environment: production-fidl
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Install Rust
-
         uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Install Clippy
+        with:
+          components: rustfmt
 
+      - name: Rustfmt Check
+        uses: actions-rust-lang/rustfmt@v1
+
+      - name: Install Clippy
         run: rustup update && rustup component add clippy
+
       - name: Run Clippy
         run: cargo clippy
 
-      - name: Build
-        run: cargo build --release
+  end_to_end_tests:
+    name: Perform end-to-end tests
+    runs-on: ubuntu-latest
+    environment: production-fidl
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v1
-        with:
-          mask-password: "true"
-          registry-type: public
-
-      - name: Build tag and push Docker image
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run tests
         env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          ECR_REPOSITORY: "filplus-backend"
-        run: |
-          IMAGE_TAG=$(echo $BRANCH_NAME | tr '/' '-')
-          echo "Building Docker image $IMAGE_TAG"
-          docker build -t "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" .
-          echo "Pushing Docker image $IMAGE_TAG to ECR"
-          docker push "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG"
+          GH_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }}
+          DB_URL: ${{secrets.DB_URL}}
+        run: cargo test -- --nocapture
+
+  # build:
+  #   runs-on: ubuntu-latest
+  #   environment: production-fidl
+
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v2
+
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v2
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: us-east-1
+
+  #     - name: Login to Amazon ECR
+  #       uses: aws-actions/amazon-ecr-login@v1
+  #       with:
+  #         mask-password: "true"
+  #         registry-type: public
+
+  #     - name: Build tag and push Docker image
+  #       env:
+  #         BRANCH_NAME: ${{ github.ref_name }}
+  #         ECR_REPOSITORY: "filplus-backend"
+  #       run: |
+  #         IMAGE_TAG=$(echo $BRANCH_NAME | tr '/' '-')
+  #         echo "Building Docker image $IMAGE_TAG"
+  #         docker build -t "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" .
+  #         echo "Pushing Docker image $IMAGE_TAG to ECR"
+  #         docker push "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG"
