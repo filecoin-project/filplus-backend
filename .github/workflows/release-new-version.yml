@@ -1,11 +1,11 @@
 name: Release New Version
 run-name: New release for "${{ github.ref_name }}" triggered by ${{ github.actor }}
 on:
-  # pull_request:
-  #   types: [opened, synchronize]
-  push:
-    branches:
-      - workflows
+  pull_request:
+    types: [opened, synchronize]
+  # push:
+  #   branches:
+  #     - workflows
 jobs:
   build:
     runs-on: ubuntu-latest
