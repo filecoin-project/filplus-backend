@@ -67,50 +67,6 @@ impl BlockchainData {
         Ok(body)
     }
 
-    /// Get Allowance For Address
-    pub async fn get_allowance_for_address(
-        &self,
-        address: &str,
-    ) -> Result<String, BlockchainDataError> {
-        let query = format!("getAllowanceForAddress/{}", address);
-        let url = self.build_url(&query);
-        let res = match self.client.get(url).send().await {
-            Ok(res) => res,
-            Err(e) => {
-                log::error!("Error: {}", e);
-                return Err(BlockchainDataError::Err(e.to_string()));
-            }
-        };
-        let body = res.text().await.unwrap();
-
-        //Body json structure is {"type": "verifiedClient" | "error", ["allowance"]: string value, ["message"]: string value}
-        // Let's parse the json and return the allowance value if the type is verifiedClient
-        let json: serde_json::Value = match serde_json::from_str(&body) {
-            Ok(json) => json,
-            Err(e) => {
-                log::error!("Error: {}", e);
-                return Err(BlockchainDataError::Err(
-                    "Error accessing DMOB api".to_string(),
-                ));
-            }
-        };
-        match json["type"].as_str() {
-            Some("verifiedClient") => {
-                let allowance = json["allowance"].as_str().unwrap_or("");
-                Ok(allowance.to_string())
-            }
-            Some("verifier") => {
-                let allowance = json["allowance"].as_str().unwrap_or("");
-                Ok(allowance.to_string())
-            }
-            Some("error") => {
-                let message = json["message"].as_str().unwrap_or("");
-                Err(BlockchainDataError::Err(message.to_string()))
-            }
-            _ => Err(BlockchainDataError::Err("Unknown error".to_string())),
-        }
-    }
-
     /// Build URL
     fn build_url(&self, path: &str) -> String {
         format!("{}/{}", self.base_url, path)
