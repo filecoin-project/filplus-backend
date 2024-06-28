@@ -22,8 +22,7 @@ use crate::{
     },
     error::LDNError,
     external_services::{
-        blockchain::BlockchainData,
-        filecoin::get_multisig_threshold_for_actor,
+        filecoin::{get_allowance_for_address, get_multisig_threshold_for_actor},
         github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         },
@@ -665,10 +664,9 @@ impl LDNApplication {
                     ));
                 } else {
                     log::info!("Application does not exist in the database");
-                    let blockchain = BlockchainData::new();
 
                     // Check the allowance for the address
-                    match blockchain.get_allowance_for_address(&application_id).await {
+                    match get_allowance_for_address(&application_id).await {
                         Ok(allowance) if allowance != "0" => {
                             log::info!("Allowance found and is not zero. Value is {}", allowance);
                             // If allowance is found and is not zero, issue the pathway mismatch comment
@@ -2689,11 +2687,7 @@ impl LDNApplication {
         db_multisig_address: &str,
         new_allocation_amount: Option<String>,
     ) -> Result<(), LDNError> {
-        let blockchain = BlockchainData::new();
-        match blockchain
-            .get_allowance_for_address(db_multisig_address)
-            .await
-        {
+        match get_allowance_for_address(db_multisig_address).await {
             Ok(allowance) if allowance != "0" => {
                 log::info!("Allowance found and is not zero. Value is {}", allowance);
                 match compare_allowance_and_allocation(&allowance, new_allocation_amount) {

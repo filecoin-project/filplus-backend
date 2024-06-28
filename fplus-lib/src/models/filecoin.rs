@@ -1,10 +1,18 @@
 use serde::{Deserialize, Serialize};
+
+pub type StateReadStateResponse = JSONRPCResponse<StateReadStateResult>;
+pub type StateVerifierStatusResponse = JSONRPCResponse<StateVerifierStatusResult>;
+pub type StateVerifiedClientStatusResponse = JSONRPCResponse<StateVerifiedClientStatusResult>;
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct StateReadStateResponse {
+pub struct JSONRPCResponse<T> {
     pub jsonrpc: String,
-    pub result: StateReadStateResult,
+    pub result: T,
     pub id: u64,
 }
+
+pub type StateVerifierStatusResult = String;
+pub type StateVerifiedClientStatusResult = String;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StateReadStateResult {
