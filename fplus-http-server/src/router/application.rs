@@ -3,7 +3,7 @@ use fplus_lib::core::{
     application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo,
     CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo,
     CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams,
-    LDNApplication, MoreInfoNeeded, RefillInfo, SubmitKYCInfo, TriggerSSAInfo,
+    LDNApplication, MoreInfoNeeded, NotifyRefillInfo, SubmitKYCInfo, TriggerSSAInfo,
     ValidationPullRequestData, VerifierActionsQueryParams,
 };
 
@@ -244,11 +244,11 @@ pub async fn merged(query: web::Query<GithubQueryParams>) -> actix_web::Result<i
     }
 }
 
-#[post("/application/refill")]
-pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Responder> {
-    match LDNApplication::refill(data.into_inner()).await {
-        Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
-        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+#[post("/application/notify_refill")]
+pub async fn notify_refill(info: web::Json<NotifyRefillInfo>) -> impl Responder {
+    match LDNApplication::notify_refill(info.into_inner()).await {
+        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
