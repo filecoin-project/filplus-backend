@@ -1,4 +1,3 @@
-const BASE_URL: &str = "https://api.filplus.d.interplanetary.one/public/api";
 extern crate regex;
 
 /// BlockchainData is a client for the Fil+ blockchain data API.
@@ -27,12 +26,13 @@ impl std::fmt::Display for BlockchainDataError {
 impl BlockchainData {
     /// Setup new BlockchainData client.
     pub fn new() -> Self {
+        use crate::config::get_env_var_or_default;
         use reqwest::header;
         let mut headers = header::HeaderMap::new();
-        headers.insert(
-            "X-api-key",
-            header::HeaderValue::from_static("5c993a17-7b18-4ead-a8a8-89dad981d87e"),
-        );
+        let api_key = get_env_var_or_default("DMOB_API_KEY");
+        let header = header::HeaderValue::from_str(&api_key)
+            .expect("Env DMOB_API_KEY should be a valid HTTP header value");
+        headers.insert("X-api-key", header);
         let client = reqwest::Client::builder()
             .user_agent("FP-CORE/0.1.0")
             .default_headers(headers)
@@ -42,7 +42,7 @@ impl BlockchainData {
 
         BlockchainData {
             client,
-            base_url: BASE_URL.to_string(),
+            base_url: get_env_var_or_default("DMOB_API_URL"),
         }
     }
 
