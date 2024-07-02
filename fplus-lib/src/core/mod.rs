@@ -116,6 +116,13 @@ pub struct RefillInfo {
 }
 
 #[derive(Deserialize)]
+pub struct NotifyRefillInfo {
+    pub owner: String,
+    pub repo: String,
+    pub issue_number: String,
+}
+
+#[derive(Deserialize)]
 pub struct DcReachedInfo {
     pub id: String,
     pub owner: String,
@@ -1511,7 +1518,7 @@ impl LDNApplication {
         Ok(apps)
     }
 
-    pub async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
+    async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
         let apps =
             LDNApplication::merged(refill_info.owner.clone(), refill_info.repo.clone()).await?;
         if let Some((content, mut app)) = apps.into_iter().find(|(_, app)| app.id == refill_info.id)
@@ -1546,6 +1553,28 @@ impl LDNApplication {
             return Ok(true);
         }
         Err(LDNError::Load("Failed to get application file".to_string()))
+    }
+
+    pub async fn notify_refill(info: NotifyRefillInfo) -> Result<(), LDNError> {
+        let comment = String::from(
+            "Client used 75% of the allocated DataCap. Consider allocating next tranche.",
+        );
+        Self::add_comment_to_issue(
+            info.issue_number.clone(),
+            info.owner.clone(),
+            info.repo.clone(),
+            comment,
+        )
+        .await?;
+        let label = "Refill needed";
+        Self::update_issue_labels(
+            info.issue_number.clone(),
+            &[label],
+            info.owner.clone(),
+            info.repo.clone(),
+        )
+        .await?;
+        Ok(())
     }
 
     pub async fn validate_merge_application(
