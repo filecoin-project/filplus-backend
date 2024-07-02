@@ -116,6 +116,8 @@ jobs:
           registry-type: public
 
       - name: Pull existing Docker image for cache
+        env:
+          ECR_REPOSITORY: "filplus-backend"
         run: |
           IMAGE_TAG=$(echo ${{ github.ref_name }} | tr '/' '-')
           docker pull "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" || true
@@ -128,10 +130,6 @@ jobs:
           IMAGE_TAG=$(echo $BRANCH_NAME | tr '/' '-')
           echo "Building Docker image $IMAGE_TAG"
           docker buildx build --cache-from "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" \
-                              --cache-from type=local,src=/tmp/.buildx-cache \
-                              --cache-to type=local,dest=/tmp/.buildx-cache-new \
-                              --tag "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" .
+                        --tag "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" .
           echo "Pushing Docker image $IMAGE_TAG to ECR"
           docker push "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG"
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
