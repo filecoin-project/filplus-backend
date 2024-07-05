@@ -1358,6 +1358,7 @@ impl LDNApplication {
                 owner,
                 repo,
                 true,
+                app.issue_number.clone(),
             )
             .await?;
             Ok(true)
@@ -1548,6 +1549,7 @@ impl LDNApplication {
                 refill_info.owner,
                 refill_info.repo,
                 true,
+                app_file.issue_number.clone(),
             )
             .await?;
             return Ok(true);
@@ -2798,6 +2800,7 @@ impl LDNApplication {
             application_model.owner.clone(),
             application_model.repo.clone(),
             false,
+            application_file.issue_number.clone(),
         )
         .await?;
 
@@ -4130,7 +4133,7 @@ pub struct LDNPullRequest {
 
 impl LDNPullRequest {
     async fn create_pr_for_new_application(
-        application_id: String,
+        issue_number: String,
         owner_name: String,
         app_branch_name: String,
         file_name: String,
@@ -4138,7 +4141,7 @@ impl LDNPullRequest {
         owner: String,
         repo: String,
     ) -> Result<String, LDNError> {
-        let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
+        let initial_commit = Self::application_initial_commit(&owner_name, &issue_number);
         let gh: GithubWrapper = github_async_new(owner.to_string(), repo.to_string()).await;
         let head_hash = gh.get_main_branch_sha().await.unwrap();
         let create_ref_request = gh
@@ -4146,13 +4149,13 @@ impl LDNPullRequest {
             .map_err(|e| {
                 LDNError::New(format!(
                     "Application issue {} cannot create branch /// {}",
-                    application_id, e
+                    issue_number, e
                 ))
             })?;
 
         let issue_link = format!(
             "https://github.com/{}/{}/issues/{}",
-            owner, repo, application_id
+            owner, repo, issue_number
         );
 
         let (_pr, file_sha) = gh
@@ -4169,7 +4172,7 @@ impl LDNPullRequest {
             .map_err(|e| {
                 LDNError::New(format!(
                     "Application issue {} cannot create merge request /// {}",
-                    application_id, e
+                    issue_number, e
                 ))
             })?;
 
@@ -4187,6 +4190,7 @@ impl LDNPullRequest {
         owner: String,
         repo: String,
         should_create_in_db: bool,
+        issue_number: String,
     ) -> Result<u64, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh = github_async_new(owner.to_string(), repo.to_string()).await;
@@ -4202,7 +4206,7 @@ impl LDNPullRequest {
 
         let issue_link = format!(
             "https://github.com/{}/{}/issues/{}",
-            owner, repo, application_id
+            owner, repo, issue_number
         );
 
         let pr = match gh
