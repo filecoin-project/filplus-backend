@@ -1,5 +1,7 @@
 use actix_web::{get, web, HttpResponse, Responder};
-use fplus_lib::external_services::blockchain::BlockchainData;
+use fplus_lib::external_services::{
+    blockchain::BlockchainData, filecoin::get_allowance_for_address,
+};
 
 /// Address Allowance.
 ///
@@ -21,11 +23,7 @@ use fplus_lib::external_services::blockchain::BlockchainData;
 
 #[get("/blockchain/address_allowance/{address}")]
 pub async fn address_allowance(address: web::Path<String>) -> impl Responder {
-    let blockchain = BlockchainData::new();
-    match blockchain
-        .get_allowance_for_address(&address.into_inner())
-        .await
-    {
+    match get_allowance_for_address(&address.into_inner()).await {
         Ok(res) => HttpResponse::Ok().body(res),
         Err(_) => HttpResponse::InternalServerError().body("SOMETHING IS WRONG WITH DEMOB SETUP!"),
     }

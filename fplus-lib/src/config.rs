@@ -36,6 +36,11 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("GITCOIN_MINIMUM_SCORE", "30");
         m.insert("KYC_URL", "https://kyc.allocator.tech");
         m.insert("RPC_URL", "https://mainnet.optimism.io");
+        m.insert(
+            "DMOB_API_URL",
+            "https://api.filplus.d.interplanetary.one/public/api",
+        );
+        m.insert("DMOB_API_KEY", "5c993a17-7b18-4ead-a8a8-89dad981d87e");
         m
     })
 }

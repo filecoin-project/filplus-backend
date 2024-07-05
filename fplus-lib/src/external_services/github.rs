@@ -739,13 +739,25 @@ impl GithubWrapper {
         branch: &str,
         path: Option<&str>,
     ) -> Result<ContentItems, OctocrabError> {
-        let octocrab = Octocrab::builder().build()?;
-        let gh = octocrab.repos(owner, repo);
-
         //if path is not provided, take all files from root
         let contents_items = match path {
-            Some(p) => gh.get_content().r#ref(branch).path(p).send().await?,
-            None => gh.get_content().r#ref(branch).send().await?,
+            Some(p) => {
+                self.inner
+                    .repos(owner, repo)
+                    .get_content()
+                    .r#ref(branch)
+                    .path(p)
+                    .send()
+                    .await?
+            }
+            None => {
+                self.inner
+                    .repos(owner, repo)
+                    .get_content()
+                    .r#ref(branch)
+                    .send()
+                    .await?
+            }
         };
 
         Ok(contents_items)
