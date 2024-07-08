@@ -1,8 +1,8 @@
 name: Release New Version
 run-name: New release for "${{ github.ref_name }}" triggered by ${{ github.actor }}
 on:
-  # pull_request:
-  #   types: [opened, synchronize]
+  pull_request:
+    types: [opened, synchronize]
   push:
     branches:
       - workflows
@@ -11,81 +11,81 @@ env:
   ECR_REPOSITORY: "filplus-backend"
 
 jobs:
-  # format_and_lint:
-  #   runs-on: ubuntu-latest
+  format_and_lint:
+    runs-on: ubuntu-latest
 
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  #     - name: Cache Cargo registry
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: |
-  #           ~/.cargo/registry
-  #           ~/.cargo/git
-  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-cargo-registry-
+      - name: Cache Cargo registry
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
 
-  #     - name: Cache Cargo build
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: target
-  #         key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-cargo-build-
+      - name: Cache Cargo build
+        uses: actions/cache@v2
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
 
-  #     - name: Install Rust
-  #       uses: actions-rust-lang/setup-rust-toolchain@v1
-  #       with:
-  #         components: rustfmt, clippy
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
 
-  #     - name: Rustfmt Check
-  #       uses: actions-rust-lang/rustfmt@v1
+      - name: Rustfmt Check
+        uses: actions-rust-lang/rustfmt@v1
 
-  #     - name: Run Clippy
-  #       run: cargo clippy
+      - name: Run Clippy
+        run: cargo clippy
 
-  # end_to_end_tests:
-  #   runs-on: ubuntu-latest
-  #   needs: format_and_lint
-  #   environment: staging-fidl
+  end_to_end_tests:
+    runs-on: ubuntu-latest
+    needs: format_and_lint
+    environment: staging-fidl
 
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  #     - name: Cache Cargo registry
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: |
-  #           ~/.cargo/registry
-  #           ~/.cargo/git
-  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-cargo-registry-
+      - name: Cache Cargo registry
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
 
-  #     - name: Cache Cargo build
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: target
-  #         key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-cargo-build-
+      - name: Cache Cargo build
+        uses: actions/cache@v2
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
 
-  #     - name: Install Rust
-  #       uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #     - name: Run tests
-  #       env:
-  #         GH_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }}
-  #         DB_URL: ${{secrets.DB_URL}}
-  #       run: cargo test -- --nocapture
+      - name: Run tests
+        env:
+          GH_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }}
+          DB_URL: ${{secrets.DB_URL}}
+        run: cargo test -- --nocapture
 
   build_and_push:
     runs-on: ubuntu-latest
-    # needs: [format_and_lint, end_to_end_tests]
+    needs: [format_and_lint, end_to_end_tests]
     environment: production-fidl
 
     steps:
