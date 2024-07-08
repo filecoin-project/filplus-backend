@@ -6,6 +6,10 @@ on:
   push:
     branches:
       - workflows
+
+env:
+  ECR_REPOSITORY: "filplus-backend"
+
 jobs:
   # format_and_lint:
   #   runs-on: ubuntu-latest
@@ -128,14 +132,11 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
       - name: Build tag and push Docker image
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          ECR_REPOSITORY: "filplus-backend"
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:${{ env.IMAGE_TAG }}
+          tags: public.ecr.aws/f4h6r4m9/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           github-token: ${{ secrets.GITHUB_TOKEN }}
