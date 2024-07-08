@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize]
   push:
     branches:
-      - workflows
+      - main
 
 env:
   ECR_REPOSITORY: "filplus-backend"
