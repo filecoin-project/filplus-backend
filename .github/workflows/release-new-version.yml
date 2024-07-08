@@ -115,22 +115,30 @@ jobs:
           mask-password: "true"
           registry-type: public
 
-      - name: Pull existing Docker image for cache
-        env:
-          ECR_REPOSITORY: "filplus-backend"
-        run: |
-          IMAGE_TAG=$(echo ${{ github.ref_name }} | tr '/' '-')
-          docker pull "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" || true
-
+      # - name: Pull existing Docker image for cache
+      #   env:
+      #     ECR_REPOSITORY: "filplus-backend"
+      #     IMAGE_TAG: $(echo ${{ github.ref_name }} | tr '/' '-')
+      #   run: |
+      #     docker pull "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG" || true
       - name: Build tag and push Docker image
         env:
           BRANCH_NAME: ${{ github.ref_name }}
           ECR_REPOSITORY: "filplus-backend"
-        run: |
-          IMAGE_TAG=$(echo $BRANCH_NAME | tr '/' '-')
-          echo "Building Docker image $IMAGE_TAG"
-          docker buildx build --push --tag public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG \
-                        --cache-from type=registry,ref=public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG \
-                        --cache-to type=registry,ref=public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG,mode=max,image-manifest=true .
-          echo "Pushing Docker image $IMAGE_TAG to ECR"
-          docker push "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG"
+          IMAGE_TAG: $(echo $BRANCH_NAME | tr '/' '-')
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+        # run: |
+        #   echo "Building Docker image $IMAGE_TAG"
+        #   docker buildx build --push --tag public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG \
+        #                 --cache-from type=registry,ref=public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG \
+        #                 --cache-to type=registry,ref=public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG,mode=max,image-manifest=true .
+        #   echo "Pushing Docker image $IMAGE_TAG to ECR"
+        #   docker push "public.ecr.aws/f4h6r4m9/$ECR_REPOSITORY:$IMAGE_TAG"
