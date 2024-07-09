@@ -3,11 +3,11 @@ run-name: New deployment for "${{ github.ref_name }}" triggered by ${{ github.ac
 
 on:
   workflow_dispatch:
-    # inputs:
-    #   version:
-    #     description: "Enter the version number"
-    #     required: true
-    #     default: "latest"
+    inputs:
+      version:
+        description: "Enter the version number"
+        required: true
+        default: "latest"
 
 jobs:
   call-release-workflow:
@@ -17,5 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-    #   - name: "Check build and push release"
-    #     uses: ./.github/workflows/release-new-version.yml
+      - name: "Check build and push release"
+        uses: ./.github/workflows/release-new-version.yml
+        with:
+          version: ${{ inputs.version }}
