@@ -79,12 +79,13 @@ async fn main() -> std::io::Result<()> {
                     .service(router::application::decline)
                     .service(router::application::additional_info_required)
                     .service(router::application::trigger_ssa)
-                    .service(router::application::request_kyc),
+                    .service(router::application::request_kyc)
+                    .service(router::application::remove_pending_allocation),
             )
             .service(router::application::merged)
             .service(router::application::active)
             .service(router::application::all_applications)
-            .service(router::application::refill)
+            .service(router::application::notify_refill)
             .service(router::application::total_dc_reached)
             .service(router::application::single)
             .service(router::application::application_with_allocation_amount_handler)

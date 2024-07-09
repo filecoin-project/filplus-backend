@@ -22,8 +22,7 @@ use crate::{
     },
     error::LDNError,
     external_services::{
-        blockchain::BlockchainData,
-        filecoin::get_multisig_threshold_for_actor,
+        filecoin::{get_allowance_for_address, get_multisig_threshold_for_actor},
         github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         },
@@ -114,6 +113,13 @@ pub struct RefillInfo {
     pub amount_type: String,
     pub owner: String,
     pub repo: String,
+}
+
+#[derive(Deserialize)]
+pub struct NotifyRefillInfo {
+    pub owner: String,
+    pub repo: String,
+    pub issue_number: String,
 }
 
 #[derive(Deserialize)]
@@ -665,10 +671,9 @@ impl LDNApplication {
                     ));
                 } else {
                     log::info!("Application does not exist in the database");
-                    let blockchain = BlockchainData::new();
 
                     // Check the allowance for the address
-                    match blockchain.get_allowance_for_address(&application_id).await {
+                    match get_allowance_for_address(&application_id).await {
                         Ok(allowance) if allowance != "0" => {
                             log::info!("Allowance found and is not zero. Value is {}", allowance);
                             // If allowance is found and is not zero, issue the pathway mismatch comment
@@ -1353,6 +1358,7 @@ impl LDNApplication {
                 owner,
                 repo,
                 true,
+                app.issue_number.clone(),
             )
             .await?;
             Ok(true)
@@ -1513,7 +1519,7 @@ impl LDNApplication {
         Ok(apps)
     }
 
-    pub async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
+    async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
         let apps =
             LDNApplication::merged(refill_info.owner.clone(), refill_info.repo.clone()).await?;
         if let Some((content, mut app)) = apps.into_iter().find(|(_, app)| app.id == refill_info.id)
@@ -1543,11 +1549,52 @@ impl LDNApplication {
                 refill_info.owner,
                 refill_info.repo,
                 true,
+                app_file.issue_number.clone(),
             )
             .await?;
             return Ok(true);
         }
         Err(LDNError::Load("Failed to get application file".to_string()))
+    }
+
+    pub async fn notify_refill(info: NotifyRefillInfo) -> Result<(), LDNError> {
+        let label = "Refill needed";
+
+        let gh = github_async_new(info.owner.clone(), info.repo.clone()).await;
+        let issue_number = info.issue_number.parse().map_err(|e| {
+            LDNError::Load(format!("Failed to parse issue number to number: {:?}", e))
+        })?;
+        let has_label = gh.issue_has_label(issue_number, label).await.map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to check if issue has refill label: {:?}",
+                e
+            ))
+        })?;
+        if has_label {
+            return Err(LDNError::Load(format!(
+                "'{}' label present - already notified about refill!",
+                label
+            )));
+        }
+
+        let comment = String::from(
+            "Client used 75% of the allocated DataCap. Consider allocating next tranche.",
+        );
+        Self::add_comment_to_issue(
+            info.issue_number.clone(),
+            info.owner.clone(),
+            info.repo.clone(),
+            comment,
+        )
+        .await?;
+        Self::update_issue_labels(
+            info.issue_number.clone(),
+            &[label],
+            info.owner.clone(),
+            info.repo.clone(),
+        )
+        .await?;
+        Ok(())
     }
 
     pub async fn validate_merge_application(
@@ -1956,7 +2003,7 @@ impl LDNApplication {
 
     #[allow(clippy::too_many_arguments)]
     async fn update_and_commit_application_state(
-        self,
+        &self,
         db_application_file: ApplicationFile,
         owner: String,
         repo: String,
@@ -2142,8 +2189,7 @@ impl LDNApplication {
         branch_name: String,
         filename: String,
     ) -> Result<String, LDNError> {
-        Self::update_and_commit_application_state(
-            self,
+        self.update_and_commit_application_state(
             db_application_file.clone(),
             owner.clone(),
             repo.clone(),
@@ -2689,11 +2735,7 @@ impl LDNApplication {
         db_multisig_address: &str,
         new_allocation_amount: Option<String>,
     ) -> Result<(), LDNError> {
-        let blockchain = BlockchainData::new();
-        match blockchain
-            .get_allowance_for_address(db_multisig_address)
-            .await
-        {
+        match get_allowance_for_address(db_multisig_address).await {
             Ok(allowance) if allowance != "0" => {
                 log::info!("Allowance found and is not zero. Value is {}", allowance);
                 match compare_allowance_and_allocation(&allowance, new_allocation_amount) {
@@ -2776,6 +2818,7 @@ impl LDNApplication {
             application_model.owner.clone(),
             application_model.repo.clone(),
             false,
+            application_file.issue_number.clone(),
         )
         .await?;
 
@@ -2794,7 +2837,7 @@ impl LDNApplication {
         })
     }
 
-    pub async fn delete_merged_branch(
+    pub async fn delete_branch(
         owner: String,
         repo: String,
         branch_name: String,
@@ -3661,17 +3704,17 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         }
 
         // Adjusted to capture the result of update_and_commit_application_state
-        let updated_application = Self::update_and_commit_application_state(
-            self,
-            db_application_file.clone(),
-            owner.clone(),
-            repo.clone(),
-            sha.clone(),
-            branch_name.clone(),
-            filename.clone(),
-            "Additional information required".to_string(),
-        )
-        .await?;
+        let updated_application = self
+            .update_and_commit_application_state(
+                db_application_file.clone(),
+                owner.clone(),
+                repo.clone(),
+                sha.clone(),
+                branch_name.clone(),
+                filename.clone(),
+                "Additional information required".to_string(),
+            )
+            .await?;
 
         let _ = Self::issue_additional_info_required(
             db_application_file.issue_number.clone(),
@@ -3964,6 +4007,138 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         }
         Ok(address_from_signature)
     }
+
+    pub async fn remove_pending_allocation(
+        &self,
+        client_id: &str,
+        owner: &str,
+        repo: &str,
+    ) -> Result<(), LDNError> {
+        let app_model =
+            Self::get_application_model(client_id.into(), owner.into(), repo.into()).await?;
+
+        if app_model.pr_number == 0 {
+            return Err(LDNError::Load("Active pull request not found".to_string()));
+        }
+
+        let app_str = &app_model.application.ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                client_id
+            ))
+        })?;
+        let application_file = serde_json::from_str::<ApplicationFile>(app_str).unwrap();
+
+        if application_file.lifecycle.state != AppState::ReadyToSign {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected ReadyToSign",
+                application_file.lifecycle.state
+            )));
+        }
+        let last_allocation = application_file.get_active_allocation().ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an active allocation",
+                client_id
+            ))
+        })?;
+
+        let is_first = last_allocation.request_type == "First";
+        if is_first {
+            self.remove_first_pending_allocation(&application_file)
+                .await?;
+        } else {
+            self.remove_pending_refill(&app_model.pr_number).await?;
+        }
+        self.issue_updates_after_removing_pending_allocation(
+            &application_file.issue_number,
+            is_first,
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn issue_updates_after_removing_pending_allocation(
+        &self,
+        issue_number: &str,
+        is_first: bool,
+    ) -> Result<(), LDNError> {
+        let comment = format!(
+            "Last pending allocation reverted for an application `{}`.",
+            &self.application_id
+        );
+        let issue_number = issue_number.parse::<u64>().map_err(|e| {
+            LDNError::New(format!(
+                "Parse issue number: {} to u64 failed. {}",
+                issue_number, e
+            ))
+        })?;
+        self.github
+            .add_comment_to_issue(issue_number, &comment)
+            .await
+            .map_err(|e| {
+                LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ))
+            })?;
+
+        let app_state = if is_first {
+            AppState::Submitted.as_str()
+        } else {
+            AppState::Granted.as_str()
+        };
+        self.github
+            .replace_issue_labels(issue_number, &[app_state.into()])
+            .await
+            .map_err(|e| {
+                LDNError::New(format!(
+                    "Error adding labels to issue {} /// {}",
+                    issue_number, e
+                ))
+            })?;
+        Ok(())
+    }
+
+    async fn remove_first_pending_allocation(
+        &self,
+        application_file: &ApplicationFile,
+    ) -> Result<(), LDNError> {
+        let updated_application = application_file.move_back_to_governance_review();
+        self.update_and_commit_application_state(
+            updated_application.clone(),
+            self.github.owner.clone(),
+            self.github.repo.clone(),
+            self.file_sha.clone(),
+            LDNPullRequest::application_branch_name(&application_file.id),
+            self.file_name.clone(),
+            "Revert last pending allocation".to_string(),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn remove_pending_refill(&self, pr_number: &i64) -> Result<(), LDNError> {
+        Self::delete_branch(
+            self.github.owner.clone(),
+            self.github.repo.clone(),
+            self.branch_name.clone(),
+        )
+        .await?;
+        database::applications::delete_application(
+            self.application_id.clone(),
+            self.github.owner.clone(),
+            self.github.repo.clone(),
+            *pr_number as u64,
+        )
+        .await
+        .map_err(|e| {
+            LDNError::New(format!(
+                "Removing application with PR number: {} failed. {:?}",
+                pr_number, e
+            ))
+        })?;
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -3976,7 +4151,7 @@ pub struct LDNPullRequest {
 
 impl LDNPullRequest {
     async fn create_pr_for_new_application(
-        application_id: String,
+        issue_number: String,
         owner_name: String,
         app_branch_name: String,
         file_name: String,
@@ -3984,7 +4159,7 @@ impl LDNPullRequest {
         owner: String,
         repo: String,
     ) -> Result<String, LDNError> {
-        let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
+        let initial_commit = Self::application_initial_commit(&owner_name, &issue_number);
         let gh: GithubWrapper = github_async_new(owner.to_string(), repo.to_string()).await;
         let head_hash = gh.get_main_branch_sha().await.unwrap();
         let create_ref_request = gh
@@ -3992,13 +4167,13 @@ impl LDNPullRequest {
             .map_err(|e| {
                 LDNError::New(format!(
                     "Application issue {} cannot create branch /// {}",
-                    application_id, e
+                    issue_number, e
                 ))
             })?;
 
         let issue_link = format!(
             "https://github.com/{}/{}/issues/{}",
-            owner, repo, application_id
+            owner, repo, issue_number
         );
 
         let (_pr, file_sha) = gh
@@ -4015,7 +4190,7 @@ impl LDNPullRequest {
             .map_err(|e| {
                 LDNError::New(format!(
                     "Application issue {} cannot create merge request /// {}",
-                    application_id, e
+                    issue_number, e
                 ))
             })?;
 
@@ -4033,6 +4208,7 @@ impl LDNPullRequest {
         owner: String,
         repo: String,
         should_create_in_db: bool,
+        issue_number: String,
     ) -> Result<u64, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh = github_async_new(owner.to_string(), repo.to_string()).await;
@@ -4048,7 +4224,7 @@ impl LDNPullRequest {
 
         let issue_link = format!(
             "https://github.com/{}/{}/issues/{}",
-            owner, repo, application_id
+            owner, repo, issue_number
         );
 
         let pr = match gh

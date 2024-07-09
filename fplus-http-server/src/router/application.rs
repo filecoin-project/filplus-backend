@@ -3,7 +3,7 @@ use fplus_lib::core::{
     application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo,
     CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo,
     CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams,
-    LDNApplication, MoreInfoNeeded, RefillInfo, SubmitKYCInfo, TriggerSSAInfo,
+    LDNApplication, MoreInfoNeeded, NotifyRefillInfo, SubmitKYCInfo, TriggerSSAInfo,
     ValidationPullRequestData, VerifierActionsQueryParams,
 };
 
@@ -244,11 +244,11 @@ pub async fn merged(query: web::Query<GithubQueryParams>) -> actix_web::Result<i
     }
 }
 
-#[post("/application/refill")]
-pub async fn refill(data: web::Json<RefillInfo>) -> actix_web::Result<impl Responder> {
-    match LDNApplication::refill(data.into_inner()).await {
-        Ok(applications) => Ok(HttpResponse::Ok().json(applications)),
-        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
+#[post("/application/notify_refill")]
+pub async fn notify_refill(info: web::Json<NotifyRefillInfo>) -> impl Responder {
+    match LDNApplication::notify_refill(info.into_inner()).await {
+        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
@@ -374,7 +374,7 @@ pub async fn validate_application_merge(
 #[post("/application/branch/delete")]
 pub async fn delete_branch(data: web::Json<BranchDeleteInfo>) -> actix_web::Result<impl Responder> {
     let info = data.into_inner();
-    match LDNApplication::delete_merged_branch(info.owner, info.repo, info.branch_name).await {
+    match LDNApplication::delete_branch(info.owner, info.repo, info.branch_name).await {
         Ok(result) => Ok(HttpResponse::Ok().json(result)),
         Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
     }
@@ -474,6 +474,25 @@ pub async fn trigger_ssa(
     info: web::Json<TriggerSSAInfo>,
 ) -> impl Responder {
     match LDNApplication::trigger_ssa(&query.id, &query.owner, &query.repo, info.into_inner()).await
+    {
+        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}
+
+#[post("application/remove_pending_allocation")]
+pub async fn remove_pending_allocation(
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+        };
+    match ldn_application
+        .remove_pending_allocation(&query.id, &query.owner, &query.repo)
+        .await
     {
         Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),

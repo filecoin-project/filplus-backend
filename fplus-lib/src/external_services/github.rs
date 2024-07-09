@@ -261,6 +261,20 @@ impl GithubWrapper {
         Ok(())
     }
 
+    pub async fn issue_has_label(
+        &self,
+        number: u64,
+        expected_label: &str,
+    ) -> Result<bool, OctocrabError> {
+        let page = self
+            .inner
+            .issues(&self.owner, &self.repo)
+            .list_labels_for_issue(number)
+            .send()
+            .await?;
+        Ok(page.into_iter().any(|label| label.name == expected_label))
+    }
+
     pub async fn list_pull_requests(&self) -> Result<Vec<PullRequest>, OctocrabError> {
         let iid = self
             .inner
@@ -739,13 +753,25 @@ impl GithubWrapper {
         branch: &str,
         path: Option<&str>,
     ) -> Result<ContentItems, OctocrabError> {
-        let octocrab = Octocrab::builder().build()?;
-        let gh = octocrab.repos(owner, repo);
-
         //if path is not provided, take all files from root
         let contents_items = match path {
-            Some(p) => gh.get_content().r#ref(branch).path(p).send().await?,
-            None => gh.get_content().r#ref(branch).send().await?,
+            Some(p) => {
+                self.inner
+                    .repos(owner, repo)
+                    .get_content()
+                    .r#ref(branch)
+                    .path(p)
+                    .send()
+                    .await?
+            }
+            None => {
+                self.inner
+                    .repos(owner, repo)
+                    .get_content()
+                    .r#ref(branch)
+                    .send()
+                    .await?
+            }
         };
 
         Ok(contents_items)
