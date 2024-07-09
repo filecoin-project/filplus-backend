@@ -3,15 +3,16 @@ run-name: New deployment for "${{ github.ref_name }}" triggered by ${{ github.ac
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Enter the version number"
-        required: true
-        default: "latest"
+    # inputs:
+    #   version:
+    #     description: "Enter the version number"
+    #     required: true
+    #     default: "latest"
 
 jobs:
   call-release-workflow:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
