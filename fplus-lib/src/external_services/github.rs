@@ -261,6 +261,20 @@ impl GithubWrapper {
         Ok(())
     }
 
+    pub async fn issue_has_label(
+        &self,
+        number: u64,
+        expected_label: &str,
+    ) -> Result<bool, OctocrabError> {
+        let page = self
+            .inner
+            .issues(&self.owner, &self.repo)
+            .list_labels_for_issue(number)
+            .send()
+            .await?;
+        Ok(page.into_iter().any(|label| label.name == expected_label))
+    }
+
     pub async fn list_pull_requests(&self) -> Result<Vec<PullRequest>, OctocrabError> {
         let iid = self
             .inner
