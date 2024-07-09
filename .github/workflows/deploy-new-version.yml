@@ -17,4 +17,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: "Check build and push release"
-        uses: filecoin-project/filplus-backend/.github/workflows/release-new-version.yml
+        uses: ./.github/workflows/release-new-version.yml
