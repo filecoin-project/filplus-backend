@@ -12,9 +12,9 @@ on:
 jobs:
   call-release-workflow:
     runs-on: ubuntu-latest
-    # steps:
-    #   - name: Checkout code
-    #     uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
     #   - name: "Check build and push release"
     #     uses: ./.github/workflows/release-new-version.yml
