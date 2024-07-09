@@ -1558,6 +1558,25 @@ impl LDNApplication {
     }
 
     pub async fn notify_refill(info: NotifyRefillInfo) -> Result<(), LDNError> {
+        let label = "Refill needed";
+
+        let gh = github_async_new(info.owner.clone(), info.repo.clone()).await;
+        let issue_number = info.issue_number.parse().map_err(|e| {
+            LDNError::Load(format!("Failed to parse issue number to number: {:?}", e))
+        })?;
+        let has_label = gh.issue_has_label(issue_number, label).await.map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to check if issue has refill label: {:?}",
+                e
+            ))
+        })?;
+        if has_label {
+            return Err(LDNError::Load(format!(
+                "'{}' label present - already notified about refill!",
+                label
+            )));
+        }
+
         let comment = String::from(
             "Client used 75% of the allocated DataCap. Consider allocating next tranche.",
         );
@@ -1568,7 +1587,6 @@ impl LDNApplication {
             comment,
         )
         .await?;
-        let label = "Refill needed";
         Self::update_issue_labels(
             info.issue_number.clone(),
             &[label],
