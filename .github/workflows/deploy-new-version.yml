@@ -10,5 +10,8 @@ on:
         default: "latest"
 
 jobs:
-  call-build-workflow:
-    uses: filecoin-project/filplus-backend/.github/workflows/release-new-version.yml
+  call-release-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check build and push release"
+        uses: filecoin-project/filplus-backend/.github/workflows/release-new-version.yml
