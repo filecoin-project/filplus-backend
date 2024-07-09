@@ -6,6 +6,11 @@ on:
   push:
     branches:
       - main
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
 
 env:
   ECR_REPOSITORY: "filplus-backend"
@@ -121,7 +126,13 @@ jobs:
 
       - name: Set IMAGE_TAG
         run: |
-          IMAGE_TAG=$(echo ${{ github.ref_name }} | tr '/' '-')
+          if [ -z "${{ inputs.version }}" ]
+          then 
+            IMAGE_TAG=$(echo ${{ inputs.version }} | tr '/' '-')
+          else
+            IMAGE_TAG=$(echo ${{ github.ref_name }} | tr '/' '-')
+          fi
+
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
       - name: Build tag and push Docker image

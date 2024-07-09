@@ -1,0 +1,14 @@
+name: Deploy new version
+run-name: New deployment for "${{ github.ref_name }}" triggered by ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Enter the version number"
+        required: true
+        default: "latest"
+
+jobs:
+  call-build-workflow:
+    uses: filecoin-project/filplus-backend/.github/workflows/release-new-version.yml
