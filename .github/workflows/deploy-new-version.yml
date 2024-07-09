@@ -13,5 +13,8 @@ jobs:
   call-release-workflow:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: "Check build and push release"
         uses: filecoin-project/filplus-backend/.github/workflows/release-new-version.yml
