@@ -1,7 +1,7 @@
 use regex::Regex;
 
 pub fn parse_size_to_bytes(size: &str) -> Option<u64> {
-    let re = Regex::new(r"^(\d+)([a-zA-Z]+)$").unwrap();
+    let re = Regex::new(r"^(\d+)\s?([a-zA-Z]+)$").unwrap();
     let caps = re.captures(size.trim())?;
 
     let number = caps.get(1)?.as_str().parse::<u64>().ok()?;
@@ -62,4 +62,25 @@ pub fn process_amount(mut amount: String) -> String {
 
     // Replace 'b' with 'B'
     amount.replace('b', "B")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_size_to_bytes_should_work_with_whitespace() {
+        let res = parse_size_to_bytes("2 PiB");
+        assert_eq!(res, Some(2251799813685248));
+        let res = parse_size_to_bytes("2\tPiB");
+        assert_eq!(res, Some(2251799813685248));
+        let res = parse_size_to_bytes("2\nPiB");
+        assert_eq!(res, Some(2251799813685248));
+    }
+
+    #[test]
+    fn parse_size_to_bytes_should_work_without_whitespace() {
+        let res = parse_size_to_bytes("2PiB");
+        assert_eq!(res, Some(2251799813685248));
+    }
 }
