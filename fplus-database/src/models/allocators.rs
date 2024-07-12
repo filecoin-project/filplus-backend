@@ -18,6 +18,10 @@ pub struct Model {
     pub allocation_amount_type: Option<String>,
     pub address: Option<String>,
     pub tooling: Option<String>,
+    pub data_types: Option<Vec<String>>,
+    pub required_sps: Option<String>,
+    pub required_replicas: Option<String>,
+    pub registry_file_path: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]

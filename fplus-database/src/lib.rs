@@ -110,6 +110,13 @@ mod tests {
         let amount_type = Some("Fixed".to_string());
         let address = Some("0x1234567890".to_string());
         let tooling = Some("common_ui, smart_contract_allocator".to_string());
+        let data_types = Some(vec![
+            "Public Open Dataset (Research/Non-Profit)".to_string(),
+            "Public Open Commercial/Enterprise".to_string(),
+        ]);
+        let required_sps = Some("5+".to_string());
+        let required_replicas = Some("5+".to_string());
+        let registry_file_path = Some("Allocators/123.json".to_string());
 
         let result = database::allocators::create_or_update_allocator(
             owner,
@@ -121,6 +128,10 @@ mod tests {
             amount_type,
             address,
             tooling,
+            data_types,
+            required_sps,
+            required_replicas,
+            registry_file_path,
         )
         .await;
         assert!(result.is_ok());
@@ -191,6 +202,13 @@ mod tests {
         let amount_type = Some("Fixed".to_string());
         let address = Some("0x1234567890".to_string());
         let tooling = Some("common_ui, smart_contract_allocator".to_string());
+        let data_types = Some(vec![
+            "Public Open Dataset (Research/Non-Profit)".to_string(),
+            "Public Open Commercial/Enterprise".to_string(),
+        ]);
+        let required_sps = Some("5+".to_string());
+        let required_replicas = Some("5+".to_string());
+        let registry_file_path = Some("Allocators/123.json".to_string());
 
         let result = database::allocators::create_or_update_allocator(
             owner.clone(),
@@ -202,6 +220,10 @@ mod tests {
             amount_type,
             address,
             tooling,
+            data_types,
+            required_sps,
+            required_replicas,
+            registry_file_path,
         )
         .await;
 
