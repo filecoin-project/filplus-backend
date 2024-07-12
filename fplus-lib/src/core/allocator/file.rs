@@ -23,6 +23,9 @@ pub struct Application {
     pub allocation_bookkeeping: String,
     pub allocation_amount: Option<AllocationAmount>,
     pub tooling: Vec<String>,
+    pub data_types: Vec<String>,
+    pub required_sps: String,
+    pub required_replicas: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -117,6 +117,10 @@ pub async fn create_from_json(
                         .and_then(|a| a.amount_type.clone()),
                     model.address,
                     tooling,
+                    Some(model.application.data_types),
+                    Some(model.application.required_sps),
+                    Some(model.application.required_replicas),
+                    Some(file_name.to_owned()),
                 )
                 .await;
 
