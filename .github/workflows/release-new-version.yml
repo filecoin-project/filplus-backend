@@ -126,7 +126,7 @@ jobs:
 
       - name: Set IMAGE_TAG
         run: |
-          if [ -z "${{ inputs.version }}" ]
+          if [ -n "${{ inputs.version }}" ]
           then 
             IMAGE_TAG=$(echo ${{ inputs.version }} | tr '/' '-')
           else
