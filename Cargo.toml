@@ -1,7 +1,3 @@
-[package]
-name = ""
-version = "0.0.1"
-
 [workspace]
 
 members = [

@@ -128,7 +128,7 @@ jobs:
         run: |
           if [ -n "${{ inputs.version }}" ]
           then 
-            IMAGE_TAG=$(echo ${{ inputs.version }} | tr '/' '-')
+            IMAGE_TAG="${{ inputs.version }}-${{ github.ref_name }}"
           else
             IMAGE_TAG=$(echo ${{ github.ref_name }} | tr '/' '-')
           fi
@@ -144,3 +144,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push tag
+        if: -n "${{ inputs.version }}"
+        run: |
+          TAG_NAME="v${{ env.IMAGE_TAG }}"
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
