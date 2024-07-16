@@ -146,7 +146,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create and push tag
-        if: -n "${{ inputs.version }}"
+        if: inputs.version != ''
         run: |
           TAG_NAME="v${{ env.IMAGE_TAG }}"
           git tag $TAG_NAME
