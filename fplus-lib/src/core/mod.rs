@@ -164,11 +164,6 @@ pub struct AllocatorUpdateForceInfo {
 }
 
 #[derive(Deserialize)]
-pub struct InstallationIdUpdateInfo {
-    pub installation_id: i64,
-}
-
-#[derive(Deserialize)]
 pub struct GithubQueryParams {
     pub owner: String,
     pub repo: String,

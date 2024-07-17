@@ -1,12 +1,15 @@
+use crate::helpers::process_amount;
+use fplus_database::database::allocation_amounts::{
+    create_allocation_amount, delete_allocation_amounts_by_allocator_id,
+};
 use fplus_database::database::allocators::{create_or_update_allocator, get_allocators};
 use fplus_database::models::allocators::Model;
-
 use octocrab::auth::create_jwt;
 use octocrab::models::repos::{Content, ContentItems};
 
 use crate::config::get_env_var_or_default;
 use crate::external_services::filecoin::get_multisig_threshold_for_actor;
-use crate::external_services::github::{github_async_new, GithubWrapper};
+use crate::external_services::github::GithubWrapper;
 use crate::{base64::decode_allocator_model, error::LDNError};
 
 use self::file::{
@@ -25,11 +28,13 @@ pub mod file;
 pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, LDNError> {
     let owner = get_env_var_or_default("ALLOCATOR_GOVERNANCE_OWNER");
     let repo = get_env_var_or_default("ALLOCATOR_GOVERNANCE_REPO");
-    let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID");
+    let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID")
+        .parse::<i64>()
+        .map_err(|e| LDNError::New(format!("Parse installation_id to i64 failed: {}", e)))?;
     let branch = "main";
     let path = file_name.to_string();
 
-    let gh = GithubWrapper::new(owner.clone(), repo.clone(), installation_id.clone());
+    let gh = GithubWrapper::new(owner.clone(), repo.clone(), Some(installation_id));
     let content_items: ContentItems = gh
         .get_files_from_public_repo(&owner, &repo, branch, Some(&path))
         .await
@@ -104,10 +109,9 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
     }
 }
 
-pub async fn is_allocator_repo_created(owner: &str, repo: &str) -> Result<bool, LDNError> {
+pub async fn is_allocator_repo_initialized(gh: &GithubWrapper) -> Result<bool, LDNError> {
     let repo_flag_file = "invalid.md";
     let applications_directory = "applications";
-    let gh = github_async_new(owner.to_string(), repo.to_string()).await;
     let all_files_result = gh.get_files(applications_directory).await.map_err(|e| {
         LDNError::Load(format!(
             "Failed to retrieve all files from GitHub. Reason: {}",
@@ -225,8 +229,7 @@ pub async fn create_file_in_repo(
     Ok(())
 }
 
-pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNError> {
-    let gh = github_async_new(owner.to_string(), repo.to_string()).await;
+pub async fn init_allocator_repo(gh: &GithubWrapper) -> Result<(), LDNError> {
     let mut dirs = Vec::new();
     let branch = match get_env_var_or_default("FILPLUS_ENV").as_str() {
         "staging" => "staging",
@@ -260,7 +263,7 @@ pub async fn create_allocator_repo(owner: &str, repo: &str) -> Result<(), LDNErr
                 dirs.push(file_path);
                 continue;
             }
-            self::create_file_in_repo(&gh, file, false).await?;
+            self::create_file_in_repo(gh, file, false).await?;
         }
     }
 
@@ -415,30 +418,6 @@ pub async fn update_installation_ids_logic() {
     }
 }
 
-pub async fn update_single_installation_id_logic(
-    installation_id: String,
-) -> Result<InstallationRepositories, LDNError> {
-    let client = Client::new();
-    let jwt = match generate_github_app_jwt().await {
-        Ok(jwt) => jwt,
-        Err(e) => {
-            log::error!("Failed to generate GitHub App JWT: {}", e);
-            return Err(LDNError::Load(e.to_string()));
-        }
-    };
-
-    let repositories: Vec<RepositoryInfo> =
-        fetch_repositories_for_installation_id(&client, &jwt, installation_id.parse().unwrap())
-            .await
-            .unwrap();
-    let installation = InstallationRepositories {
-        installation_id: installation_id.parse().unwrap(),
-        repositories,
-    };
-    update_installation_ids_in_db(installation.clone()).await;
-    Ok(installation)
-}
-
 pub async fn force_update_allocators(
     files: Vec<String>,
     affected_allocators: Option<Vec<GithubQueryParams>>,
@@ -485,11 +464,14 @@ pub async fn force_update_allocators(
 
     //now iterate over allocators and files
     for allocator in allocators {
-        let gh = GithubWrapper::new(
-            allocator.owner,
-            allocator.repo,
-            allocator.installation_id.unwrap().to_string(),
-        );
+        if allocator.installation_id.is_none() {
+            return Err(LDNError::New(format!(
+                "Installation ID not found for an allocator: {}",
+                allocator.id
+            )));
+        }
+
+        let gh = GithubWrapper::new(allocator.owner, allocator.repo, allocator.installation_id);
 
         for file in files.iter() {
             match gh
@@ -555,4 +537,151 @@ pub fn is_valid_fixed_option(option: &str) -> bool {
     let unit_part = option.trim_start_matches(|c: char| c.is_ascii_digit());
 
     number_part.parse::<i32>().is_ok() && allowed_units.contains(&unit_part)
+}
+
+pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<(), LDNError> {
+    for file_name in files_changed {
+        log::info!("Starting allocator creation on: {}", file_name);
+        match process_allocator_file(file_name.as_str()).await {
+            Ok(mut model) => {
+                let mut quantity_options: Vec<String>;
+                if let Some(allocation_amount) = model.application.allocation_amount.clone() {
+                    if allocation_amount.amount_type.clone().is_none()
+                        || allocation_amount.quantity_options.clone().is_none()
+                    {
+                        return Err(LDNError::New(
+                            "Amount type and quantity options are required".to_string(),
+                        ));
+                    }
+
+                    let amount_type = allocation_amount
+                        .amount_type
+                        .clone()
+                        .unwrap()
+                        .to_lowercase(); // Assuming you still want to unwrap here
+                    quantity_options = allocation_amount.quantity_options.unwrap(); // Assuming unwrap is desired
+
+                    for option in quantity_options.iter_mut() {
+                        *option = process_amount(option.clone());
+                    }
+
+                    validate_amount_type_and_options(&amount_type, &quantity_options)
+                        .map_err(|e| LDNError::New(e.to_string()))?;
+
+                    model
+                        .application
+                        .allocation_amount
+                        .as_mut()
+                        .unwrap()
+                        .quantity_options = Some(quantity_options);
+                }
+
+                let verifiers_gh_handles = if model.application.verifiers_gh_handles.is_empty() {
+                    None
+                } else {
+                    Some(model.application.verifiers_gh_handles.join(", ")) // Join verifiers in a string if exists
+                };
+
+                let tooling = if model.application.tooling.is_empty() {
+                    None
+                } else {
+                    Some(model.application.tooling.join(", "))
+                };
+                let owner = model.owner.clone().unwrap_or_default().to_string();
+                let repo = model.repo.clone().unwrap_or_default().to_string();
+                let gh = GithubWrapper::new(owner.to_string(), repo.to_string(), None);
+                let installation_id: i64 = gh
+                    .inner
+                    .apps()
+                    .get_repository_installation(owner.to_string(), repo.to_string())
+                    .await
+                    .map(|installation| {
+                        installation
+                            .id
+                            .0
+                            .try_into()
+                            .expect("Installation Id sucessfully parsed to u64")
+                    })
+                    .map_err(|e| {
+                        LDNError::New(format!(
+                            "Installation Id not found for a repo: {} /// {}",
+                            repo, e
+                        ))
+                    })?;
+
+                let gh =
+                    GithubWrapper::new(owner.to_string(), repo.to_string(), Some(installation_id));
+
+                match is_allocator_repo_initialized(&gh).await {
+                    Ok(true) => (),
+                    Ok(false) => init_allocator_repo(&gh).await.map_err(|e| {
+                        LDNError::New(format!("Initializing the allocator repo failed: {}", e))
+                    })?,
+                    Err(e) => {
+                        return Err(LDNError::New(format!(
+                            "Checking if the repo is initialized failed: {}",
+                            e
+                        )));
+                    }
+                }
+
+                let allocator_creation_result = create_or_update_allocator(
+                    owner.clone(),
+                    repo.clone(),
+                    Some(installation_id),
+                    Some(model.pathway_addresses.msig),
+                    verifiers_gh_handles,
+                    model.multisig_threshold,
+                    model
+                        .application
+                        .allocation_amount
+                        .clone()
+                        .and_then(|a| a.amount_type.clone()),
+                    model.address,
+                    tooling,
+                    Some(model.application.data_types),
+                    Some(model.application.required_sps),
+                    Some(model.application.required_replicas),
+                    Some(file_name.to_owned()),
+                )
+                .await
+                .map_err(|e| LDNError::New(format!("Create or update allocator failed: {}", e)))?;
+
+                let allocator_id = allocator_creation_result.id;
+
+                // Delete all old allocation amounts by allocator id
+                delete_allocation_amounts_by_allocator_id(allocator_id)
+                    .await
+                    .map_err(|e| {
+                        LDNError::New(format!(
+                            "Delete all old allocation amounts by allocator id failed: {}",
+                            e
+                        ))
+                    })?;
+
+                if let Some(allocation_amount) = model.application.allocation_amount.clone() {
+                    let allocation_amounts = allocation_amount.quantity_options.unwrap();
+
+                    for allocation_amount in allocation_amounts {
+                        let parsed_allocation_amount = allocation_amount.replace('%', "");
+                        create_allocation_amount(allocator_id, parsed_allocation_amount)
+                            .await
+                            .map_err(|e| {
+                                LDNError::New(format!(
+                                    "Create allocation amount rows in the database failed: {}",
+                                    e
+                                ))
+                            })?;
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(LDNError::New(format!(
+                    "Create allocator from json file failed: {}",
+                    e
+                )));
+            }
+        }
+    }
+    Ok(())
 }
