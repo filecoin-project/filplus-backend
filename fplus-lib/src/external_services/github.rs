@@ -8,7 +8,7 @@ use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
 use octocrab::models::repos::{Branch, ContentItems, FileDeletion, FileUpdate};
-use octocrab::models::{InstallationId, IssueState, Label};
+use octocrab::models::{IssueState, Label};
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
@@ -103,22 +103,17 @@ pub async fn github_async_new(owner: String, repo: String) -> GithubWrapper {
         log::error!("No allocator found for owner: {}, repo: {}", owner, repo);
     }
 
-    let installation_id = allocator.unwrap().installation_id.unwrap_or(0).to_string();
+    let installation_id = allocator.expect("Allocator exist").installation_id;
 
     GithubWrapper::new(owner, repo, installation_id)
 }
 
 impl GithubWrapper {
-    pub fn new(owner: String, repo: String, installation_id_str: String) -> Self {
+    pub fn new(owner: String, repo: String, installation_id: Option<i64>) -> Self {
         let app_id_str = get_env_var_or_default("GITHUB_APP_ID");
 
         let app_id = app_id_str.parse::<u64>().unwrap_or_else(|_| {
             log::error!("Failed to parse GITHUB_APP_ID as u64, using default value");
-            0
-        });
-
-        let installation_id = installation_id_str.parse::<u64>().unwrap_or_else(|_| {
-            log::error!("Failed to parse GITHUB_INSTALLATION_ID as u64, using default value");
             0
         });
 
@@ -156,12 +151,20 @@ impl GithubWrapper {
             }))
             .build()
             .expect("Could not create Octocrab instance");
-        let iod: InstallationId = installation_id.into();
-        let installation = octocrab.installation(iod);
+
+        let octocrab = if let Some(installation_id) = installation_id {
+            let installation_id: u64 = installation_id
+                .try_into()
+                .expect("Installation Id sucessfully parsed to u64");
+            octocrab.installation(installation_id.into())
+        } else {
+            octocrab
+        };
+
         Self {
             owner,
             repo,
-            inner: Arc::new(installation),
+            inner: Arc::new(octocrab),
         }
     }
 
