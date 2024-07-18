@@ -128,19 +128,25 @@ jobs:
         run: |
           if [ -n "${{ inputs.version }}" ]
           then 
-            IMAGE_TAG="${{ inputs.version }}-${{ github.ref_name }}"
+            IMAGE_TAG="${{ inputs.version }}"
           else
             IMAGE_TAG=$(echo ${{ github.ref_name }} | tr '/' '-')
           fi
 
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: name/app
+
       - name: Build tag and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: public.ecr.aws/f4h6r4m9/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          tags: public.ecr.aws/f4h6r4m9/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -148,6 +154,6 @@ jobs:
       - name: Create and push tag
         if: inputs.version != ''
         run: |
-          TAG_NAME="v${{ env.IMAGE_TAG }}"
+          TAG_NAME="v${{ steps.meta.outputs.tags }}"
           git tag $TAG_NAME
           git push origin $TAG_NAME
