@@ -52,46 +52,45 @@ jobs:
       - name: Run Clippy
         run: cargo clippy
 
-  # end_to_end_tests:
-  #   runs-on: ubuntu-latest
-  #   needs: format_and_lint
-  #   environment: staging-fidl
+  end_to_end_tests:
+    runs-on: ubuntu-latest
+    needs: format_and_lint
+    environment: staging-fidl
 
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  #     - name: Cache Cargo registry
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: |
-  #           ~/.cargo/registry
-  #           ~/.cargo/git
-  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-cargo-registry-
+      - name: Cache Cargo registry
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
 
-  #     - name: Cache Cargo build
-  #       uses: actions/cache@v2
-  #       with:
-  #         path: target
-  #         key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-cargo-build-
+      - name: Cache Cargo build
+        uses: actions/cache@v2
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
 
-  #     - name: Install Rust
-  #       uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
-  #     - name: Run tests
-  #       env:
-  #         GH_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }}
-  #         DB_URL: ${{secrets.DB_URL}}
-  #       run: cargo test -- --nocapture
+      - name: Run tests
+        env:
+          GH_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }}
+          DB_URL: ${{secrets.DB_URL}}
+        run: cargo test -- --nocapture
 
   build_and_push:
     runs-on: ubuntu-latest
-    # needs: [format_and_lint, end_to_end_tests]
-    needs: format_and_lint
+    needs: [format_and_lint, end_to_end_tests]
     environment: production-fidl
 
     steps:
@@ -125,23 +124,6 @@ jobs:
           mask-password: "true"
           registry-type: public
 
-      # - name: Set IMAGE_TAG
-      #   run: |
-      #     if [ -n "${{ inputs.version }}" ]
-      #     then
-      #       IMAGE_TAG="${{ inputs.version }}"
-      #     fi
-
-      #     echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-
-      # - name: Set Docker tags
-      #   id: set-docker-tags
-      #   run: |
-      #     echo "TAGS=type=ref,event=pr,pattern={{branch}}" >> $GITHUB_ENV
-      #     if [ -n "${{ env.IMAGE_TAG }}" ]; then
-      #       echo "TAGS=${{ env.TAGS }} type=semver,pattern={{version}},value=v${{ env.IMAGE_TAG }}" >> $GITHUB_ENV
-      #     fi
-
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -151,7 +133,6 @@ jobs:
             type=semver,pattern={{version}},value=v${{ inputs.version }}
             type=ref,event=branch
             type=ref,event=pr,pattern={{branch}}
-            type=raw,value=testTag-{{branch}}-{{sha}}
 
       - name: Build tag and push Docker image
         uses: docker/build-push-action@v6
