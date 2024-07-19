@@ -125,14 +125,22 @@ jobs:
           mask-password: "true"
           registry-type: public
 
-      - name: Set IMAGE_TAG
-        run: |
-          if [ -n "${{ inputs.version }}" ]
-          then
-            IMAGE_TAG="${{ inputs.version }}"
-          fi
+      # - name: Set IMAGE_TAG
+      #   run: |
+      #     if [ -n "${{ inputs.version }}" ]
+      #     then
+      #       IMAGE_TAG="${{ inputs.version }}"
+      #     fi
 
-          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+      #     echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      # - name: Set Docker tags
+      #   id: set-docker-tags
+      #   run: |
+      #     echo "TAGS=type=ref,event=pr,pattern={{branch}}" >> $GITHUB_ENV
+      #     if [ -n "${{ env.IMAGE_TAG }}" ]; then
+      #       echo "TAGS=${{ env.TAGS }} type=semver,pattern={{version}},value=v${{ env.IMAGE_TAG }}" >> $GITHUB_ENV
+      #     fi
 
       - name: Docker meta
         id: meta
@@ -140,8 +148,10 @@ jobs:
         with:
           images: public.ecr.aws/f4h6r4m9/${{ env.ECR_REPOSITORY }}
           tags: |
-            type=semver,pattern={{version}},value=v${{ env.IMAGE_TAG }}
+            type=semver,pattern={{version}},value=v${{ inputs.version }}
+            type=ref,event=branch
             type=ref,event=pr,pattern={{branch}}
+            type=raw,value=testTag-{{branch}}-{{sha}}
 
       - name: Build tag and push Docker image
         uses: docker/build-push-action@v6
@@ -153,9 +163,9 @@ jobs:
           cache-to: type=gha,mode=max
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Create and push tag
-      #   if: inputs.version != ''
-      #   run: |
-      #     TAG_NAME="v${{ steps.meta.outputs.tags }}"
-      #     git tag $TAG_NAME
-      #     git push origin $TAG_NAME
+      - name: Create and push tag
+        if: inputs.version != ''
+        run: |
+          TAG_NAME="v${{ steps.meta.outputs.tags }}"
+          git tag $TAG_NAME
+          git push origin $TAG_NAME
