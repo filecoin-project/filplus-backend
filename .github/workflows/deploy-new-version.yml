@@ -46,7 +46,7 @@ jobs:
 
   call-release-workflow:
     runs-on: ubuntu-latest
-    needs: [check-version, update-lock-and-commit]
+    needs: check-version
 
     steps:
       - name: Checkout code
