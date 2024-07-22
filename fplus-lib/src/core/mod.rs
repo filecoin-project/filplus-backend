@@ -759,11 +759,18 @@ impl LDNApplication {
                     Ok(prs) => {
                         if let Some(pr) = prs.first() {
                             let number = pr.number;
+                            let issue_number = issue_number.parse::<i64>().map_err(|e| {
+                                LDNError::New(format!(
+                                    "Parse issue number: {} to i64 failed. {}",
+                                    issue_number, e
+                                ))
+                            })?;
                             database::applications::create_application(
                                 application_id.clone(),
                                 info.owner.clone(),
                                 info.repo.clone(),
                                 number,
+                                issue_number,
                                 file_content,
                                 LDNPullRequest::application_path(&app_id),
                             )
@@ -2359,11 +2366,18 @@ impl LDNApplication {
                 })?;
             }
             Err(_) => {
-                let _ = database::applications::create_application(
+                let issue_number = application_file.issue_number.parse::<i64>().map_err(|e| {
+                    LDNError::New(format!(
+                        "Parse issue number: {} to i64 failed. {}",
+                        application_file.issue_number, e
+                    ))
+                })?;
+                database::applications::create_application(
                     application_id,
                     owner.clone(),
                     repo.clone(),
                     pr_number,
+                    issue_number,
                     file_content.clone(),
                     filename.clone(),
                 )
@@ -2574,26 +2588,29 @@ impl LDNApplication {
         {
             Ok(app) => app,
             Err(e) => {
-                log::warn!("Failed to get application model: {}", e);
-
+                log::warn!("Failed to get application model: {}. ", e);
+                let parsed_issue_number = issue_number.parse::<i64>().map_err(|e| {
+                    LDNError::New(format!(
+                        "Parse issue number: {} to i64 failed. {}",
+                        issue_number, e
+                    ))
+                })?;
                 //Application Id has not been found. That means the user has modified the wallet address
-                LDNApplication::issue_error(
-                    issue_number.clone(),
+                let application = database::applications::get_application_by_issue_number(
                     info.owner.clone(),
                     info.repo.clone(),
-                    "Application not found. If you have modified the wallet address, please create a new application."
-                ).await?;
-                LDNApplication::add_error_label(
-                    issue_number.clone(),
-                    "".to_string(),
-                    info.owner.clone(),
-                    info.repo.clone(),
+                    parsed_issue_number,
                 )
-                .await?;
-                return Err(LDNError::New(format!(
-                    "Failed to get application model: {}",
-                    e
-                )));
+                .await;
+                if application.is_ok() {
+                    Self::add_comment_to_issue(issue_number, info.owner.clone(),info.repo.clone(), "Application exist. If you have modified the wallet address, please create a new application.".to_string()).await?;
+                    return Err(LDNError::New(format!(
+                        "Application exist: {}",
+                        application_id
+                    )));
+                } else {
+                    return Self::new_from_issue(info).await;
+                }
             }
         };
 
@@ -3272,25 +3289,6 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(true)
     }
 
-    async fn issue_error(
-        issue_number: String,
-        owner: String,
-        repo: String,
-        message: &str,
-    ) -> Result<bool, LDNError> {
-        let gh = github_async_new(owner, repo).await;
-        gh.add_comment_to_issue(issue_number.parse().unwrap(), message)
-            .await
-            .map_err(|e| {
-                LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
-                ))
-            })
-            .unwrap();
-        Ok(true)
-    }
-
     async fn issue_additional_info_required(
         issue_number: String,
         owner: String,
@@ -3499,12 +3497,23 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             if !db_apps_set.contains(&gh_app.application_file.id)
                 && !processed_gh_apps.contains(&gh_app.application_file.id)
             {
+                let issue_number = gh_app
+                    .application_file
+                    .issue_number
+                    .parse::<i64>()
+                    .map_err(|e| {
+                        LDNError::New(format!(
+                            "Parse issue number: {} to i64 failed. {}",
+                            gh_app.application_file.issue_number, e
+                        ))
+                    })?;
                 // Call the create_application function if the GH app is not in DB
                 database::applications::create_application(
                     gh_app.application_file.id.clone(),
                     owner.clone(),
                     repo.clone(),
                     gh_app.pr_number,
+                    issue_number,
                     serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
                     gh_app.path,
                 )
@@ -3569,12 +3578,23 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             if !db_apps_set.contains(&gh_app.application_file.id)
                 && !processed_gh_apps.contains(&gh_app.application_file.id)
             {
+                let issue_number = gh_app
+                    .application_file
+                    .issue_number
+                    .parse::<i64>()
+                    .map_err(|e| {
+                        LDNError::New(format!(
+                            "Parse issue number: {} to i64 failed. {}",
+                            gh_app.application_file.issue_number, e
+                        ))
+                    })?;
                 // Call the create_application function if the GH app is not in DB
                 database::applications::create_application(
                     gh_app.application_file.id.clone(),
                     owner.clone(),
                     repo.clone(),
                     0,
+                    issue_number,
                     serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
                     gh_app.path,
                 )
@@ -4134,6 +4154,26 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         })?;
         Ok(())
     }
+    pub async fn update_application_issue_number() -> Result<(), LDNError> {
+        let applications = database::applications::get_applications()
+            .await
+            .map_err(|e| LDNError::New(format!("Getting all aplication failed: {}", e)))?;
+        for app in applications {
+            if let Some(app_str) = app.application {
+                let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
+                let issue_number = application_file.issue_number.parse::<i64>().ok();
+                database::applications::update_application_issue_number(
+                    app.owner,
+                    app.repo,
+                    app.pr_number as u64,
+                    issue_number,
+                )
+                .await
+                .map_err(|e| LDNError::New(format!("Update issue number failed: {}", e)))?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -4237,11 +4277,15 @@ impl LDNPullRequest {
         {
             Ok(pr) => {
                 if should_create_in_db {
+                    let issue_number = issue_number.parse::<i64>().map_err(|e| {
+                        LDNError::New(format!("Parse issue number to i64 failed: {}", e))
+                    })?;
                     database::applications::create_application(
                         application_id.clone(),
                         owner,
                         repo,
                         pr.0.number,
+                        issue_number,
                         file_content,
                         file_name,
                     )

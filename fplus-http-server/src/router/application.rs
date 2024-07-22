@@ -1,4 +1,4 @@
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{get, post, put, web, HttpResponse, Responder};
 use fplus_lib::core::{
     application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo,
     CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo,
@@ -496,5 +496,13 @@ pub async fn remove_pending_allocation(
     {
         Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}
+
+#[put("/application/update_application_issue_number")]
+pub async fn update_application_issue_number() -> actix_web::Result<impl Responder> {
+    match LDNApplication::update_application_issue_number().await {
+        Ok(result) => Ok(HttpResponse::Ok().json(result)),
+        Err(e) => Ok(HttpResponse::BadRequest().body(e.to_string())),
     }
 }
