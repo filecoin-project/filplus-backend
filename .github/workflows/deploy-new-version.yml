@@ -17,19 +17,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Read version from file
-        run: |
-          CURRENT_VERSION=$(cargo pkgid --manifest-path fplus-http-server/Cargo.toml | cut -d'#' -f2)
-          echo "CURRENT_VERSION=${CURRENT_VERSION}" >> $GITHUB_ENV
-
       - name: Install cargo-edit
         run: cargo install cargo-edit
 
       - name: Update version
         run: cargo set-version ${{ inputs.version }}
-
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Run cargo check
         run: cargo check
