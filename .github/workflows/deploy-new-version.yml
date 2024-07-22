@@ -37,14 +37,7 @@ jobs:
       #     git push origin main
 
   call-release-workflow:
-    runs-on: ubuntu-latest
     needs: check-version
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: "Check build and push release"
-        uses: ./.github/workflows/release-new-version.yml
-        with:
-          version: ${{ inputs.version }}
+    uses: ./.github/workflows/release-new-version.yml
+    with:
+      version: ${{ inputs.version }}
