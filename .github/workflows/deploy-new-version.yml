@@ -41,3 +41,4 @@ jobs:
     uses: ./.github/workflows/release-new-version.yml
     with:
       version: ${{ inputs.version }}
+    secrets: inherit
