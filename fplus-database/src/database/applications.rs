@@ -24,7 +24,8 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
                 a.id, 
                 a.owner, 
                 a.repo, 
-                a.pr_number, 
+                a.pr_number,
+                a.issue_number,
                 a.application, 
                 a.updated_at, 
                 a.sha,
@@ -50,6 +51,11 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
             owner: app.get("owner").unwrap().as_str().unwrap().to_string(),
             repo: app.get("repo").unwrap().as_str().unwrap().to_string(),
             pr_number: app.get("pr_number").unwrap().as_i64().unwrap(),
+            issue_number: app
+                .get("issue_number")
+                .expect("Issue number should be in the application data")
+                .as_i64()
+                .expect("Issue number must exist"),
             application: Some(
                 app.get("application")
                     .unwrap()
@@ -210,6 +216,33 @@ pub async fn get_application_by_pr_number(
 }
 
 /**
+ * Get an application from the database with given issue_number
+ *
+ * # Arguments
+ * @param owner: String - The owner of the repository
+ * @param repo: String - The repository name
+ * @param issue_number: i64 - The issue number
+ *
+ * # Returns
+ * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
+ */
+pub async fn get_application_by_issue_number(
+    owner: String,
+    repo: String,
+    issue_number: i64,
+) -> Result<ApplicationModel, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+
+    Application::find()
+        .filter(Column::Owner.eq(owner))
+        .filter(Column::Repo.eq(repo))
+        .filter(Column::IssueNumber.eq(issue_number))
+        .one(&conn)
+        .await?
+        .ok_or_else(|| DbErr::Custom("Application not found.".to_string()))
+}
+
+/**
  * Merge an application in the database
  *
  * # Arguments
@@ -323,7 +356,7 @@ pub async fn update_application(
             active_application.sha = Set(Some(file_sha));
             if let Some(path) = path {
                 active_application.path = Set(Some(path));
-            }
+            };
             let updated_application = active_application.update(&conn).await?;
             Ok(updated_application)
         }
@@ -353,6 +386,7 @@ pub async fn create_application(
     owner: String,
     repo: String,
     pr_number: u64,
+    issue_number: i64,
     app_file: String,
     path: String,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
@@ -368,6 +402,7 @@ pub async fn create_application(
         owner: Set(owner),
         repo: Set(repo),
         pr_number: Set(pr_number as i64),
+        issue_number: Set(issue_number),
         application: Set(Some(app_file)),
         sha: Set(Some(file_sha)),
         path: Set(Some(path)),

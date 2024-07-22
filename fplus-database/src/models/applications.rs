@@ -15,6 +15,8 @@ pub struct Model {
     pub repo: String,
     #[sea_orm(primary_key, auto_increment = false)]
     pub pr_number: i64,
+    #[sea_orm(nullable)]
+    pub issue_number: i64,
     #[sea_orm(column_type = "Text", nullable)]
     pub application: Option<String>,
     #[sea_orm(nullable)]
