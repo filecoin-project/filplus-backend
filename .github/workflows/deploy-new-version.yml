@@ -31,10 +31,10 @@ jobs:
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
-      # - name: Commit version change
-      #   run: |
-      #     git commit -am "Update version to ${{ inputs.version }}"
-      #     git push origin main
+      - name: Commit version change
+        run: |
+          git commit -am "Update version to ${{ inputs.version }}"
+          git push origin main
 
   call-release-workflow:
     needs: check-version
