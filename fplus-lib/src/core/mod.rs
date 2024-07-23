@@ -4154,26 +4154,6 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         })?;
         Ok(())
     }
-    pub async fn update_application_issue_number() -> Result<(), LDNError> {
-        let applications = database::applications::get_applications()
-            .await
-            .map_err(|e| LDNError::New(format!("Getting all aplication failed: {}", e)))?;
-        for app in applications {
-            if let Some(app_str) = app.application {
-                let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
-                let issue_number = application_file.issue_number.parse::<i64>().ok();
-                database::applications::update_application_issue_number(
-                    app.owner,
-                    app.repo,
-                    app.pr_number as u64,
-                    issue_number,
-                )
-                .await
-                .map_err(|e| LDNError::New(format!("Update issue number failed: {}", e)))?;
-            }
-        }
-        Ok(())
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

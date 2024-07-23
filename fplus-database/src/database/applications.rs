@@ -54,7 +54,8 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
             issue_number: app
                 .get("issue_number")
                 .expect("Issue number should be in the application data")
-                .as_i64(),
+                .as_i64()
+                .expect("Issue number must exist"),
             application: Some(
                 app.get("application")
                     .unwrap()
@@ -365,28 +366,6 @@ pub async fn update_application(
     }
 }
 
-pub async fn update_application_issue_number(
-    owner: String,
-    repo: String,
-    pr_number: u64,
-    issue_number: Option<i64>,
-) -> Result<ApplicationModel, sea_orm::DbErr> {
-    let conn = get_database_connection().await?;
-
-    match get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await {
-        Ok(existing_application) => {
-            let mut active_application: ActiveModel = existing_application.into_active_model();
-            active_application.issue_number = Set(issue_number);
-
-            let updated_application = active_application.update(&conn).await?;
-            Ok(updated_application)
-        }
-        Err(_) => Err(sea_orm::DbErr::Custom(
-            "Failed to find the application to update.".into(),
-        )),
-    }
-}
-
 /**
  * Create an application in the database
  *
@@ -423,7 +402,7 @@ pub async fn create_application(
         owner: Set(owner),
         repo: Set(repo),
         pr_number: Set(pr_number as i64),
-        issue_number: Set(Some(issue_number)),
+        issue_number: Set(issue_number),
         application: Set(Some(app_file)),
         sha: Set(Some(file_sha)),
         path: Set(Some(path)),
