@@ -140,7 +140,7 @@ jobs:
       #     github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: Create and push tag
-      #   if: inputs.version != ''
+      #   if: ${{ github.ref == format('refs/heads/{0}', 'main') && inputs.version != '' }}
       #   run: |
       #     TAG_NAME="v${{ steps.meta.outputs.tags }}"
       #     git tag $TAG_NAME
