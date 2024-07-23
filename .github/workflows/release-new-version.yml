@@ -124,9 +124,10 @@ jobs:
         with:
           images: public.ecr.aws/f4h6r4m9/${{ env.ECR_REPOSITORY }}
           tags: |
-            type=semver,pattern={{version}},value=v${{ inputs.version }}
+            type=semver,pattern={{version}},value=v${{ inputs.version }},enable=${{inputs.version != ''}}
             type=ref,event=branch
             type=ref,event=pr,pattern={{branch}}
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
 
       # - name: Build tag and push Docker image
       #   uses: docker/build-push-action@v6
