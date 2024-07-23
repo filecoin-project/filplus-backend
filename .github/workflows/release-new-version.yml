@@ -122,6 +122,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
+          flavor: latest=false
           images: public.ecr.aws/f4h6r4m9/${{ env.ECR_REPOSITORY }}
           tags: |
             type=semver,pattern={{version}},value=v${{ inputs.version }},enable=${{inputs.version != ''}}
