@@ -150,7 +150,7 @@ pub async fn create_file_in_repo(
     let file_path = file.path.clone();
     let file_sha = file.sha.clone();
     let file = reqwest::Client::new()
-        .get(&file.download_url.clone().unwrap())
+        .get(file.download_url.clone().unwrap())
         .send()
         .await
         .map_err(|e| LDNError::Load(format!("here {}", e)))?;

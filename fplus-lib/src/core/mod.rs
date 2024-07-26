@@ -222,11 +222,6 @@ pub struct AllocationObject {
     allocation_amount_quantity_options: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ApproveChangesObject {
-    pr_number: u64,
-}
-
 impl LDNApplication {
     pub async fn single_active(
         pr_number: u64,
@@ -237,7 +232,7 @@ impl LDNApplication {
         let (_, pull_request) = gh.get_pull_request_files(pr_number).await.unwrap();
         let pull_request = pull_request.first().unwrap();
         let pull_request: Response = reqwest::Client::new()
-            .get(&pull_request.raw_url.to_string())
+            .get(pull_request.raw_url.to_string())
             .send()
             .await
             .map_err(|e| LDNError::Load(format!("Failed to get pull request files /// {}", e)))?;
@@ -1446,7 +1441,7 @@ impl LDNApplication {
             return Ok(None);
         }
         let file = reqwest::Client::new()
-            .get(&item.download_url.clone().unwrap())
+            .get(item.download_url.clone().unwrap())
             .send()
             .await
             .map_err(|e| LDNError::Load(format!("here {}", e)))?;

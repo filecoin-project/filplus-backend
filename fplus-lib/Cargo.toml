@@ -47,6 +47,7 @@ alloy = { git = "https://github.com/alloy-rs/alloy", version = "0.1.0", features
     "eip712",
 ] }
 tempfile = "3.10.1"
+size = "0.5.0-preview2"
 
 [dev-dependencies]
 actix-rt = "2.9.0"
