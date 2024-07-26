@@ -17,19 +17,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Read version from file
-        run: |
-          CURRENT_VERSION=$(cargo pkgid --manifest-path fplus-http-server/Cargo.toml | cut -d'#' -f2)
-          echo "CURRENT_VERSION=${CURRENT_VERSION}" >> $GITHUB_ENV
-
       - name: Install cargo-edit
         run: cargo install cargo-edit
 
       - name: Update version
         run: cargo set-version ${{ inputs.version }}
-
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: Run cargo check
         run: cargo check
@@ -39,20 +31,14 @@ jobs:
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
-      # - name: Commit version change
-      #   run: |
-      #     git commit -am "Update version to ${{ inputs.version }}"
-      #     git push origin main
+      - name: Commit version change
+        run: |
+          git commit -am "Update version to ${{ inputs.version }}"
+          git push origin main
 
   call-release-workflow:
-    runs-on: ubuntu-latest
-    needs: [check-version, update-lock-and-commit]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: "Check build and push release"
-        uses: ./.github/workflows/release-new-version.yml
-        with:
-          version: ${{ inputs.version }}
+    needs: check-version
+    uses: ./.github/workflows/release-new-version.yml
+    with:
+      version: ${{ inputs.version }}
+    secrets: inherit
