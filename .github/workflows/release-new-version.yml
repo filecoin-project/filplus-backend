@@ -134,15 +134,15 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr,pattern={{branch}}
 
-      # - name: Build tag and push Docker image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: .
-      #     push: true
-      #     tags: ${{ steps.meta.outputs.tags }}
-      #     cache-from: type=gha
-      #     cache-to: type=gha,mode=max
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build tag and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: Create and push tag
       #   if: inputs.version != ''
