@@ -896,6 +896,7 @@ impl LDNApplication {
                                             number,
                                             serde_json::to_string_pretty(&app_file).unwrap(),
                                             Some(app_path.clone()),
+                                            None,
                                         )
                                         .await;
 
@@ -1056,6 +1057,7 @@ impl LDNApplication {
                                             number,
                                             serde_json::to_string_pretty(&app_file).unwrap(),
                                             Some(self.file_name.clone()),
+                                            None,
                                         )
                                         .await;
                                         Self::issue_start_sign_dc(
@@ -1213,6 +1215,7 @@ impl LDNApplication {
                                 number,
                                 serde_json::to_string_pretty(&app_file).unwrap(),
                                 Some(self.file_name.clone()),
+                                None,
                             )
                             .await
                             {
@@ -1983,6 +1986,7 @@ impl LDNApplication {
                                 number,
                                 serde_json::to_string_pretty(&app_file).unwrap(),
                                 Some(ldn_application.file_name.clone()),
+                                None,
                             )
                             .await;
                         }
@@ -2054,6 +2058,7 @@ impl LDNApplication {
                                 number,
                                 serde_json::to_string_pretty(&db_application_file).unwrap(),
                                 Some(filename.clone()),
+                                None,
                             )
                             .await;
 
@@ -2351,6 +2356,7 @@ impl LDNApplication {
                     pr_number,
                     file_content.clone(),
                     Some(filename.clone()),
+                    None,
                 )
                 .await
                 .map_err(|e| {
@@ -2716,6 +2722,7 @@ impl LDNApplication {
                                     number,
                                     serde_json::to_string_pretty(&app_file).unwrap(),
                                     Some(application_model.path.clone().unwrap()),
+                                    None,
                                 )
                                 .await;
                             }
@@ -3467,6 +3474,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                         db_app.pr_number as u64,
                         serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
                         None,
+                        Some(gh_app.sha.clone()),
                     )
                     .await
                     .unwrap();
@@ -3548,6 +3556,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                         0,
                         serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
                         Some(gh_app.path.clone()),
+                        Some(gh_app.sha.clone()),
                     )
                     .await
                     .unwrap();
@@ -3770,6 +3779,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             })?,
             serde_json::to_string_pretty(&application_file).unwrap(),
             app_model.path.clone(),
+            None,
         )
         .await
         .expect("Failed to update_application in DB!");
@@ -3909,6 +3919,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             })?,
             serde_json::to_string_pretty(&application_file).unwrap(),
             app_model.path.clone(),
+            None,
         )
         .await
         .expect("Failed to update_application in DB!");
