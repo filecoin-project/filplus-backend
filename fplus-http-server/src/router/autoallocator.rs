@@ -6,7 +6,7 @@ use fplus_lib::core::LastAutoallocationQueryParams;
 pub async fn last_client_allocation(
     query: web::Query<LastAutoallocationQueryParams>,
 ) -> impl Responder {
-    match autoallocations_db::get_last_calient_autoallocation(query.evm_wallet_address).await {
+    match autoallocations_db::get_last_client_autoallocation(query.evm_wallet_address).await {
         Ok(last_client_allocation) => {
             HttpResponse::Ok().body(serde_json::to_string_pretty(&last_client_allocation).unwrap())
         }
