@@ -24,3 +24,7 @@ serde = { version =  "1.0.164", features = ["derive", "std",
 serial_test = "3.0.0"
 sha1 = "0.10.6"
 serde_json = "1.0.96"
+alloy = { git = "https://github.com/alloy-rs/alloy", version = "0.1.0", features = [
+    "signers",
+] }
+sea-orm-newtype = "0.0.1"

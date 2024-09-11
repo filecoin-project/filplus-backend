@@ -2,6 +2,7 @@ use actix_web::{get, HttpResponse, Responder};
 
 pub mod allocator;
 pub mod application;
+pub mod autoallocator;
 pub mod blockchain;
 pub mod verifier;
 

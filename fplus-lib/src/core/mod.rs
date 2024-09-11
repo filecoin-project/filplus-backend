@@ -48,6 +48,7 @@ use std::collections::HashSet;
 
 pub mod allocator;
 pub mod application;
+pub mod autoallocator;
 
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
@@ -161,6 +162,11 @@ pub struct ChangedAllocators {
 pub struct AllocatorUpdateForceInfo {
     pub files: Vec<String>,
     pub allocators: Option<Vec<GithubQueryParams>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct LastAutoallocationQueryParams {
+    pub evm_wallet_address: Address,
 }
 
 #[derive(Deserialize)]
