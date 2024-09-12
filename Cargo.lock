@@ -2028,7 +2028,7 @@ dependencies = [
 
 [[package]]
 name = "fplus-database"
-version = "1.8.4"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2047,7 +2047,7 @@ dependencies = [
 
 [[package]]
 name = "fplus-http-server"
-version = "1.8.4"
+version = "2.0.0"
 dependencies = [
  "actix-cors",
  "actix-utils",
@@ -2073,7 +2073,7 @@ dependencies = [
 
 [[package]]
 name = "fplus-lib"
-version = "1.8.4"
+version = "2.0.0"
 dependencies = [
  "actix-rt",
  "actix-web",
