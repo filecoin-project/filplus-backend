@@ -446,3 +446,14 @@ pub async fn delete_application(
     application.delete(&conn).await?;
     Ok(())
 }
+
+pub async fn get_applications_by_client_id(
+    id: &String,
+) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+    let result = Application::find()
+        .filter(Column::Id.eq(id))
+        .all(&conn)
+        .await?;
+    Ok(result)
+}

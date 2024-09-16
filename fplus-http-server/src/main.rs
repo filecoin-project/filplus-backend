@@ -109,6 +109,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::allocator::create_allocator_from_json)
             .service(router::allocator::update_allocator_force)
             .service(router::autoallocator::last_client_allocation)
+            .service(router::autoallocator::trigger_autoallocation)
         // .service(router::allocator::get_installation_ids)
     })
     .bind(("0.0.0.0", 8080))?
