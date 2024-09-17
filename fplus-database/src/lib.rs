@@ -33,7 +33,7 @@ pub async fn setup() -> Result<(), DbErr> {
         format!(
             "postgres://{}:{}@{}:{}/{}?{}",
             get_env_or_throw("DB_USER"),
-            get_env_or_throw("DB_PASS"),
+            urlencoding::encode(&get_env_or_throw("DB_PASS")),
             get_env_or_throw("DB_HOST"),
             std::env::var("DB_PORT").unwrap_or("5432".into()),
             get_env_or_throw("DB_NAME"),
