@@ -29,7 +29,17 @@ pub fn init() {
  * @return Result<DatabaseConnection, sea_orm::DbErr> - The result of the operation
  */
 pub async fn setup() -> Result<(), DbErr> {
-    let database_url = get_env_or_throw("DB_URL");
+    let database_url = std::env::var("DB_URL").unwrap_or_else(|_| {
+        format!(
+            "postgres://{}:{}@{}:{}/{}?{}",
+            get_env_or_throw("DB_USER"),
+            get_env_or_throw("DB_PASS"),
+            get_env_or_throw("DB_HOST"),
+            std::env::var("DB_PORT").unwrap_or("5432".into()),
+            get_env_or_throw("DB_NAME"),
+            std::env::var("DB_OPTIONS").unwrap_or_default()
+        )
+    });
     let db_conn = Database::connect(&database_url).await?;
     let mut db_conn_global = DB_CONN.lock().unwrap();
     *db_conn_global = Some(db_conn);
