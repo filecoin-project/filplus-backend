@@ -5,7 +5,10 @@ use middleware::verifier_auth::VerifierAuth;
 pub(crate) mod router;
 use std::env;
 
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use actix_web::{
+    middleware::{Compress, Logger},
+    web, App, HttpServer,
+};
 
 use chrono::Utc;
 use cron::Schedule;
@@ -65,6 +68,7 @@ async fn main() -> std::io::Result<()> {
             .allow_any_method()
             .allow_any_header();
         App::new()
+            .wrap(Compress::default())
             .wrap(Logger::default())
             .wrap(cors)
             .service(router::health)
