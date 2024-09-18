@@ -12,23 +12,29 @@ use alloy::{
     sol_types::SolCall,
 };
 use anyhow::Result;
+use fplus_database::config::get_env_or_throw;
 use fvm_shared::address::{set_current_network, Address as FilecoinAddress, Network};
 sol! {
   #[allow(missing_docs)]
   function addVerifiedClient(bytes calldata clientAddress, uint256 amount);
 }
 
-pub async fn add_verified_client(address: &str, amount: &u64) -> Result<(), LDNError> {
-    let private_key = get_env_var_or_default("AUTOALLOCATOR_PRIVATE_KEY");
+async fn get_provider() -> Result<impl Provider, LDNError> {
+    let private_key = get_env_or_throw("AUTOALLOCATOR_PRIVATE_KEY");
     let signer: PrivateKeySigner = private_key.parse().expect("Should parse private key");
     let wallet = EthereumWallet::from(signer);
-    let rpc_url = get_env_var_or_default("GLIF_NODE_URL")
-        .parse()
-        .map_err(|e| LDNError::New(format!("Failed to pase string to URL /// {}", e)))?;
+    let rpc_url = get_env_var_or_default("GLIF_NODE_URL");
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(wallet)
-        .on_http(rpc_url);
+        .on_builtin(&rpc_url)
+        .await
+        .map_err(|e| LDNError::New(format!("Building provider failed: {}", e)))?;
+    Ok(provider)
+}
+
+pub async fn add_verified_client(address: &str, amount: &u64) -> Result<(), LDNError> {
+    let provider = get_provider().await?;
     let fil_address = decode_filecoin_address(address)?;
     let amount = U256::try_from(*amount)
         .map_err(|e| LDNError::New(format!("Failed to prase amount to U256 /// {}", e)))?;

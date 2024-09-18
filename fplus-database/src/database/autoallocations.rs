@@ -10,12 +10,7 @@ use sea_orm::{entity::*, query::*, DbBackend, DbErr, ExecResult};
 pub async fn get_last_client_autoallocation(
     client_evm_address: impl Into<AddressWrapper>,
 ) -> Result<Option<DateTime<FixedOffset>>, DbErr> {
-    let conn = get_database_connection().await?;
-    let response = Autoallocations::find()
-        .filter(Column::EvmWalletAddress.contains(client_evm_address.into()))
-        .one(&conn)
-        .await?;
-
+    let response = get_autoallocation(client_evm_address.into()).await?;
     Ok(response.map(|allocation| allocation.last_allocation))
 }
 
@@ -25,17 +20,18 @@ pub async fn create_or_update_autoallocation(
 ) -> Result<u64, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     let client_address = client_evm_address.to_checksum(None);
-    let exec_res: ExecResult = conn
-        .execute(Statement::from_string(
+    let exec_res = conn
+        .execute(Statement::from_sql_and_values(
             DbBackend::Postgres,
-            format!(
-                "INSERT INTO autoallocations (evm_wallet_address, last_allocation)
-                VALUES ('{}', NOW())
+            "INSERT INTO autoallocations (evm_wallet_address, last_allocation)
+                VALUES ($1, NOW())
                 ON CONFLICT (evm_wallet_address)
                 DO UPDATE SET last_allocation = NOW()
-                WHERE autoallocations.last_allocation <= NOW() - INTERVAL '{} days';",
-                client_address, days_to_next_autoallocation
-            ),
+                WHERE autoallocations.last_allocation <= NOW() - INTERVAL '$2 days';",
+            [
+                client_address.into(),
+                days_to_next_autoallocation.to_string().into(),
+            ],
         ))
         .await?;
     Ok(exec_res.rows_affected())
@@ -56,9 +52,8 @@ pub async fn delete_autoallocation(
     client_evm_address: impl Into<AddressWrapper>,
 ) -> Result<(), sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let client_autoallocation = get_autoallocation(client_evm_address).await?;
-    if let Some(client_autoallocation) = client_autoallocation {
-        client_autoallocation.delete(&conn).await?;
-    }
+    Autoallocations::delete_by_id(client_evm_address.into())
+        .exec(&conn)
+        .await?;
     Ok(())
 }

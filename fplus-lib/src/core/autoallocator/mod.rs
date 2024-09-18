@@ -30,7 +30,7 @@ pub async fn trigger_autoallocation(info: &TriggerAutoallocationInfo) -> Result<
                 e
             ))
         })?;
-    create_or_update_autoallocation(&evm_address_from_signature).await?;
+    upsert_autoallocation_if_eligible(&evm_address_from_signature).await?;
     match add_verified_client(fil_client_address, &amount).await {
         Ok(_) => {}
         Err(e) => {
@@ -43,7 +43,7 @@ pub async fn trigger_autoallocation(info: &TriggerAutoallocationInfo) -> Result<
     Ok(())
 }
 
-async fn create_or_update_autoallocation(evm_client_address: &Address) -> Result<(), LDNError> {
+async fn upsert_autoallocation_if_eligible(evm_client_address: &Address) -> Result<(), LDNError> {
     let days_to_next_autoallocation = get_env_var_or_default("DAYS_TO_NEXT_AUTOALLOCATION")
         .parse::<u64>()
         .map_err(|e| {
