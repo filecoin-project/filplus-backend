@@ -16,10 +16,11 @@ pub async fn get_last_client_autoallocation(
 
 pub async fn create_or_update_autoallocation(
     client_evm_address: &Address,
-    days_to_next_autoallocation: &u64,
+    days_to_next_autoallocation: &i64,
 ) -> Result<u64, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     let client_address = client_evm_address.to_checksum(None);
+
     let exec_res = conn
         .execute(Statement::from_sql_and_values(
             DbBackend::Postgres,
@@ -27,10 +28,10 @@ pub async fn create_or_update_autoallocation(
                 VALUES ($1, NOW())
                 ON CONFLICT (evm_wallet_address)
                 DO UPDATE SET last_allocation = NOW()
-                WHERE autoallocations.last_allocation <= NOW() - INTERVAL '$2 days';",
+                WHERE autoallocations.last_allocation <= NOW() - (INTERVAL '1 day' * $2::int);",
             [
                 client_address.into(),
-                days_to_next_autoallocation.to_string().into(),
+                days_to_next_autoallocation.clone().into(),
             ],
         ))
         .await?;
