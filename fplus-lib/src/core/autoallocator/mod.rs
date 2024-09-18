@@ -45,10 +45,10 @@ pub async fn trigger_autoallocation(info: &TriggerAutoallocationInfo) -> Result<
 
 async fn upsert_autoallocation_if_eligible(evm_client_address: &Address) -> Result<(), LDNError> {
     let days_to_next_autoallocation = get_env_var_or_default("DAYS_TO_NEXT_AUTOALLOCATION")
-        .parse::<u64>()
+        .parse::<i64>()
         .map_err(|e| {
             LDNError::New(format!(
-                "Parse days to next allocation to u64 failed: {}",
+                "Parse days to next allocation to i64 failed: {}",
                 e
             ))
         })?;
