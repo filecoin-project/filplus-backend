@@ -2,7 +2,6 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_database::database::autoallocations as autoallocations_db;
 use fplus_lib::core::autoallocator;
 use fplus_lib::core::{LastAutoallocationQueryParams, TriggerAutoallocationInfo};
-
 #[get("/autoallocator/last_client_allocation")]
 pub async fn last_client_allocation(
     query: web::Query<LastAutoallocationQueryParams>,

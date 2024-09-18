@@ -12,28 +12,28 @@ use alloy::{
     sol_types::SolCall,
 };
 use anyhow::Result;
-use fvm::kernel::prelude::Address as FilecoinAddress;
+use fvm_shared::address::{set_current_network, Address as FilecoinAddress, Network};
 sol! {
   #[allow(missing_docs)]
   function addVerifiedClient(bytes calldata clientAddress, uint256 amount);
 }
 
-pub async fn add_verified_client(address: &String, amount: &u64) -> Result<(), LDNError> {
-    let private_key = get_env_var_or_default("PRIVATE_KEY");
+pub async fn add_verified_client(address: &str, amount: &u64) -> Result<(), LDNError> {
+    let private_key = get_env_var_or_default("AUTOALLOCATOR_PRIVATE_KEY");
     let signer: PrivateKeySigner = private_key.parse().expect("Should parse private key");
     let wallet = EthereumWallet::from(signer);
-    let rpc_url = get_env_var_or_default("FILECOIN_RPC_URL")
+    let rpc_url = get_env_var_or_default("GLIF_NODE_URL")
         .parse()
         .map_err(|e| LDNError::New(format!("Failed to pase string to URL /// {}", e)))?;
     let provider = ProviderBuilder::new()
         .with_recommended_fillers()
         .wallet(wallet)
         .on_http(rpc_url);
-    let fil_address_bytes = get_filecoin_address_from_string_to_bytes(address)?;
-    let amount = U256::try_from(amount.clone())
+    let fil_address = decode_filecoin_address(address)?;
+    let amount = U256::try_from(*amount)
         .map_err(|e| LDNError::New(format!("Failed to prase amount to U256 /// {}", e)))?;
     let call = addVerifiedClientCall {
-        clientAddress: fil_address_bytes.into(),
+        clientAddress: fil_address.into(),
         amount,
     }
     .abi_encode();
@@ -62,7 +62,15 @@ pub async fn add_verified_client(address: &String, amount: &u64) -> Result<(), L
     Ok(())
 }
 
-fn get_filecoin_address_from_string_to_bytes(address: &str) -> Result<Vec<u8>, LDNError> {
+fn decode_filecoin_address(address: &str) -> Result<Vec<u8>, LDNError> {
+    let address_prefix = address.get(0..1);
+    if let Some(address_prefix) = address_prefix {
+        if address_prefix.eq("f") {
+            set_current_network(Network::Mainnet);
+        } else if address_prefix.eq("t") {
+            set_current_network(Network::Testnet);
+        }
+    }
     let fil_address = FilecoinAddress::from_str(address)
         .map_err(|e| LDNError::New(format!("Failed to prase address from string /// {}", e)))?;
     Ok(fil_address.to_bytes())

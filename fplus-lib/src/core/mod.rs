@@ -4027,13 +4027,13 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let address_from_signature = get_address_from_signature(message, signature)?;
 
         let current_timestamp = Local::now();
-        if LDNApplication::date_is_expired(&message.get_expires_at(), &current_timestamp)? {
+        if LDNApplication::date_is_expired(message.get_expires_at(), &current_timestamp)? {
             return Err(LDNError::Load(format!(
                 "Message expired at {}",
                 message.get_expires_at()
             )));
         }
-        if LDNApplication::date_is_from_future(&message.get_issued_at(), &current_timestamp)? {
+        if LDNApplication::date_is_from_future(message.get_issued_at(), &current_timestamp)? {
             return Err(LDNError::Load(format!(
                 "Message issued date {} is from future",
                 message.get_issued_at()

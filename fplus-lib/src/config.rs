@@ -23,7 +23,7 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
             "https://fp-core.dp04sa0tdc6pk.us-east-1.cs.amazonlightsail.com",
         );
         m.insert("FILPLUS_ENV", "staging");
-        m.insert("GLIF_NODE_URL", "https://api.node.glif.io/rpc/v1");
+        m.insert("GLIF_NODE_URL", "http://localhost:1234/rpc/v1");
         m.insert("ISSUE_TEMPLATE_VERSION", "1.3");
         m.insert(
             "GITCOIN_PASSPORT_DECODER",
@@ -36,16 +36,15 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("DMOB_API_URL", "https://api.datacapstats.io/public/api");
         m.insert("DMOB_API_KEY", "5c993a17-7b18-4ead-a8a8-89dad981d87e");
         m.insert("DAYS_TO_NEXT_AUTOALLOCATION", "14");
-        m.insert("FILECOIN_RPC_URL", "http://127.0.0.1:8545");
         m.insert(
             "ALLOCATOR_CONTRACT_ADDRESS",
             "0x640bD4be149f40714D95aBcD414338bc7CfF39a3",
         );
         m.insert(
-            "PRIVATE_KEY",
+            "AUTOALLOCATOR_PRIVATE_KEY",
             "257d553b55d5928c7ec48c2f7d1288931640166e2c1269e05492914accf7e966",
         );
-        m.insert("AMOUNT_TO_AUTOALLOCATION", "68719476736"); // 68719476736 B == 64 GB
+        m.insert("AUTOALLOCATION_AMOUNT", "68719476736"); // 68719476736 B == 64 GB
         m
     })
 }

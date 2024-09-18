@@ -16,8 +16,8 @@ use crate::error::LDNError;
 use anyhow::Result;
 
 pub trait ExpirableSolStruct: SolStruct {
-    fn get_expires_at(&self) -> String;
-    fn get_issued_at(&self) -> String;
+    fn get_expires_at(&self) -> &str;
+    fn get_issued_at(&self) -> &str;
 }
 
 sol! {
@@ -44,22 +44,22 @@ sol! {
 }
 
 impl ExpirableSolStruct for KycApproval {
-    fn get_expires_at(&self) -> String {
-        self.expires_at.clone()
+    fn get_expires_at(&self) -> &str {
+        &self.expires_at
     }
 
-    fn get_issued_at(&self) -> String {
-        self.issued_at.clone()
+    fn get_issued_at(&self) -> &str {
+        &self.issued_at
     }
 }
 
 impl ExpirableSolStruct for KycAutoallocationApproval {
-    fn get_expires_at(&self) -> String {
-        self.expires_at.clone()
+    fn get_expires_at(&self) -> &str {
+        &self.expires_at
     }
 
-    fn get_issued_at(&self) -> String {
-        self.issued_at.clone()
+    fn get_issued_at(&self) -> &str {
+        &self.issued_at
     }
 }
 
