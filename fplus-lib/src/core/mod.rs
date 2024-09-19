@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use alloy::primitives::Address;
+
 use chrono::{DateTime, Local, Utc};
 use futures::future;
 use octocrab::models::{
@@ -18,7 +19,10 @@ use crate::{
     config::get_env_var_or_default,
     core::application::{
         file::Allocations,
-        gitcoin_interaction::{get_address_from_signature, verify_on_gitcoin, KycApproval},
+        gitcoin_interaction::{
+            get_address_from_signature, verify_on_gitcoin, ExpirableSolStruct, KycApproval,
+            KycAutoallocationApproval,
+        },
     },
     error::LDNError,
     external_services::{
@@ -48,6 +52,7 @@ use std::collections::HashSet;
 
 pub mod allocator;
 pub mod application;
+pub mod autoallocator;
 
 #[derive(Deserialize)]
 pub struct CreateApplicationInfo {
@@ -163,6 +168,16 @@ pub struct AllocatorUpdateForceInfo {
     pub allocators: Option<Vec<GithubQueryParams>>,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct LastAutoallocationQueryParams {
+    pub evm_wallet_address: Address,
+}
+
+#[derive(Deserialize)]
+pub struct TriggerAutoallocationInfo {
+    pub message: KycAutoallocationApproval,
+    pub signature: String,
+}
 #[derive(Deserialize)]
 pub struct GithubQueryParams {
     pub owner: String,
@@ -3899,11 +3914,16 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             ))
         })?;
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).unwrap();
-        let address_from_signature = LDNApplication::verify_kyc_data_and_get_eth_address(
-            &info.message,
-            &info.signature,
-            &application_file.lifecycle.state,
-        )?;
+
+        if application_file.lifecycle.state.clone() != AppState::KYCRequested {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected RequestKYC",
+                application_file.lifecycle.state
+            )));
+        }
+
+        let address_from_signature =
+            LDNApplication::verify_kyc_data_and_get_eth_address(&info.message, &info.signature)?;
 
         let score = verify_on_gitcoin(&address_from_signature).await?;
         let application_file = application_file.move_back_to_submit_state();
@@ -4000,30 +4020,23 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(current_timestamp < &issued_date_to_datetime)
     }
 
-    fn verify_kyc_data_and_get_eth_address(
-        message: &KycApproval,
+    fn verify_kyc_data_and_get_eth_address<T: ExpirableSolStruct>(
+        message: &T,
         signature: &str,
-        application_state: &AppState,
     ) -> Result<Address, LDNError> {
         let address_from_signature = get_address_from_signature(message, signature)?;
 
-        if application_state.clone() != AppState::KYCRequested {
-            return Err(LDNError::Load(format!(
-                "Application state is {:?}. Expected RequestKYC",
-                application_state
-            )));
-        }
         let current_timestamp = Local::now();
-        if LDNApplication::date_is_expired(&message.expires_at, &current_timestamp)? {
+        if LDNApplication::date_is_expired(message.get_expires_at(), &current_timestamp)? {
             return Err(LDNError::Load(format!(
                 "Message expired at {}",
-                message.expires_at
+                message.get_expires_at()
             )));
         }
-        if LDNApplication::date_is_from_future(&message.issued_at, &current_timestamp)? {
+        if LDNApplication::date_is_from_future(message.get_issued_at(), &current_timestamp)? {
             return Err(LDNError::Load(format!(
                 "Message issued date {} is from future",
-                message.issued_at
+                message.get_issued_at()
             )));
         }
         Ok(address_from_signature)

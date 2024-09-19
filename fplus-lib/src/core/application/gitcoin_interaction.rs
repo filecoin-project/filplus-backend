@@ -15,6 +15,11 @@ use crate::config::get_env_var_or_default;
 use crate::error::LDNError;
 use anyhow::Result;
 
+pub trait ExpirableSolStruct: SolStruct {
+    fn get_expires_at(&self) -> &str;
+    fn get_issued_at(&self) -> &str;
+}
+
 sol! {
     #[allow(missing_docs)]
     function getScore(address user) view returns (uint256);
@@ -27,6 +32,34 @@ sol! {
         string allocator_repo_owner;
         string issued_at;
         string expires_at;
+    }
+
+    #[derive(Deserialize)]
+    struct KycAutoallocationApproval {
+        string message;
+        string client_fil_address;
+        string issued_at;
+        string expires_at;
+    }
+}
+
+impl ExpirableSolStruct for KycApproval {
+    fn get_expires_at(&self) -> &str {
+        &self.expires_at
+    }
+
+    fn get_issued_at(&self) -> &str {
+        &self.issued_at
+    }
+}
+
+impl ExpirableSolStruct for KycAutoallocationApproval {
+    fn get_expires_at(&self) -> &str {
+        &self.expires_at
+    }
+
+    fn get_issued_at(&self) -> &str {
+        &self.issued_at
     }
 }
 
@@ -73,8 +106,8 @@ fn calculate_score(response: Bytes) -> f64 {
     score as f64 / 10000.0
 }
 
-pub fn get_address_from_signature(
-    message: &KycApproval,
+pub fn get_address_from_signature<T: SolStruct>(
+    message: &T,
     signature: &str,
 ) -> Result<Address, LDNError> {
     let domain = eip712_domain! {

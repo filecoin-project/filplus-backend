@@ -35,6 +35,12 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
         m.insert("RPC_URL", "https://mainnet.optimism.io");
         m.insert("DMOB_API_URL", "https://api.datacapstats.io/public/api");
         m.insert("DMOB_API_KEY", "5c993a17-7b18-4ead-a8a8-89dad981d87e");
+        m.insert("DAYS_TO_NEXT_AUTOALLOCATION", "14");
+        m.insert(
+            "ALLOCATOR_CONTRACT_ADDRESS",
+            "0x640bD4be149f40714D95aBcD414338bc7CfF39a3",
+        );
+        m.insert("AUTOALLOCATION_AMOUNT", "68719476736"); // 68719476736 B == 64 GB
         m
     })
 }
