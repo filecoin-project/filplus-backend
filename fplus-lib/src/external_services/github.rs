@@ -12,13 +12,14 @@ use octocrab::models::{IssueState, Label};
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
-use octocrab::{AuthState, Error as OctocrabError, Octocrab, OctocrabBuilder, Page};
+use octocrab::{AuthState, Error as OctocrabError, GitHubError, Octocrab, OctocrabBuilder, Page};
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::config::get_env_var_or_default;
 use crate::core::application::file::AppState;
+use crate::error::LDNError;
 
 const GITHUB_API_URL: &str = "https://api.github.com";
 
@@ -778,5 +779,33 @@ impl GithubWrapper {
         };
 
         Ok(contents_items)
+    }
+
+    pub async fn filplus_ignored_files(&self, branch: &str) -> Result<Vec<String>, LDNError> {
+        self.get_file(".filplusignore", branch)
+            .await
+            .or_else(|e| match e {
+                octocrab::Error::GitHub {
+                    source: GitHubError { message, .. },
+                    ..
+                } if message == "Not Found" => Ok(ContentItems { items: vec![] }),
+                _ => Err(e),
+            })
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to load .filplusignore file from repository {}/{}: {}",
+                    self.owner, self.repo, e
+                ))
+            })?
+            .take_items()
+            .pop()
+            .map_or(Ok(vec![]), |c| {
+                Ok(c.decoded_content()
+                    .unwrap_or_default()
+                    .split(&['\n', '\r'])
+                    .map(|v| v.trim().to_string())
+                    .filter(|v| !v.is_empty())
+                    .collect())
+            })
     }
 }

@@ -37,9 +37,7 @@ pub fn compare_allowance_and_allocation(
 
 pub fn process_amount(mut amount: String) -> String {
     // Trim 'S' or 's' from the end of the string
-    amount = amount
-        .trim_end_matches(|c: char| c == 'S' || c == 's')
-        .to_string();
+    amount = amount.trim_end_matches(['s', 'S']).to_string();
 
     // Replace 'b' with 'B'
     amount.replace('b', "B")

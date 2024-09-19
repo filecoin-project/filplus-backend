@@ -473,7 +473,12 @@ pub async fn force_update_allocators(
 
         let gh = GithubWrapper::new(allocator.owner, allocator.repo, allocator.installation_id);
 
-        for file in files.iter() {
+        let ignored_files = gh.filplus_ignored_files(branch).await?;
+        log::debug!("List of ignored files: {ignored_files:?}");
+
+        let files = files.iter().filter(|f| !ignored_files.contains(f));
+
+        for file in files {
             match gh
                 .get_files_from_public_repo(
                     &allocator_template_owner,

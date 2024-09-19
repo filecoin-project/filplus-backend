@@ -1,11 +1,13 @@
 pub mod config;
 pub mod database;
 pub mod models;
+mod types;
 
 use crate::config::get_env_or_throw;
 use once_cell::sync::Lazy;
 use sea_orm::{Database, DatabaseConnection, DbErr};
 use std::sync::Mutex;
+use types::DbConnectParams;
 
 /**
  * The global database connection
@@ -29,7 +31,12 @@ pub fn init() {
  * @return Result<DatabaseConnection, sea_orm::DbErr> - The result of the operation
  */
 pub async fn setup() -> Result<(), DbErr> {
-    let database_url = get_env_or_throw("DB_URL");
+    let database_url = std::env::var("DB_URL").unwrap_or_else(|_| {
+        let params: DbConnectParams =
+            serde_json::from_str(&get_env_or_throw("DB_CONNECT_PARAMS_JSON"))
+                .expect("Invalid JSON in DB_CONNECT_PARAMS_JSON");
+        params.to_url()
+    });
     let db_conn = Database::connect(&database_url).await?;
     let mut db_conn_global = DB_CONN.lock().unwrap();
     *db_conn_global = Some(db_conn);

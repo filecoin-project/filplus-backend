@@ -5,7 +5,7 @@ use crate::models::autoallocations::{
 };
 use alloy::primitives::Address;
 use chrono::{DateTime, FixedOffset};
-use sea_orm::{entity::*, query::*, DbBackend, DbErr, ExecResult};
+use sea_orm::{entity::*, query::*, DbBackend, DbErr};
 
 pub async fn get_last_client_autoallocation(
     client_evm_address: impl Into<AddressWrapper>,
