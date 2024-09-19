@@ -29,10 +29,7 @@ pub async fn create_or_update_autoallocation(
                 ON CONFLICT (evm_wallet_address)
                 DO UPDATE SET last_allocation = NOW()
                 WHERE autoallocations.last_allocation <= NOW() - (INTERVAL '1 day' * $2::int);",
-            [
-                client_address.into(),
-                days_to_next_autoallocation.clone().into(),
-            ],
+            [client_address.into(), (*days_to_next_autoallocation).into()],
         ))
         .await?;
     Ok(exec_res.rows_affected())
