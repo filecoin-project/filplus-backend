@@ -58,13 +58,16 @@ pub async fn add_verified_client(address: &str, amount: &u64) -> Result<(), LDNE
         .with_input(input)
         .with_gas_limit(45_000_000);
 
-    provider
+    let tx = provider
         .send_transaction(tx)
         .await
         .map_err(|e| LDNError::New(format!("RPC error: {}", e)))?
-        .watch()
+        .get_receipt()
         .await
         .map_err(|e| LDNError::New(format!("Transaction failed: {}", e)))?;
+    if !tx.status() {
+        return Err(LDNError::New("Transaction failed.".to_string()));
+    }
     Ok(())
 }
 

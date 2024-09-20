@@ -40,7 +40,7 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
             "ALLOCATOR_CONTRACT_ADDRESS",
             "0x640bD4be149f40714D95aBcD414338bc7CfF39a3",
         );
-        m.insert("AUTOALLOCATION_AMOUNT", "68719476736"); // 68719476736 B == 64 GB
+        m.insert("AUTOALLOCATION_AMOUNT", "68719476736"); // 68719476736 B == 64 GiB
         m
     })
 }
