@@ -1,5 +1,5 @@
 name: Publish new build
-run-name: Publish new images for "${{ github.ref_name }}" triggered by ${{ github.actor }}
+run-name: "Publish new images for ${{ github.ref_name }} triggered by ${{ github.actor }}; version: ${{ inputs.version || 'N/A'}}"
 
 on:
   pull_request:
