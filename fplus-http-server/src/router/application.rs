@@ -473,7 +473,14 @@ pub async fn trigger_ssa(
     query: web::Query<VerifierActionsQueryParams>,
     info: web::Json<TriggerSSAInfo>,
 ) -> impl Responder {
-    match LDNApplication::trigger_ssa(&query.id, &query.owner, &query.repo, info.into_inner()).await
+    match LDNApplication::trigger_ssa(
+        &query.id,
+        &query.owner,
+        &query.repo,
+        &query.github_username,
+        info.into_inner(),
+    )
+    .await
     {
         Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),

@@ -92,7 +92,7 @@ impl file::ApplicationFile {
         let new_life_cycle = self
             .lifecycle
             .clone()
-            .start_refill_request(request.id.clone());
+            .start_refill_request(request.actor.clone(), request.id.clone());
         let allocations = self.allocation.clone().push(request.clone());
         Self {
             lifecycle: new_life_cycle,

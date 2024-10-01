@@ -1534,7 +1534,7 @@ impl LDNApplication {
         Ok(apps)
     }
 
-    async fn refill(refill_info: RefillInfo) -> Result<bool, LDNError> {
+    async fn refill(verfier: &str, refill_info: RefillInfo) -> Result<bool, LDNError> {
         let apps =
             LDNApplication::merged(refill_info.owner.clone(), refill_info.repo.clone()).await?;
         if let Some((content, mut app)) = apps.into_iter().find(|(_, app)| app.id == refill_info.id)
@@ -1542,7 +1542,7 @@ impl LDNApplication {
             let uuid = uuidv4::uuid::v4();
             let request_id = uuid.clone();
             let new_request = AllocationRequest::new(
-                "SSA Bot".to_string(),
+                verfier.to_string(),
                 request_id.clone(),
                 AllocationRequestType::Refill(0),
                 format!("{}{}", refill_info.amount, refill_info.amount_type),
@@ -3851,6 +3851,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         id: &str,
         owner: &str,
         repo: &str,
+        verifier: &str,
         info: TriggerSSAInfo,
     ) -> Result<(), LDNError> {
         let app_model = Self::get_application_model(id.into(), owner.into(), repo.into()).await?;
@@ -3896,7 +3897,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             owner: app_model.owner,
             repo: app_model.repo,
         };
-        Self::refill(refill_info).await?;
+        Self::refill(verifier, refill_info).await?;
         Ok(())
     }
 
