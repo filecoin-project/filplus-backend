@@ -80,9 +80,11 @@ impl LifeCycle {
         self.is_active
     }
 
-    pub fn start_refill_request(&self, request_id: String) -> Self {
+    pub fn start_refill_request(&self, actor: String, request_id: String) -> Self {
         LifeCycle {
             state: AppState::ReadyToSign,
+            validated_by: actor,
+            validated_at: Utc::now().to_string(),
             updated_at: Utc::now().to_string(),
             active_request: Some(request_id),
             ..self.clone()
