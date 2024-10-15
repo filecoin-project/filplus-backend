@@ -342,10 +342,7 @@ impl ApplicationFile {
             ))
     }
 
-    pub fn adjust_active_allocation_amount(
-        &mut self,
-        new_amount: String,
-    ) -> Result<(), &'static str> {
+    pub fn adjust_active_allocation_amount(&mut self, new_amount: String) -> Result<(), LDNError> {
         // Find the first active allocation
         if let Some(allocation) = self.allocation.0.iter_mut().find(|alloc| alloc.is_active) {
             // Update the amount
@@ -353,7 +350,7 @@ impl ApplicationFile {
             Ok(())
         } else {
             // Return an error if no active allocation is found
-            Err("No active allocation found")
+            Err(LDNError::New("No active allocation found".to_string()))
         }
     }
 

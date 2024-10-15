@@ -1038,8 +1038,7 @@ impl LDNApplication {
                         let new_allocation_amount_parsed =
                             process_amount(new_allocation_amount.clone().unwrap());
 
-                        let _ =
-                            app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
+                        app_file.adjust_active_allocation_amount(new_allocation_amount_parsed)?;
                     }
 
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
@@ -1181,17 +1180,10 @@ impl LDNApplication {
         // Check the allowance for the address
 
         if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
-            let db_multisig_address = db_allocator.multisig_address.unwrap();
-
-            Self::check_and_handle_allowance(
-                &db_multisig_address.clone(),
-                new_allocation_amount.clone(),
-            )
-            .await?;
             let new_allocation_amount_parsed =
                 process_amount(new_allocation_amount.clone().unwrap());
 
-            let _ = app_file.adjust_active_allocation_amount(new_allocation_amount_parsed);
+            app_file.adjust_active_allocation_amount(new_allocation_amount_parsed)?;
         }
 
         // Add signer to signers array
