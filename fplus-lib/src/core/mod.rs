@@ -4072,7 +4072,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             AppState::Granted.as_str()
         };
 
-        self.issue_updates(&application_file.issue_number, &comment, &app_state)
+        self.issue_updates(&application_file.issue_number, &comment, app_state)
             .await?;
         Ok(())
     }
@@ -4184,7 +4184,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             ))
         })?;
         self.github
-            .add_comment_to_issue(issue_number, &comment)
+            .add_comment_to_issue(issue_number, comment)
             .await
             .map_err(|e| {
                 LDNError::New(format!(
