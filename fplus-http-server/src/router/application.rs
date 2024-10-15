@@ -505,3 +505,22 @@ pub async fn remove_pending_allocation(
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
+
+#[post("application/revert_to_ready_to_sign")]
+pub async fn revert_to_ready_to_sign(
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
+        };
+    match ldn_application
+        .revert_to_ready_to_sign(&query.id, &query.owner, &query.repo)
+        .await
+    {
+        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}

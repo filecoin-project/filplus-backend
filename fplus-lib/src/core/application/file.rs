@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::LDNError;
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum DatacapGroup {
     #[serde(rename = "da")]
@@ -327,6 +329,17 @@ impl ApplicationFile {
 
     pub fn get_active_allocation(&self) -> Option<&Allocation> {
         self.allocation.0.iter().find(|alloc| alloc.is_active)
+    }
+
+    pub fn get_active_allocation_request_type(&self) -> Result<String, LDNError> {
+        self.allocation
+            .0
+            .iter()
+            .find(|alloc| alloc.is_active)
+            .map(|alloc| alloc.request_type.clone())
+            .ok_or(LDNError::Load(
+                "Request type not found for an active allocation.".to_string(),
+            ))
     }
 
     pub fn adjust_active_allocation_amount(
