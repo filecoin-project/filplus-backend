@@ -506,10 +506,8 @@ pub async fn remove_pending_allocation(
     }
 }
 
-#[post("application/revert_to_ready_to_sign")]
-pub async fn revert_to_ready_to_sign(
-    query: web::Query<VerifierActionsQueryParams>,
-) -> impl Responder {
+#[post("application/allocation_failed")]
+pub async fn allocation_failed(query: web::Query<VerifierActionsQueryParams>) -> impl Responder {
     let ldn_application =
         match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
         {

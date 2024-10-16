@@ -4100,7 +4100,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .await?;
 
         let comment = format!(
-            "Pending allocation reverted to ReadyToSign state for an application: {:?}.",
+            "Allocation transaction failed on chain, application {:?} reverted to ReadyToSign state. Please try again.",
             &self.application_id
         );
         self.issue_updates(
