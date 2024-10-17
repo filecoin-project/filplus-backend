@@ -125,8 +125,12 @@ pub async fn create_or_update_allocator(
             allocator_active_model.registry_file_path = Set(registry_file_path);
         }
 
-        if client_contract_address.is_some() {
-            allocator_active_model.client_contract_address = Set(client_contract_address);
+        if let Some(client_contract_address) = client_contract_address {
+            if !client_contract_address.is_empty() {
+                allocator_active_model.client_contract_address = Set(Some(client_contract_address));
+            } else {
+                allocator_active_model.client_contract_address = Set(None);
+            }
         } else {
             allocator_active_model.client_contract_address = Set(None);
         }
@@ -187,10 +191,13 @@ pub async fn create_or_update_allocator(
             new_allocator.registry_file_path = Set(registry_file_path);
         }
 
-        if client_contract_address.is_some() {
-            new_allocator.client_contract_address = Set(client_contract_address);
+        if let Some(client_contract_address) = client_contract_address {
+            if !client_contract_address.is_empty() {
+                new_allocator.client_contract_address = Set(Some(client_contract_address));
+            } else {
+                new_allocator.client_contract_address = Set(None);
+            }
         }
-
         let conn = get_database_connection()
             .await
             .expect("Failed to get DB connection");
