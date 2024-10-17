@@ -84,7 +84,8 @@ async fn main() -> std::io::Result<()> {
                     .service(router::application::additional_info_required)
                     .service(router::application::trigger_ssa)
                     .service(router::application::request_kyc)
-                    .service(router::application::remove_pending_allocation),
+                    .service(router::application::remove_pending_allocation)
+                    .service(router::application::allocation_failed),
             )
             .service(router::application::merged)
             .service(router::application::active)

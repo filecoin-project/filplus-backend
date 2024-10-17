@@ -115,6 +115,19 @@ impl file::ApplicationFile {
         }
     }
 
+    pub fn move_back_to_ready_to_sign(&self) -> Self {
+        let updated_allocation = self
+            .clone()
+            .allocation
+            .remove_signers_in_active_allocation();
+        let updated_lifecycle = self.clone().lifecycle.move_back_to_ready_to_sign();
+        Self {
+            lifecycle: updated_lifecycle,
+            allocation: updated_allocation,
+            ..self.clone()
+        }
+    }
+
     pub fn add_signer_to_allocation_and_complete(
         &self,
         signer: Verifier,

@@ -4044,17 +4044,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let app_model =
             Self::get_application_model(client_id.into(), owner.into(), repo.into()).await?;
 
-        if app_model.pr_number == 0 {
-            return Err(LDNError::Load("Active pull request not found".to_string()));
-        }
-
-        let app_str = &app_model.application.ok_or_else(|| {
-            LDNError::Load(format!(
-                "Application {} does not have an application field",
-                client_id
-            ))
-        })?;
-        let application_file = serde_json::from_str::<ApplicationFile>(app_str).unwrap();
+        let application_file =
+            Self::get_application_file_with_active_allocation(&app_model).await?;
 
         if application_file.lifecycle.state != AppState::ReadyToSign {
             return Err(LDNError::Load(format!(
@@ -4062,67 +4053,62 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 application_file.lifecycle.state
             )));
         }
-        let last_allocation = application_file.get_active_allocation().ok_or_else(|| {
-            LDNError::Load(format!(
-                "Application {} does not have an active allocation",
-                client_id
-            ))
-        })?;
-
-        let is_first = last_allocation.request_type == "First";
+        let is_first = application_file.get_active_allocation_request_type()? == "First";
         if is_first {
             self.remove_first_pending_allocation(&application_file)
                 .await?;
         } else {
             self.remove_pending_refill(&app_model.pr_number).await?;
         }
-        self.issue_updates_after_removing_pending_allocation(
-            &application_file.issue_number,
-            is_first,
-        )
-        .await?;
-        Ok(())
-    }
 
-    async fn issue_updates_after_removing_pending_allocation(
-        &self,
-        issue_number: &str,
-        is_first: bool,
-    ) -> Result<(), LDNError> {
         let comment = format!(
             "Last pending allocation reverted for an application `{}`.",
             &self.application_id
         );
-        let issue_number = issue_number.parse::<u64>().map_err(|e| {
-            LDNError::New(format!(
-                "Parse issue number: {} to u64 failed. {}",
-                issue_number, e
-            ))
-        })?;
-        self.github
-            .add_comment_to_issue(issue_number, &comment)
-            .await
-            .map_err(|e| {
-                LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
-                ))
-            })?;
 
         let app_state = if is_first {
             AppState::Submitted.as_str()
         } else {
             AppState::Granted.as_str()
         };
-        self.github
-            .replace_issue_labels(issue_number, &[app_state.into()])
-            .await
-            .map_err(|e| {
-                LDNError::New(format!(
-                    "Error adding labels to issue {} /// {}",
-                    issue_number, e
-                ))
-            })?;
+
+        self.issue_updates(&application_file.issue_number, &comment, app_state)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn revert_to_ready_to_sign(
+        &self,
+        client_id: &str,
+        owner: &str,
+        repo: &str,
+    ) -> Result<(), LDNError> {
+        let app_model =
+            Self::get_application_model(client_id.into(), owner.into(), repo.into()).await?;
+
+        let application_file =
+            Self::get_application_file_with_active_allocation(&app_model).await?;
+
+        if application_file.lifecycle.state != AppState::StartSignDatacap {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected StartSignDatacap",
+                application_file.lifecycle.state
+            )));
+        }
+
+        self.remove_signers_from_active_request(&application_file)
+            .await?;
+
+        let comment = format!(
+            "Allocation transaction failed on chain, application {:?} reverted to ReadyToSign state. Please try again.",
+            &self.application_id
+        );
+        self.issue_updates(
+            &application_file.issue_number,
+            &comment,
+            AppState::ReadyToSign.as_str(),
+        )
+        .await?;
         Ok(())
     }
 
@@ -4165,6 +4151,85 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             ))
         })?;
         Ok(())
+    }
+
+    async fn remove_signers_from_active_request(
+        &self,
+        application_file: &ApplicationFile,
+    ) -> Result<(), LDNError> {
+        let updated_application = application_file.clone().move_back_to_ready_to_sign();
+        self.update_and_commit_application_state(
+            updated_application.clone(),
+            self.github.owner.clone(),
+            self.github.repo.clone(),
+            self.file_sha.clone(),
+            self.branch_name.clone(),
+            self.file_name.clone(),
+            "Revert pending allocation to ReadyToSign".to_string(),
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn issue_updates(
+        &self,
+        issue_number: &str,
+        comment: &str,
+        label: &str,
+    ) -> Result<(), LDNError> {
+        let issue_number = issue_number.parse::<u64>().map_err(|e| {
+            LDNError::New(format!(
+                "Parse issue number: {} to u64 failed. {}",
+                issue_number, e
+            ))
+        })?;
+        self.github
+            .add_comment_to_issue(issue_number, comment)
+            .await
+            .map_err(|e| {
+                LDNError::New(format!(
+                    "Error adding comment to issue {} /// {}",
+                    issue_number, e
+                ))
+            })?;
+        self.github
+            .replace_issue_labels(issue_number, &[label.into()])
+            .await
+            .map_err(|e| {
+                LDNError::New(format!(
+                    "Error adding labels to issue {} /// {}",
+                    issue_number, e
+                ))
+            })?;
+        Ok(())
+    }
+
+    async fn get_application_file_with_active_allocation(
+        app_model: &ApplicationModel,
+    ) -> Result<ApplicationFile, LDNError> {
+        if app_model.pr_number == 0 {
+            return Err(LDNError::Load("Active pull request not found".to_string()));
+        }
+
+        let app_str = app_model.application.as_ref().ok_or_else(|| {
+            LDNError::New(format!(
+                "Application {} does not have an application field",
+                app_model.id
+            ))
+        })?;
+
+        let application_file = serde_json::from_str::<ApplicationFile>(app_str).map_err(|e| {
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+        })?;
+
+        application_file.get_active_allocation().ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an active allocation",
+                app_model.id
+            ))
+        })?;
+
+        Ok(application_file)
     }
 }
 

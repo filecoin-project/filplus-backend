@@ -125,4 +125,12 @@ impl LifeCycle {
             ..self.clone()
         }
     }
+
+    pub fn move_back_to_ready_to_sign(self) -> Self {
+        LifeCycle {
+            state: AppState::ReadyToSign,
+            updated_at: Utc::now().to_string(),
+            ..self.clone()
+        }
+    }
 }

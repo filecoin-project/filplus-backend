@@ -42,6 +42,14 @@ impl Allocation {
             signers: Verifiers::default(),
         }
     }
+
+    pub fn remove_signers(&self) -> Self {
+        Self {
+            updated_at: Utc::now().to_string(),
+            signers: Verifiers::default(),
+            ..self.clone()
+        }
+    }
 }
 
 impl Allocations {
@@ -98,6 +106,13 @@ impl Allocations {
             }
         }
         Self(res)
+    }
+
+    pub fn remove_signers_in_active_allocation(&mut self) -> Self {
+        if let Some(alloc) = self.0.iter_mut().find(|alloc| alloc.is_active) {
+            *alloc = alloc.remove_signers();
+        }
+        self.clone()
     }
 
     pub fn add_signer_and_complete(&self, request_id: String, signer: Verifier) -> Self {
