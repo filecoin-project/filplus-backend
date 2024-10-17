@@ -124,6 +124,7 @@ mod tests {
         let required_sps = Some("5+".to_string());
         let required_replicas = Some("5+".to_string());
         let registry_file_path = Some("Allocators/123.json".to_string());
+        let client_contract_address = Some("f1owcbryeqlq3vl7kydzax7r75sbtyvgpnny7fswy".to_string());
 
         let result = database::allocators::create_or_update_allocator(
             owner,
@@ -139,6 +140,7 @@ mod tests {
             required_sps,
             required_replicas,
             registry_file_path,
+            client_contract_address,
         )
         .await;
         assert!(result.is_ok());
@@ -216,7 +218,7 @@ mod tests {
         let required_sps = Some("5+".to_string());
         let required_replicas = Some("5+".to_string());
         let registry_file_path = Some("Allocators/123.json".to_string());
-
+        let client_contract_address = Some("f1owcbryeqlq3vl7kydzax7r75sbtyvgpnny7fswy".to_string());
         let result = database::allocators::create_or_update_allocator(
             owner.clone(),
             repo.clone(),
@@ -231,6 +233,7 @@ mod tests {
             required_sps,
             required_replicas,
             registry_file_path,
+            client_contract_address,
         )
         .await;
 

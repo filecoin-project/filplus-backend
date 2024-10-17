@@ -71,6 +71,7 @@ pub async fn create_or_update_allocator(
     required_sps: Option<String>,
     required_replicas: Option<String>,
     registry_file_path: Option<String>,
+    client_contract_address: Option<String>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
     let existing_allocator = get_allocator(&owner, &repo).await?;
     if let Some(allocator_model) = existing_allocator {
@@ -122,6 +123,12 @@ pub async fn create_or_update_allocator(
 
         if registry_file_path.is_some() {
             allocator_active_model.registry_file_path = Set(registry_file_path);
+        }
+
+        if client_contract_address.is_some() {
+            allocator_active_model.client_contract_address = Set(client_contract_address);
+        } else {
+            allocator_active_model.client_contract_address = Set(None);
         }
 
         let updated_model = allocator_active_model.update(&conn).await?;
@@ -178,6 +185,10 @@ pub async fn create_or_update_allocator(
 
         if registry_file_path.is_some() {
             new_allocator.registry_file_path = Set(registry_file_path);
+        }
+
+        if client_contract_address.is_some() {
+            new_allocator.client_contract_address = Set(client_contract_address);
         }
 
         let conn = get_database_connection()

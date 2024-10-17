@@ -1,8 +1,8 @@
-use alloy::primitives::{Address, AddressError};
 use chrono::{DateTime, FixedOffset};
 use sea_orm::entity::prelude::*;
-use sea_orm_newtype::DeriveNewType;
 use serde::{Deserialize, Serialize};
+
+use crate::types::AddressWrapper;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "autoallocations")]
@@ -16,26 +16,3 @@ pub struct Model {
 pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}
-
-#[derive(Clone, Debug, PartialEq, DeriveNewType, Eq, Serialize, Deserialize)]
-#[sea_orm_newtype(try_from_into = "String", primary_key)]
-pub struct AddressWrapper(pub Address);
-
-impl TryFrom<String> for AddressWrapper {
-    type Error = AddressError;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(AddressWrapper(Address::parse_checksummed(value, None)?))
-    }
-}
-
-impl From<AddressWrapper> for String {
-    fn from(value: AddressWrapper) -> Self {
-        value.0.to_checksum(None)
-    }
-}
-
-impl From<Address> for AddressWrapper {
-    fn from(value: Address) -> Self {
-        AddressWrapper(value)
-    }
-}

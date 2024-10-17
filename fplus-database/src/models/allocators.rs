@@ -22,6 +22,7 @@ pub struct Model {
     pub required_sps: Option<String>,
     pub required_replicas: Option<String>,
     pub registry_file_path: Option<String>,
+    pub client_contract_address: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
