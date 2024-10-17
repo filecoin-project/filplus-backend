@@ -8,6 +8,7 @@ pub struct AllocatorModel {
     pub owner: Option<String>,
     pub repo: Option<String>,
     pub address: Option<String>,
+    pub client_contract_address: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -26,6 +27,7 @@ pub struct Application {
     pub data_types: Vec<String>,
     pub required_sps: String,
     pub required_replicas: String,
+    pub client_contract_address: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

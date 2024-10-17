@@ -384,6 +384,7 @@ pub async fn update_installation_ids_in_db(installation: InstallationRepositorie
             None,
             None,
             None,
+            None,
         )
         .await;
     }
@@ -648,6 +649,7 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
                     Some(model.application.required_sps),
                     Some(model.application.required_replicas),
                     Some(file_name.to_owned()),
+                    model.application.client_contract_address,
                 )
                 .await
                 .map_err(|e| LDNError::New(format!("Create or update allocator failed: {}", e)))?;

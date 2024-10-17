@@ -1,8 +1,8 @@
 use crate::get_database_connection;
-use crate::models::autoallocations::AddressWrapper;
 use crate::models::autoallocations::{
     Column, Entity as Autoallocations, Model as AutoallocationModel,
 };
+use crate::types::AddressWrapper;
 use alloy::primitives::Address;
 use chrono::{DateTime, FixedOffset};
 use sea_orm::{entity::*, query::*, DbBackend, DbErr};
