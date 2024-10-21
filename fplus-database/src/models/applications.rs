@@ -25,6 +25,8 @@ pub struct Model {
     pub sha: Option<String>,
     #[sea_orm(nullable)]
     pub path: Option<String>,
+    #[sea_orm(nullable)]
+    pub client_contract_address: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -29,7 +29,8 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
                 a.application, 
                 a.updated_at, 
                 a.sha,
-                a.path
+                a.path,
+                a.client_contract_address
             FROM 
                 applications a 
             ORDER BY 
@@ -74,6 +75,9 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
             ),
             sha: Some(app.get("sha").unwrap().as_str().unwrap().to_string()),
             path: Some(app.get("path").unwrap().as_str().unwrap().to_string()),
+            client_contract_address: app
+                .get("client_contract_address")
+                .map(|client_contract_address| client_contract_address.to_string()),
         });
     }
     Ok(applications)
@@ -334,6 +338,7 @@ pub async fn merge_application_by_pr_number(
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
+#[allow(clippy::too_many_arguments)]
 pub async fn update_application(
     id: String,
     owner: String,
@@ -342,6 +347,7 @@ pub async fn update_application(
     app_file: String,
     path: Option<String>,
     sha: Option<String>,
+    client_contract_address: Option<String>,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
@@ -361,6 +367,13 @@ pub async fn update_application(
             if let Some(path) = path {
                 active_application.path = Set(Some(path));
             };
+
+            if let Some(client_contract_address) = client_contract_address {
+                active_application.client_contract_address = Set(Some(client_contract_address));
+            } else {
+                active_application.client_contract_address = Set(None);
+            }
+
             let updated_application = active_application.update(&conn).await?;
             Ok(updated_application)
         }

@@ -194,6 +194,7 @@ pub struct ApplicationQueryParams {
 #[derive(Deserialize)]
 pub struct CompleteGovernanceReviewInfo {
     pub allocation_amount: String,
+    pub client_contract_address: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -847,6 +848,7 @@ impl LDNApplication {
         owner: String,
         repo: String,
         allocation_amount: String,
+        client_contract_address: Option<String>,
     ) -> Result<ApplicationFile, LDNError> {
         match self.app_state().await {
             Ok(s) => match s {
@@ -878,7 +880,11 @@ impl LDNApplication {
                         allocation_amount_parsed,
                     );
 
-                    let app_file = app_file.complete_governance_review(actor.clone(), request);
+                    let app_file = app_file.complete_governance_review(
+                        actor.clone(),
+                        request,
+                        client_contract_address.clone(),
+                    );
                     let file_content = serde_json::to_string_pretty(&app_file).unwrap();
                     let app_path = &self.file_name.clone();
                     let app_branch = self.branch_name.clone();
@@ -904,7 +910,7 @@ impl LDNApplication {
                                 Ok(prs) => {
                                     if let Some(pr) = prs.first() {
                                         let number = pr.number;
-                                        let _ = database::applications::update_application(
+                                        database::applications::update_application(
                                             app_file.id.clone(),
                                             owner.clone(),
                                             repo.clone(),
@@ -912,8 +918,15 @@ impl LDNApplication {
                                             serde_json::to_string_pretty(&app_file).unwrap(),
                                             Some(app_path.clone()),
                                             None,
+                                            client_contract_address,
                                         )
-                                        .await;
+                                        .await
+                                        .map_err(|e| {
+                                            LDNError::Load(format!(
+                                                "Failed to update application: {} /// {}",
+                                                app_file.id, e
+                                            ))
+                                        })?;
 
                                         Self::issue_datacap_allocation_requested(
                                             app_file.clone(),
@@ -1064,7 +1077,7 @@ impl LDNApplication {
                                 Ok(prs) => {
                                     if let Some(pr) = prs.first() {
                                         let number = pr.number;
-                                        let _ = database::applications::update_application(
+                                        database::applications::update_application(
                                             app_file.id.clone(),
                                             owner.clone(),
                                             repo.clone(),
@@ -1072,8 +1085,15 @@ impl LDNApplication {
                                             serde_json::to_string_pretty(&app_file).unwrap(),
                                             Some(self.file_name.clone()),
                                             None,
+                                            app_file.client_contract_address.clone(),
                                         )
-                                        .await;
+                                        .await
+                                        .map_err(|e| {
+                                            LDNError::Load(format!(
+                                                "Failed to update application: {} /// {}",
+                                                app_file.id, e
+                                            ))
+                                        })?;
                                         Self::issue_start_sign_dc(
                                             app_file.issue_number.clone(),
                                             owner.clone(),
@@ -1223,6 +1243,7 @@ impl LDNApplication {
                                 serde_json::to_string_pretty(&app_file).unwrap(),
                                 Some(self.file_name.clone()),
                                 None,
+                                app_file.client_contract_address.clone(),
                             )
                             .await
                             {
@@ -1994,6 +2015,7 @@ impl LDNApplication {
                                 serde_json::to_string_pretty(&app_file).unwrap(),
                                 Some(ldn_application.file_name.clone()),
                                 None,
+                                app_file.client_contract_address,
                             )
                             .await;
                         }
@@ -2066,6 +2088,7 @@ impl LDNApplication {
                                 serde_json::to_string_pretty(&db_application_file).unwrap(),
                                 Some(filename.clone()),
                                 None,
+                                db_application_file.client_contract_address.clone(),
                             )
                             .await;
 
@@ -2364,6 +2387,7 @@ impl LDNApplication {
                     file_content.clone(),
                     Some(filename.clone()),
                     None,
+                    application_file.client_contract_address.clone(),
                 )
                 .await
                 .map_err(|e| {
@@ -2667,6 +2691,7 @@ impl LDNApplication {
             parsed_ldn.datacap,
             pr_application.allocation.clone(),
             pr_application.lifecycle.clone(),
+            pr_application.client_contract_address.clone(),
         )
         .await;
 
@@ -2722,7 +2747,7 @@ impl LDNApplication {
                             if let Some(pr) = prs.first() {
                                 let number = pr.number;
 
-                                let _ = database::applications::update_application(
+                                database::applications::update_application(
                                     app_file.id.clone(),
                                     application_model.owner.clone(),
                                     application_model.repo.clone(),
@@ -2730,8 +2755,15 @@ impl LDNApplication {
                                     serde_json::to_string_pretty(&app_file).unwrap(),
                                     Some(application_model.path.clone().unwrap()),
                                     None,
+                                    app_file.client_contract_address,
                                 )
-                                .await;
+                                .await
+                                .map_err(|e| {
+                                    LDNError::Load(format!(
+                                        "Failed to update application: {} /// {}",
+                                        app_file.id, e
+                                    ))
+                                })?;
                             }
                         }
                         Err(e) => log::warn!("Failed to get pull request by head: {}", e),
@@ -2805,6 +2837,7 @@ impl LDNApplication {
             parsed_ldn.datacap,
             merged_application.allocation.clone(),
             merged_application.lifecycle.clone(),
+            merged_application.client_contract_address.clone(),
         )
         .await;
 
@@ -3482,6 +3515,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                         serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
                         None,
                         Some(gh_app.sha.clone()),
+                        gh_app.application_file.client_contract_address.clone(),
                     )
                     .await
                     .unwrap();
@@ -3564,6 +3598,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                         serde_json::to_string_pretty(&gh_app.application_file).unwrap(),
                         Some(gh_app.path.clone()),
                         Some(gh_app.sha.clone()),
+                        gh_app.application_file.client_contract_address.clone(),
                     )
                     .await
                     .unwrap();
@@ -3787,6 +3822,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             serde_json::to_string_pretty(&application_file).unwrap(),
             app_model.path.clone(),
             None,
+            application_file.client_contract_address.clone(),
         )
         .await
         .expect("Failed to update_application in DB!");
@@ -3933,6 +3969,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             serde_json::to_string_pretty(&application_file).unwrap(),
             app_model.path.clone(),
             None,
+            application_file.client_contract_address.clone(),
         )
         .await
         .expect("Failed to update_application in DB!");

@@ -48,6 +48,8 @@ pub struct ApplicationFile {
     pub id: String,
     #[serde(rename = "Issue Number")]
     pub issue_number: String,
+    #[serde(rename = "Client Contract Address")]
+    pub client_contract_address: Option<String>,
     #[serde(rename = "Client")]
     pub client: Client,
     #[serde(rename = "Project")]
