@@ -2,7 +2,9 @@ use crate::helpers::process_amount;
 use fplus_database::database::allocation_amounts::{
     create_allocation_amount, delete_allocation_amounts_by_allocator_id,
 };
-use fplus_database::database::allocators::{create_or_update_allocator, get_allocators};
+use fplus_database::database::allocators::{
+    create_or_update_allocator, get_allocators, update_allocator_installation_ids,
+};
 use fplus_database::models::allocators::Model;
 use octocrab::auth::create_jwt;
 use octocrab::models::repos::{Content, ContentItems};
@@ -365,40 +367,34 @@ pub async fn fetch_repositories_for_installation_id(
     Ok(repositories)
 }
 
-pub async fn update_installation_ids_in_db(installation: InstallationRepositories) {
+pub async fn update_installation_ids_in_db(
+    installation: InstallationRepositories,
+) -> Result<(), LDNError> {
     let installation_id = installation.installation_id;
     for repo in installation.repositories.iter() {
-        let owner = repo.owner.clone();
-        let repo = repo.slug.clone();
-        let _ = create_or_update_allocator(
-            owner,
-            repo,
+        update_allocator_installation_ids(
+            repo.owner.clone(),
+            repo.slug.clone(),
             Some(installation_id.try_into().unwrap()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
         )
-        .await;
+        .await
+        .map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to update installation id in database for repo: {} {} /// {}",
+                repo.owner.clone(),
+                repo.slug.clone(),
+                e
+            ))
+        })?;
     }
+    Ok(())
 }
 
-pub async fn update_installation_ids_logic() {
+pub async fn update_installation_ids_logic() -> Result<(), LDNError> {
     let client = Client::new();
-    let jwt = match generate_github_app_jwt().await {
-        Ok(jwt) => jwt,
-        Err(e) => {
-            log::error!("Failed to generate GitHub App JWT: {}", e);
-            return;
-        }
-    };
+    let jwt = generate_github_app_jwt()
+        .await
+        .map_err(|e| LDNError::Load(format!("Failed to generate GitHub App JWT: {}", e)))?;
 
     let installation_ids_result = fetch_installation_ids(&client, &jwt).await;
     let mut results: Vec<InstallationRepositories> = Vec::new();
@@ -415,8 +411,9 @@ pub async fn update_installation_ids_logic() {
     }
 
     for installation in results.iter() {
-        update_installation_ids_in_db(installation.clone()).await;
+        update_installation_ids_in_db(installation.clone()).await?;
     }
+    Ok(())
 }
 
 pub async fn force_update_allocators(
