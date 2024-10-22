@@ -53,13 +53,17 @@ pub async fn trigger(
             }
         };
     dbg!(&ldn_application);
-    let CompleteGovernanceReviewInfo { allocation_amount } = info.into_inner();
+    let CompleteGovernanceReviewInfo {
+        allocation_amount,
+        client_contract_address,
+    } = info.into_inner();
     match ldn_application
         .complete_governance_review(
             query.github_username.clone(),
             query.owner.clone(),
             query.repo.clone(),
             allocation_amount,
+            client_contract_address,
         )
         .await
     {

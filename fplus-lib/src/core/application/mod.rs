@@ -26,6 +26,7 @@ impl file::ApplicationFile {
             datacap,
             lifecycle,
             allocation,
+            client_contract_address: None,
         }
     }
 
@@ -39,6 +40,7 @@ impl file::ApplicationFile {
         datacap: file::Datacap,
         allocation: file::Allocations,
         lifecycle: file::LifeCycle,
+        client_contract_address: Option<String>,
     ) -> Self {
         //set lifecycle.edited = true
         let lifecycle = LifeCycle {
@@ -54,6 +56,7 @@ impl file::ApplicationFile {
             datacap,
             lifecycle,
             allocation,
+            client_contract_address,
         }
     }
 
@@ -69,13 +72,19 @@ impl file::ApplicationFile {
         let new_life_cycle = self.lifecycle.clone().move_back_to_governance_review(); // move back to submitted state
         let allocation = Allocations::default(); // empty allocations
         Self {
+            client_contract_address: None,
             lifecycle: new_life_cycle,
             allocation,
             ..self.clone()
         }
     }
 
-    pub fn complete_governance_review(&self, actor: String, request: AllocationRequest) -> Self {
+    pub fn complete_governance_review(
+        &self,
+        actor: String,
+        request: AllocationRequest,
+        client_contract_address: Option<String>,
+    ) -> Self {
         let new_life_cycle = self
             .lifecycle
             .clone()
@@ -84,6 +93,7 @@ impl file::ApplicationFile {
         Self {
             lifecycle: new_life_cycle,
             allocation: allocations,
+            client_contract_address,
             ..self.clone()
         }
     }
