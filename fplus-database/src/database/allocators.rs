@@ -208,6 +208,31 @@ pub async fn create_or_update_allocator(
 }
 
 /**
+ * Update installation ID for allocator in the database
+ *
+ * # Arguments
+ * @param owner: String - The owner of the repository
+ * @param repo: String - The repository name
+ * @param installation_id: Option<i64> - The installation ID
+ */
+pub async fn update_allocator_installation_ids(
+    owner: String,
+    repo: String,
+    installation_id: Option<i64>,
+) -> Result<(), sea_orm::DbErr> {
+    let existing_allocator = get_allocator(&owner, &repo).await?;
+    if let Some(allocator_model) = existing_allocator {
+        let conn = get_database_connection().await?;
+        let mut allocator_active_model = allocator_model.into_active_model();
+        if installation_id.is_some() {
+            allocator_active_model.installation_id = Set(installation_id);
+        }
+        allocator_active_model.update(&conn).await?;
+    }
+    Ok(())
+}
+
+/**
  * Update the multisig threshold of an allocator in the database
  *
  * This function specifically targets and updates only the multisig threshold of an existing allocator.
