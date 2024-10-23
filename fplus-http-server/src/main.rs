@@ -57,7 +57,11 @@ async fn main() -> std::io::Result<()> {
 
     tokio::spawn(async {
         run_cron("0 0 0,4,8,12,16,20 * * * *", || {
-            tokio::spawn(update_installation_ids_logic())
+            tokio::spawn(async {
+                if let Err(e) = update_installation_ids_logic().await {
+                    eprintln!("Error: {:?}", e);
+                }
+            })
         })
         .await;
     });
