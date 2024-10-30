@@ -14,6 +14,7 @@ impl AppState {
             AppState::StartSignDatacap => "start sign datacap",
             AppState::Granted => "granted",
             AppState::TotalDatacapReached => "total datacap reached",
+            AppState::ChangingSP => "changing SPs",
             AppState::Error => "error",
         }
     }
@@ -60,6 +61,22 @@ impl LifeCycle {
         LifeCycle {
             state: AppState::StartSignDatacap,
             updated_at: Utc::now().to_string(),
+            ..self.clone()
+        }
+    }
+
+    pub fn update_lifecycle_after_sign(
+        &self,
+        state: &AppState,
+        validated_by: &String,
+        request_id: &String,
+    ) -> Self {
+        LifeCycle {
+            state: state.clone(),
+            updated_at: Utc::now().to_string(),
+            validated_by: validated_by.into(),
+            validated_at: Utc::now().to_string(),
+            active_request: Some(request_id.into()),
             ..self.clone()
         }
     }

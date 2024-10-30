@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -48,7 +48,10 @@ pub struct ApplicationFile {
     pub id: String,
     #[serde(rename = "Issue Number")]
     pub issue_number: String,
-    #[serde(rename = "Client Contract Address")]
+    #[serde(
+        rename = "Client Contract Address",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub client_contract_address: Option<String>,
     #[serde(rename = "Client")]
     pub client: Client,
@@ -60,6 +63,11 @@ pub struct ApplicationFile {
     pub lifecycle: LifeCycle,
     #[serde(rename = "Allocation Requests")]
     pub allocation: Allocations,
+    #[serde(
+        rename = "Storage Providers Change Requests",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub allowed_sps: Option<SpsChangeRequests>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -254,6 +262,7 @@ pub enum AppState {
     StartSignDatacap,
     Granted,
     TotalDatacapReached,
+    ChangingSP,
     Error,
 }
 
@@ -280,6 +289,9 @@ pub struct LifeCycle {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Allocations(pub Vec<Allocation>);
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct SpsChangeRequests(pub Vec<SpsChangeRequest>);
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub enum AllocationRequestType {
@@ -314,6 +326,27 @@ pub struct Allocation {
     pub amount: String,
     #[serde(rename = "Signers")]
     pub signers: Verifiers,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SpsChangeRequest {
+    #[serde(rename = "ID")]
+    pub id: String,
+    #[serde(rename = "Created At")]
+    pub created_at: String,
+    #[serde(rename = "Updated At")]
+    pub updated_at: String,
+    #[serde(rename = "Active")]
+    pub is_active: bool,
+    #[serde(
+        rename = "Allowed Storage Providers",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub allowed_sps: Option<Vec<u64>>,
+    #[serde(rename = "Max Deviation", skip_serializing_if = "Option::is_none")]
+    pub max_deviation: Option<String>,
+    #[serde(rename = "Signers")]
+    pub signers: StorageProviderChangeVerifiers,
 }
 
 impl ApplicationFile {
@@ -365,6 +398,9 @@ impl ApplicationFile {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Verifiers(pub Vec<Verifier>);
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct StorageProviderChangeVerifiers(pub Vec<StorageProviderChangeVerifier>);
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VerifierInput {
     pub github_username: String,
@@ -394,6 +430,29 @@ pub struct Verifier {
     pub created_at: String,
     #[serde(rename = "Message CID")]
     pub message_cid: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StorageProviderChangeVerifier {
+    #[serde(rename = "Github Username")]
+    pub github_username: String,
+    #[serde(rename = "Signing Address")]
+    pub signing_address: String,
+    #[serde(
+        rename = "Set Max Deviation CID",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_deviation_cid: Option<String>,
+    #[serde(
+        rename = "Add Allowed Storage Providers CID",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub add_allowed_sps_cids: Option<HashMap<String, Vec<String>>>,
+    #[serde(
+        rename = "Remove Allowed Storage Providers CID",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub remove_allowed_sps_cids: Option<HashMap<String, Vec<String>>>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

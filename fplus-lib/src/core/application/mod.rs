@@ -1,9 +1,12 @@
+use file::{AppState, SpsChangeRequest, SpsChangeRequests};
+
 use self::file::{AllocationRequest, Allocations, LifeCycle, Verifier, Version};
 
 pub mod allocation;
 pub mod file;
 pub mod gitcoin_interaction;
 pub mod lifecycle;
+pub mod sps_change;
 
 impl file::ApplicationFile {
     pub async fn new(
@@ -27,6 +30,7 @@ impl file::ApplicationFile {
             lifecycle,
             allocation,
             client_contract_address: None,
+            allowed_sps: None,
         }
     }
 
@@ -41,6 +45,7 @@ impl file::ApplicationFile {
         allocation: file::Allocations,
         lifecycle: file::LifeCycle,
         client_contract_address: Option<String>,
+        allowed_sps: Option<file::SpsChangeRequests>,
     ) -> Self {
         //set lifecycle.edited = true
         let lifecycle = LifeCycle {
@@ -57,6 +62,7 @@ impl file::ApplicationFile {
             lifecycle,
             allocation,
             client_contract_address,
+            allowed_sps,
         }
     }
 
@@ -107,6 +113,47 @@ impl file::ApplicationFile {
         Self {
             lifecycle: new_life_cycle,
             allocation: allocations,
+            ..self.clone()
+        }
+    }
+
+    pub fn handle_changing_sps_request(
+        &mut self,
+        validated_by: &String,
+        sps_change_request: &SpsChangeRequest,
+        app_state: &AppState,
+        request_id: &String,
+    ) -> Self {
+        let new_life_cycle =
+            self.lifecycle
+                .clone()
+                .update_lifecycle_after_sign(app_state, validated_by, request_id);
+        let sps_change_requests = self
+            .allowed_sps
+            .clone()
+            .unwrap_or_default()
+            .add_change_request(sps_change_request);
+        Self {
+            lifecycle: new_life_cycle,
+            allowed_sps: Some(sps_change_requests),
+            ..self.clone()
+        }
+    }
+
+    pub fn update_changing_sps_request(
+        &mut self,
+        validated_by: &String,
+        sps_change_requests: &SpsChangeRequests,
+        app_state: &AppState,
+        request_id: &String,
+    ) -> Self {
+        let new_life_cycle =
+            self.lifecycle
+                .clone()
+                .update_lifecycle_after_sign(app_state, validated_by, request_id);
+        Self {
+            lifecycle: new_life_cycle,
+            allowed_sps: Some(sps_change_requests.clone()),
             ..self.clone()
         }
     }

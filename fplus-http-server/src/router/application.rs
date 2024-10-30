@@ -1,10 +1,11 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-    application::file::VerifierInput, ApplicationQueryParams, BranchDeleteInfo,
-    CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo,
-    CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo, GithubQueryParams,
-    LDNApplication, MoreInfoNeeded, NotifyRefillInfo, SubmitKYCInfo, TriggerSSAInfo,
-    ValidationPullRequestData, VerifierActionsQueryParams,
+    application::file::{StorageProviderChangeVerifier, VerifierInput},
+    ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo,
+    CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
+    DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, NotifyRefillInfo,
+    StorageProvidersChangeApprovalInfo, StorageProvidersChangeProposalInfo, SubmitKYCInfo,
+    TriggerSSAInfo, ValidationPullRequestData, VerifierActionsQueryParams,
 };
 
 #[post("/application")]
@@ -129,6 +130,82 @@ pub async fn propose(
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
         Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
+    }
+}
+
+#[post("/application/propose_storage_providers")]
+pub async fn propose_storage_providers(
+    info: web::Json<StorageProvidersChangeProposalInfo>,
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
+    let StorageProvidersChangeProposalInfo {
+        signer,
+        allowed_sps,
+        max_deviation,
+    } = info.into_inner();
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => {
+                return HttpResponse::BadRequest().body(e.to_string());
+            }
+        };
+    let verifier = StorageProviderChangeVerifier {
+        github_username: query.github_username.clone(),
+        signing_address: signer.signing_address.clone(),
+        max_deviation_cid: signer.max_deviation_cid.clone(),
+        add_allowed_sps_cids: signer.allowed_sps_cids.clone(),
+        remove_allowed_sps_cids: signer.removed_allowed_sps_cids.clone(),
+    };
+
+    match ldn_application
+        .complete_sps_change_proposal(
+            verifier,
+            query.owner.clone(),
+            query.repo.clone(),
+            allowed_sps,
+            max_deviation,
+        )
+        .await
+    {
+        Ok(_) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
+}
+
+#[post("/application/approve_storage_providers")]
+pub async fn approve_storage_providers(
+    info: web::Json<StorageProvidersChangeApprovalInfo>,
+    query: web::Query<VerifierActionsQueryParams>,
+) -> impl Responder {
+    let StorageProvidersChangeApprovalInfo { signer, request_id } = info.into_inner();
+    let ldn_application =
+        match LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone()).await
+        {
+            Ok(app) => app,
+            Err(e) => {
+                return HttpResponse::BadRequest().body(e.to_string());
+            }
+        };
+    let verifier = StorageProviderChangeVerifier {
+        github_username: query.github_username.clone(),
+        signing_address: signer.signing_address.clone(),
+        max_deviation_cid: signer.max_deviation_cid.clone(),
+        add_allowed_sps_cids: signer.allowed_sps_cids.clone(),
+        remove_allowed_sps_cids: signer.removed_allowed_sps_cids.clone(),
+    };
+    match ldn_application
+        .complete_sps_change_approval(
+            verifier,
+            query.owner.clone(),
+            query.repo.clone(),
+            request_id,
+        )
+        .await
+    {
+        Ok(_) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
