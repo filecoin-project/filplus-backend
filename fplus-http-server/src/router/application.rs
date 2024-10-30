@@ -116,7 +116,7 @@ pub async fn propose(
         github_username: query.github_username.clone(), // Use the provided `github_username` parameter
         signing_address: signer.signing_address,
         created_at: signer.created_at,
-        message_cid: signer.message_cid,
+        message_cids: signer.message_cids,
     };
     match ldn_application
         .complete_new_application_proposal(
@@ -227,7 +227,7 @@ pub async fn approve(
         github_username: query.github_username.clone(), // Use the provided `github_username` parameter
         signing_address: signer.signing_address,
         created_at: signer.created_at,
-        message_cid: signer.message_cid,
+        message_cids: signer.message_cids,
     };
     match ldn_application
         .complete_new_application_approval(

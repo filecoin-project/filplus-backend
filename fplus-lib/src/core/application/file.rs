@@ -406,7 +406,7 @@ pub struct VerifierInput {
     pub github_username: String,
     pub signing_address: String,
     pub created_at: String,
-    pub message_cid: String,
+    pub message_cids: GrantDataCapCids,
 }
 
 impl From<VerifierInput> for Verifier {
@@ -415,7 +415,7 @@ impl From<VerifierInput> for Verifier {
             github_username: input.github_username,
             signing_address: input.signing_address,
             created_at: input.created_at,
-            message_cid: input.message_cid,
+            message_cids: input.message_cids,
         }
     }
 }
@@ -428,8 +428,19 @@ pub struct Verifier {
     pub signing_address: String,
     #[serde(rename = "Created At")]
     pub created_at: String,
+    #[serde(rename = "Message CIDs")]
+    pub message_cids: GrantDataCapCids,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GrantDataCapCids {
     #[serde(rename = "Message CID")]
-    pub message_cid: String,
+    pub message_cids: String,
+    #[serde(
+        rename = "Increase allowance CID",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub increase_allowance_cid: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

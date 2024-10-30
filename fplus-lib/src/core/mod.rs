@@ -3,7 +3,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use alloy::primitives::Address;
 
-use application::file::{SpsChangeRequest, StorageProviderChangeVerifier};
+use application::file::{GrantDataCapCids, SpsChangeRequest, StorageProviderChangeVerifier};
 use chrono::{DateTime, Local, Utc};
 use futures::future;
 use octocrab::models::{
@@ -82,7 +82,7 @@ pub struct VerifierList(pub Vec<String>);
 pub struct ApplicationProposalApprovalSignerInfo {
     pub signing_address: String,
     pub created_at: String,
-    pub message_cid: String,
+    pub message_cids: GrantDataCapCids,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -3426,6 +3426,7 @@ _(OLD vs NEW)_
         let mut id = String::new();
         let mut signing_address = String::new();
         let mut message_cid = String::new();
+        let mut increase_allowance_cid: Option<String> = None;
 
         if let Some(allocation) = active_allocation {
             datacap_allocation_requested.clone_from(&allocation.amount);
@@ -3433,15 +3434,22 @@ _(OLD vs NEW)_
 
             if let Some(first_verifier) = allocation.signers.0.first() {
                 signing_address.clone_from(&first_verifier.signing_address);
-                message_cid.clone_from(&first_verifier.message_cid);
+                message_cid.clone_from(&first_verifier.message_cids.message_cids);
+                increase_allowance_cid = first_verifier.message_cids.increase_allowance_cid.clone();
             }
         }
+
+        let additional_status_message = increase_allowance_cid
+            .clone()
+            .map_or("".to_string(), |increase_allowance_cid| {
+                format!(", and here {}", increase_allowance_cid)
+            });
 
         let comment = format!(
             "## Request {}
 Your Datacap Allocation Request has been {} by the Notary
 #### Message sent to Filecoin Network
-> {}
+> {} {}
 #### Address
 > {}
 #### Datacap Allocated
@@ -3450,15 +3458,17 @@ Your Datacap Allocation Request has been {} by the Notary
 > {}
 #### Id
 > {}
-#### You can check the status of the message here: https://filfox.info/en/message/{}",
+#### You can check the status here https://filfox.info/en/message/{}{}",
             signature_step_capitalized,
             signature_step,
             message_cid,
+            increase_allowance_cid.unwrap_or_default(),
             application_file.lifecycle.client_on_chain_address.clone(),
             datacap_allocation_requested,
             signing_address,
             id,
-            message_cid
+            message_cid,
+            additional_status_message
         );
 
         gh.add_comment_to_issue(issue_number.parse().unwrap(), &comment)
