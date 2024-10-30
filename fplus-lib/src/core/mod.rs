@@ -3,7 +3,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use alloy::primitives::Address;
 
-use application::file::{GrantDataCapCids, SpsChangeRequest, StorageProviderChangeVerifier};
+use application::file::{SpsChangeRequest, StorageProviderChangeVerifier};
 use chrono::{DateTime, Local, Utc};
 use futures::future;
 use octocrab::models::{
@@ -83,6 +83,12 @@ pub struct ApplicationProposalApprovalSignerInfo {
     pub signing_address: String,
     pub created_at: String,
     pub message_cids: GrantDataCapCids,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GrantDataCapCids {
+    pub message_cid: String,
+    pub increase_allowance_cid: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
