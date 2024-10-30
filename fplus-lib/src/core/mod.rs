@@ -3445,11 +3445,15 @@ _(OLD vs NEW)_
             }
         }
 
-        let additional_status_message = increase_allowance_cid
-            .clone()
-            .map_or("".to_string(), |increase_allowance_cid| {
-                format!(", and here https://filfox.info/en/message/{}", increase_allowance_cid)
-            });
+        let additional_status_message =
+            increase_allowance_cid
+                .clone()
+                .map_or("".to_string(), |increase_allowance_cid| {
+                    format!(
+                        ", and here https://filfox.info/en/message/{}",
+                        increase_allowance_cid
+                    )
+                });
 
         let comment = format!(
             "## Request {}
