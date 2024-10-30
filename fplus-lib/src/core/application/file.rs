@@ -435,7 +435,7 @@ pub struct Verifier {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GrantDataCapCids {
     #[serde(rename = "Message CID")]
-    pub message_cids: String,
+    pub message_cid: String,
     #[serde(
         rename = "Increase allowance CID",
         skip_serializing_if = "Option::is_none"
