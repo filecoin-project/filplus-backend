@@ -1,8 +1,9 @@
-use std::str::FromStr;
 use std::sync::Arc;
+use std::{collections::HashMap, str::FromStr};
 
 use alloy::primitives::Address;
 
+use application::file::{SpsChangeRequest, StorageProviderChangeVerifier};
 use chrono::{DateTime, Local, Utc};
 use futures::future;
 use octocrab::models::{
@@ -89,6 +90,27 @@ pub struct CompleteNewApplicationProposalInfo {
     pub signer: ApplicationProposalApprovalSignerInfo,
     pub request_id: String,
     pub new_allocation_amount: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct StorageProvidersChangeSignerInfo {
+    pub signing_address: String,
+    pub max_deviation_cid: Option<String>,
+    pub allowed_sps_cids: Option<HashMap<String, Vec<String>>>,
+    pub removed_allowed_sps_cids: Option<HashMap<String, Vec<String>>>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct StorageProvidersChangeProposalInfo {
+    pub signer: StorageProvidersChangeSignerInfo,
+    pub allowed_sps: Option<Vec<u64>>,
+    pub max_deviation: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct StorageProvidersChangeApprovalInfo {
+    pub signer: StorageProvidersChangeSignerInfo,
+    pub request_id: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -1138,6 +1160,212 @@ impl LDNApplication {
         }
     }
 
+    pub async fn complete_sps_change_proposal(
+        &self,
+        signer: StorageProviderChangeVerifier,
+        owner: String,
+        repo: String,
+        allowed_sps: Option<Vec<u64>>,
+        max_deviation: Option<String>,
+    ) -> Result<(), LDNError> {
+        let db_allocator = get_allocator(&owner, &repo)
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
+            .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
+
+        let db_multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
+            "Multisig address for the allocator not found.".to_string(),
+        ))?;
+
+        let blockchain_threshold = get_multisig_threshold_for_actor(&db_multisig_address)
+            .await
+            .ok();
+
+        let db_threshold: u64 = db_allocator.multisig_threshold.unwrap_or(2) as u64;
+
+        if let Some(blockchain_threshold) = blockchain_threshold {
+            if blockchain_threshold != db_threshold {
+                if let Err(e) =
+                    update_allocator_threshold(&owner, &repo, blockchain_threshold as i32).await
+                {
+                    log::error!("Failed to update allocator threshold: {}", e);
+                }
+            }
+        }
+
+        let mut app_file: ApplicationFile = self.file().await?;
+        let app_state_before_change = app_file.lifecycle.state.clone();
+        if app_state_before_change != AppState::ReadyToSign
+            && app_state_before_change != AppState::Granted
+        {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected Granted or ReadyToSign",
+                app_file.lifecycle.state
+            )));
+        }
+
+        let threshold_to_use = blockchain_threshold.unwrap_or(db_threshold);
+        let request_id = uuidv4::uuid::v4();
+        let comment: &str;
+        let app_state: AppState;
+        if threshold_to_use < 2 {
+            let sps_change_request =
+                SpsChangeRequest::new(&request_id, allowed_sps, max_deviation, &signer, false);
+            if let Some(active_allocation) = app_file.allocation.active() {
+                app_state = AppState::ReadyToSign;
+                app_file.handle_changing_sps_request(
+                    &signer.github_username,
+                    &sps_change_request,
+                    &app_state,
+                    &active_allocation.id,
+                );
+            } else {
+                app_state = AppState::Granted;
+                let request_id = uuidv4::uuid::v4();
+                app_file.handle_changing_sps_request(
+                    &signer.github_username,
+                    &sps_change_request,
+                    &app_state,
+                    &request_id,
+                );
+            }
+            comment = "Storage Providers have been changed successfully";
+        } else {
+            app_state = AppState::ChangingSP;
+            let sps_change_request: SpsChangeRequest =
+                SpsChangeRequest::new(&request_id, allowed_sps, max_deviation, &signer, true);
+            app_file = app_file.handle_changing_sps_request(
+                &signer.github_username,
+                &sps_change_request,
+                &app_state,
+                &request_id,
+            );
+            comment =
+                "Application is in the Changing Storage Providers state. Waiting for approval.";
+        }
+
+        if app_state_before_change == AppState::ReadyToSign {
+            self.update_and_commit_application_state(
+                app_file.clone(),
+                owner,
+                repo,
+                self.file_sha.clone(),
+                self.branch_name.clone(),
+                self.file_name.clone(),
+                "Start signing allowed storage providers".to_string(),
+            )
+            .await?;
+        } else {
+            LDNPullRequest::create_pr_for_existing_application(
+                app_file.id.clone(),
+                app_file.client.name.clone(),
+                serde_json::to_string_pretty(&app_file).unwrap(),
+                self.file_name.clone(),
+                request_id.clone(),
+                self.file_sha.clone(),
+                owner,
+                repo,
+                true,
+                app_file.issue_number.clone(),
+            )
+            .await?;
+        }
+
+        self.issue_updates(&app_file.issue_number, comment, app_state.as_str())
+            .await?;
+        Ok(())
+    }
+
+    pub async fn complete_sps_change_approval(
+        &self,
+        signer: StorageProviderChangeVerifier,
+        owner: String,
+        repo: String,
+        request_id: String,
+    ) -> Result<(), LDNError> {
+        let mut app_file: ApplicationFile = self.file().await?;
+
+        if app_file.lifecycle.state != AppState::ChangingSP {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected Changing SP",
+                app_file.lifecycle.state
+            )));
+        }
+
+        let db_allocator = get_allocator(&owner, &repo)
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
+            .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
+
+        let threshold_to_use = db_allocator.multisig_threshold.unwrap_or(2) as usize;
+
+        app_file.allowed_sps = app_file
+            .allowed_sps
+            .clone()
+            .map(|mut requests| requests.add_signer_to_active_request(&request_id, &signer));
+
+        let active_change_request = app_file
+            .allowed_sps
+            .clone()
+            .and_then(|requests| requests.get_active_change_request(&request_id))
+            .ok_or(LDNError::Load(
+                "Active change request not found. Please propose change firstly".to_string(),
+            ))?;
+        let app_state: AppState;
+        let comment: String;
+        let commit_message: String;
+        if active_change_request.signers.0.len() == threshold_to_use {
+            app_file.allowed_sps = app_file
+                .allowed_sps
+                .clone()
+                .map(|mut requests| requests.complete_change_request(&request_id));
+            if let Some(active_allocation) = app_file.allocation.active() {
+                app_state = AppState::ReadyToSign;
+                app_file.lifecycle = app_file.lifecycle.update_lifecycle_after_sign(
+                    &app_state,
+                    &signer.github_username,
+                    &active_allocation.id,
+                );
+            } else {
+                app_state = AppState::Granted;
+                app_file.lifecycle = app_file.lifecycle.update_lifecycle_after_sign(
+                    &app_state,
+                    &signer.github_username,
+                    &request_id,
+                );
+            }
+            comment = "Storage Providers have been changed successfully.".to_string();
+            commit_message = "Finalize request to change storage providers.".to_string();
+        } else {
+            app_state = AppState::ChangingSP;
+            app_file.lifecycle = app_file.lifecycle.update_lifecycle_after_sign(
+                &app_state,
+                &signer.github_username,
+                &request_id,
+            );
+            comment = format!(
+                "Verifier {} signed a request to change storage providers.",
+                signer.github_username
+            );
+            commit_message = "Add signer to request to change storage providers.".to_string();
+        }
+
+        self.update_and_commit_application_state(
+            app_file.clone(),
+            owner,
+            repo,
+            self.file_sha.clone(),
+            self.branch_name.clone(),
+            self.file_name.clone(),
+            commit_message,
+        )
+        .await?;
+
+        self.issue_updates(&app_file.issue_number, &comment, app_state.as_str())
+            .await?;
+        Ok(())
+    }
+
     pub async fn complete_new_application_approval(
         &self,
         signer: VerifierInput,
@@ -1973,6 +2201,10 @@ impl LDNApplication {
                     log::info!("Val Trigger (TDR) - Application state is TotalDatacapReached");
                     true
                 }
+                AppState::ChangingSP => {
+                    log::warn!("Val Trigger (RtS) - Application state is ChangingSP");
+                    return Ok(false);
+                }
                 AppState::Error => {
                     log::warn!("Val Trigger (TDR) - Application state is Error");
                     return Ok(false);
@@ -2692,6 +2924,7 @@ impl LDNApplication {
             pr_application.allocation.clone(),
             pr_application.lifecycle.clone(),
             pr_application.client_contract_address.clone(),
+            pr_application.allowed_sps,
         )
         .await;
 
@@ -2838,6 +3071,7 @@ impl LDNApplication {
             merged_application.allocation.clone(),
             merged_application.lifecycle.clone(),
             merged_application.client_contract_address.clone(),
+            merged_application.allowed_sps.clone(),
         )
         .await;
 
