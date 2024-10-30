@@ -133,7 +133,6 @@ impl file::ApplicationFile {
             .clone()
             .unwrap_or_default()
             .add_change_request(sps_change_request);
-        // .and_then(|mut requests| Some(requests.add_change_request(sps_change_request)));
         Self {
             lifecycle: new_life_cycle,
             allowed_sps: Some(sps_change_requests),

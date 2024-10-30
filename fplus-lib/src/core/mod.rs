@@ -1256,9 +1256,12 @@ impl LDNApplication {
             )
             .await?;
         } else {
+            let pr_title = format!(
+                "Set allowed Storage Providers for {}",
+                app_file.client.name.clone()
+            );
             LDNPullRequest::create_pr_for_existing_application(
                 app_file.id.clone(),
-                app_file.client.name.clone(),
                 serde_json::to_string_pretty(&app_file).unwrap(),
                 self.file_name.clone(),
                 request_id.clone(),
@@ -1267,6 +1270,7 @@ impl LDNApplication {
                 repo,
                 true,
                 app_file.issue_number.clone(),
+                pr_title,
             )
             .await?;
         }
@@ -1604,9 +1608,11 @@ impl LDNApplication {
                 repo.clone(),
             )
             .await?;
+
+            let pr_title = format!("Total Datacap reached for {}", app.id);
+
             LDNPullRequest::create_pr_for_existing_application(
                 app.id.clone(),
-                app.client.name.clone(),
                 serde_json::to_string_pretty(&app).unwrap(),
                 ldn_app.file_name.clone(),
                 format!("{}-total-dc-reached", app.id),
@@ -1615,6 +1621,7 @@ impl LDNApplication {
                 repo,
                 true,
                 app.issue_number.clone(),
+                pr_title,
             )
             .await?;
             Ok(true)
@@ -1795,9 +1802,11 @@ impl LDNApplication {
                 refill_info.repo.clone(),
             )
             .await?;
+
+            let pr_title = format!("Datacap for {}", app.client.name.clone());
+
             LDNPullRequest::create_pr_for_existing_application(
                 app.id.clone(),
-                app.client.name.clone(),
                 serde_json::to_string_pretty(&app_file).unwrap(),
                 content.path.clone(), // filename
                 request_id.clone(),
@@ -1806,6 +1815,7 @@ impl LDNApplication {
                 refill_info.repo,
                 true,
                 app_file.issue_number.clone(),
+                pr_title,
             )
             .await?;
             return Ok(true);
@@ -3096,9 +3106,10 @@ impl LDNApplication {
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
         let uuid = uuidv4::uuid::v4();
 
+        let pr_title = format!("Issue modification for {}", parsed_ldn.client.name.clone());
+
         LDNPullRequest::create_pr_for_existing_application(
             application_id.clone(),
-            parsed_ldn.client.name.clone(),
             file_content.clone(),
             LDNPullRequest::application_path(&application_id),
             uuid,
@@ -3107,6 +3118,7 @@ impl LDNApplication {
             application_model.repo.clone(),
             false,
             application_file.issue_number.clone(),
+            pr_title,
         )
         .await?;
 
@@ -4563,7 +4575,6 @@ impl LDNPullRequest {
     #[allow(clippy::too_many_arguments)]
     async fn create_pr_for_existing_application(
         application_id: String,
-        owner_name: String,
         file_content: String,
         file_name: String,
         branch_name: String,
@@ -4572,8 +4583,8 @@ impl LDNPullRequest {
         repo: String,
         should_create_in_db: bool,
         issue_number: String,
+        pr_title: String,
     ) -> Result<u64, LDNError> {
-        let initial_commit = Self::application_initial_commit(&owner_name, &application_id);
         let gh = github_async_new(owner.to_string(), repo.to_string()).await;
         let head_hash = gh.get_main_branch_sha().await.unwrap();
         let create_ref_request = gh
@@ -4593,13 +4604,12 @@ impl LDNPullRequest {
         let pr = match gh
             .create_refill_merge_request(CreateRefillMergeRequestData {
                 issue_link,
-                owner_name,
                 file_name: file_name.clone(),
                 file_sha: file_sha.clone(),
                 ref_request: create_ref_request,
                 branch_name,
                 file_content: file_content.clone(),
-                commit: initial_commit,
+                commit: pr_title,
             })
             .await
         {

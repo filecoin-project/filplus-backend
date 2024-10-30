@@ -47,7 +47,6 @@ struct GithubParams {
 #[derive(Debug)]
 pub struct CreateRefillMergeRequestData {
     pub issue_link: String,
-    pub owner_name: String,
     pub ref_request: Request<String>,
     pub file_content: String,
     pub file_name: String,
@@ -621,7 +620,6 @@ impl GithubWrapper {
         let CreateRefillMergeRequestData {
             issue_link,
             ref_request,
-            owner_name,
             file_content,
             file_name,
             branch_name,
@@ -632,11 +630,7 @@ impl GithubWrapper {
         self.update_file_content(&file_name, &commit, &file_content, &branch_name, &file_sha)
             .await?;
         let pr = self
-            .create_pull_request(
-                &format!("Datacap for {}", owner_name),
-                &branch_name,
-                &issue_link.to_string(),
-            )
+            .create_pull_request(&commit, &branch_name, &issue_link.to_string())
             .await?;
 
         Ok((pr, file_sha))
