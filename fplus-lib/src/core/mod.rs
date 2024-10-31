@@ -1219,7 +1219,7 @@ impl LDNApplication {
                 SpsChangeRequest::new(&request_id, allowed_sps, max_deviation, &signer, false);
             if let Some(active_allocation) = app_file.allocation.active() {
                 app_state = AppState::ReadyToSign;
-                app_file.handle_changing_sps_request(
+                app_file = app_file.handle_changing_sps_request(
                     &signer.github_username,
                     &sps_change_request,
                     &app_state,
@@ -1228,7 +1228,7 @@ impl LDNApplication {
             } else {
                 app_state = AppState::Granted;
                 let request_id = uuidv4::uuid::v4();
-                app_file.handle_changing_sps_request(
+                app_file = app_file.handle_changing_sps_request(
                     &signer.github_username,
                     &sps_change_request,
                     &app_state,
@@ -1250,6 +1250,12 @@ impl LDNApplication {
                 "Application is in the Changing Storage Providers state. Waiting for approval.";
         }
 
+        let commit_message = if threshold_to_use < 2 {
+            "Update Storage Providers".to_string()
+        } else {
+            "Start signing allowed storage providers".to_string()
+        };
+
         if app_state_before_change == AppState::ReadyToSign {
             self.update_and_commit_application_state(
                 app_file.clone(),
@@ -1258,7 +1264,7 @@ impl LDNApplication {
                 self.file_sha.clone(),
                 self.branch_name.clone(),
                 self.file_name.clone(),
-                "Start signing allowed storage providers".to_string(),
+                commit_message,
             )
             .await?;
         } else {
