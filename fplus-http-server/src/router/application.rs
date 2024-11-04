@@ -1,6 +1,6 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use fplus_lib::core::{
-    application::file::{StorageProviderChangeVerifier, VerifierGrantDataCapCids, VerifierInput},
+    application::file::{StorageProviderChangeVerifier, VerifierInput},
     ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo,
     CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
     DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, NotifyRefillInfo,
@@ -116,10 +116,8 @@ pub async fn propose(
         github_username: query.github_username.clone(), // Use the provided `github_username` parameter
         signing_address: signer.signing_address,
         created_at: signer.created_at,
-        message_cids: VerifierGrantDataCapCids {
-            message_cid: signer.message_cids.message_cid,
-            increase_allowance_cid: signer.message_cids.increase_allowance_cid,
-        },
+        message_cid: signer.message_cids.message_cid,
+        increase_allowance_cid: signer.message_cids.increase_allowance_cid,
     };
     match ldn_application
         .complete_new_application_proposal(
@@ -230,10 +228,8 @@ pub async fn approve(
         github_username: query.github_username.clone(), // Use the provided `github_username` parameter
         signing_address: signer.signing_address,
         created_at: signer.created_at,
-        message_cids: VerifierGrantDataCapCids {
-            message_cid: signer.message_cids.message_cid,
-            increase_allowance_cid: signer.message_cids.increase_allowance_cid,
-        },
+        message_cid: signer.message_cids.message_cid,
+        increase_allowance_cid: signer.message_cids.increase_allowance_cid,
     };
     match ldn_application
         .complete_new_application_approval(

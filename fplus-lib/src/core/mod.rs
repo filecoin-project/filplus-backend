@@ -3446,8 +3446,8 @@ _(OLD vs NEW)_
 
             if let Some(first_verifier) = allocation.signers.0.first() {
                 signing_address.clone_from(&first_verifier.signing_address);
-                message_cid.clone_from(&first_verifier.message_cids.message_cid);
-                increase_allowance_cid = first_verifier.message_cids.increase_allowance_cid.clone();
+                message_cid.clone_from(&first_verifier.message_cid);
+                increase_allowance_cid = first_verifier.increase_allowance_cid.clone();
             }
         }
 
