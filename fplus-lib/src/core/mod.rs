@@ -3311,7 +3311,7 @@ impl LDNApplication {
         let comment = format!(
             "### Issue has been modified. Changes below:
 
-_(OLD vs NEW)_
+_(NEW vs OLD)_
 
 \n>{}",
             differences.join("\n>")
