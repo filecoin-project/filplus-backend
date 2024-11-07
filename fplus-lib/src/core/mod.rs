@@ -15,7 +15,7 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
-use crate::external_services::filecoin::get_client_allocation;
+use crate::external_services::dmob::get_client_allocation;
 use crate::{
     base64,
     config::get_env_var_or_default,

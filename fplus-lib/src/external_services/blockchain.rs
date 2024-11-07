@@ -42,7 +42,11 @@ impl BlockchainData {
 
         BlockchainData {
             client,
-            base_url: get_env_var_or_default("DMOB_API_URL"),
+            base_url: format!(
+                "{}{}",
+                get_env_var_or_default("DMOB_API_URL"),
+                "/public/api"
+            ),
         }
     }
 
