@@ -15,6 +15,7 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
+use crate::external_services::filecoin::get_client_allocation;
 use crate::{
     base64,
     config::get_env_var_or_default,
@@ -750,6 +751,33 @@ impl LDNApplication {
                                     "Error getting allowance for address. Unable to access blockchain".to_string(),
                                 ));
                             }
+                        }
+                    }
+
+                    match get_client_allocation(&application_id).await {
+                        Ok(response) => {
+                            if response.count.is_some() {
+                                log::info!("Allocation found for client {}", application_id);
+                                Self::issue_pathway_mismatch_comment(
+                                    issue_number,
+                                    info.owner,
+                                    info.repo,
+                                    None,
+                                )
+                                .await?;
+
+                                return Err(LDNError::New(
+                                    "Pathway mismatch: Client has already allocation".to_string(),
+                                ));
+                            } else {
+                                log::info!("Client allocation not found");
+                            }
+                        }
+                        Err(e) => {
+                            return Err(LDNError::New(format!(
+                                "Getting client allocation failed /// {}",
+                                e
+                            )));
                         }
                     }
                 }

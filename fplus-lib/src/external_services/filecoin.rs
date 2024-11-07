@@ -4,6 +4,7 @@ use crate::{
     config::get_env_var_or_default,
     models::filecoin::{
         StateReadStateResponse, StateVerifiedClientStatusResponse, StateVerifierStatusResponse,
+        VerifiedClientResponse,
     },
 };
 
@@ -85,4 +86,21 @@ pub async fn get_allowance_for_client(address: &str) -> Result<String, reqwest::
         .json::<StateVerifiedClientStatusResponse>()
         .await?;
     Ok(response.result)
+}
+
+pub async fn get_client_allocation(
+    address: &str,
+) -> Result<VerifiedClientResponse, reqwest::Error> {
+    let api_url = get_env_var_or_default("DATACAPSTATS_API_URL");
+    let url = format!("{}/getVerifiedClients?filter={}", api_url, address);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(&url)
+        .send()
+        .await?
+        .json::<VerifiedClientResponse>()
+        .await?;
+    Ok(response)
 }
