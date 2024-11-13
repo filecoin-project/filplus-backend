@@ -130,7 +130,7 @@ pub async fn propose(
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
-        Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 
@@ -242,7 +242,7 @@ pub async fn approve(
         .await
     {
         Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
-        Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
 

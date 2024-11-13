@@ -57,10 +57,12 @@ impl LifeCycle {
         }
     }
 
-    pub fn finish_proposal(&self) -> Self {
+    pub fn sign_grant_datacap_proposal(&self, validated_by: &str) -> Self {
         LifeCycle {
             state: AppState::StartSignDatacap,
             updated_at: Utc::now().to_string(),
+            validated_by: validated_by.into(),
+            validated_at: Utc::now().to_string(),
             ..self.clone()
         }
     }
@@ -81,10 +83,12 @@ impl LifeCycle {
         }
     }
 
-    pub fn finish_approval(&self) -> Self {
+    pub fn finish_grant_datacap_approval(&self, validated_by: &str) -> Self {
         LifeCycle {
             state: AppState::Granted,
             updated_at: Utc::now().to_string(),
+            validated_by: validated_by.into(),
+            validated_at: Utc::now().to_string(),
             ..self.clone()
         }
     }
