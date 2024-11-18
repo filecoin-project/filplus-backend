@@ -1084,19 +1084,17 @@ impl LDNApplication {
         match self.app_state().await {
             Ok(s) => match s {
                 AppState::ReadyToSign => {
-                    let app_file: ApplicationFile = self.file().await?;
+                    let mut app_file: ApplicationFile = self.file().await?;
                     if !app_file.allocation.is_active(request_id.clone()) {
                         return Err(LDNError::Load(format!(
                             "Request {} is not active",
                             request_id
                         )));
                     }
-                    let app_lifecycle = app_file.lifecycle.finish_proposal();
-                    let mut app_file = app_file.add_signer_to_allocation(
-                        signer.clone().into(),
-                        request_id,
-                        app_lifecycle,
-                    );
+                    app_file = app_file
+                        .update_lifecycle_after_sign_datacap_proposal(&signer.github_username);
+                    app_file =
+                        app_file.add_signer_to_allocation(signer.clone().into(), &request_id);
                     if new_allocation_amount.is_some() && app_file.allocation.0.len() > 1 {
                         Self::check_and_handle_allowance(
                             &db_multisig_address.clone(),
@@ -1439,16 +1437,9 @@ impl LDNApplication {
         }
 
         let mut app_file: ApplicationFile = self.file().await?;
-        let app_lifecycle = app_file.lifecycle.finish_approval();
 
         // Find the signers that already signed
-        let current_signers = app_file
-            .allocation
-            .0
-            .iter()
-            .find(|&alloc| alloc.id == request_id && alloc.is_active)
-            .map_or(vec![], |alloc| alloc.signers.0.clone());
-
+        let current_signers = app_file.get_active_allocation_signers(&request_id);
         // // Check if the signer has already signed
         if current_signers
             .iter()
@@ -1478,97 +1469,57 @@ impl LDNApplication {
             app_file.adjust_active_allocation_amount(new_allocation_amount_parsed)?;
         }
 
-        // Add signer to signers array
-        let app_file = app_file.add_signer_to_allocation_and_complete(
-            signer.clone().into(),
-            request_id.clone(),
-            app_lifecycle,
-        );
+        let commit_message;
+        let signature_step;
+        let comment;
+        let label;
+        let signing_will_be_completed = (current_signers.len() + 1) == threshold_to_use;
+        if signing_will_be_completed {
+            let app_lifecycle = app_file
+                .lifecycle
+                .finish_grant_datacap_approval(&signer.github_username);
+            app_file = app_file.add_signer_to_allocation_and_complete(
+                signer.clone().into(),
+                request_id.clone(),
+                app_lifecycle,
+            );
+            commit_message =
+                LDNPullRequest::application_move_to_confirmed_commit(&signer.signing_address);
+            signature_step = "approved".to_string();
+            comment = "Application is Granted";
+            label = AppState::Granted.as_str();
+        } else {
+            app_file =
+                app_file.update_lifecycle_after_sign_datacap_proposal(&signer.github_username);
+            app_file = app_file.add_signer_to_allocation(signer.clone().into(), &request_id);
+            commit_message = LDNPullRequest::application_signed(&signer.signing_address);
+            signature_step = "signed".to_string();
+            comment = "Application is Granted";
+            label = AppState::StartSignDatacap.as_str();
+        }
 
-        let file_content = serde_json::to_string_pretty(&app_file).unwrap();
-        let commit_result = LDNPullRequest::add_commit_to(
-            self.file_name.to_string(),
-            self.branch_name.clone(),
-            LDNPullRequest::application_move_to_confirmed_commit(&signer.signing_address),
-            file_content,
+        self.update_and_commit_application_state(
+            app_file.clone(),
+            self.github.owner.clone(),
+            self.github.repo.clone(),
             self.file_sha.clone(),
+            self.branch_name.clone(),
+            self.file_name.clone(),
+            commit_message,
+        )
+        .await?;
+
+        Self::issue_datacap_request_signature(
+            app_file.clone(),
+            signature_step,
             owner.clone(),
             repo.clone(),
         )
-        .await;
+        .await?;
 
-        match commit_result {
-            Some(()) => {
-                match self
-                    .github
-                    .get_pull_request_by_head(&self.branch_name)
-                    .await
-                {
-                    Ok(prs) => {
-                        if let Some(pr) = prs.first() {
-                            let number = pr.number;
-                            if let Err(e) = database::applications::update_application(
-                                app_file.id.clone(),
-                                owner.clone(),
-                                repo.clone(),
-                                number,
-                                serde_json::to_string_pretty(&app_file).unwrap(),
-                                Some(self.file_name.clone()),
-                                None,
-                                app_file.client_contract_address.clone(),
-                            )
-                            .await
-                            {
-                                log::warn!("Failed to update application in database: {}", e);
-                                return Err(LDNError::New(format!(
-                                    "Database update failed for application issue {}",
-                                    self.application_id
-                                )));
-                            }
-
-                            Self::issue_datacap_request_signature(
-                                app_file.clone(),
-                                "approved".to_string(),
-                                owner.clone(),
-                                repo.clone(),
-                            )
-                            .await?;
-                            Self::update_issue_labels(
-                                app_file.issue_number.clone(),
-                                &[AppState::Granted.as_str()],
-                                owner.clone(),
-                                repo.clone(),
-                            )
-                            .await?;
-                            Self::issue_granted(
-                                app_file.issue_number.clone(),
-                                owner.clone(),
-                                repo.clone(),
-                            )
-                            .await?;
-                        }
-                        Ok(app_file)
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to get pull request by head: {}", e);
-                        Err(LDNError::New(format!(
-                            "Pull request retrieval failed for application issue {}",
-                            self.application_id
-                        )))
-                    }
-                }
-            }
-            None => {
-                log::warn!(
-                    "Failed to add commit for application issue {}",
-                    self.application_id
-                );
-                Err(LDNError::New(format!(
-                                "Commit operation failed for application issue {} and no error details available",
-                                self.application_id
-                            )))
-            }
-        }
+        self.issue_updates(&app_file.issue_number, comment, label)
+            .await?;
+        Ok(app_file)
     }
 
     async fn parse_application_issue(
@@ -3570,23 +3521,6 @@ Your Datacap Allocation Request has been {} by the Notary
         Ok(true)
     }
 
-    async fn issue_granted(
-        issue_number: String,
-        owner: String,
-        repo: String,
-    ) -> Result<bool, LDNError> {
-        let gh = github_async_new(owner, repo).await;
-        gh.add_comment_to_issue(issue_number.parse().unwrap(), "Application is Granted")
-            .await
-            .map_err(|e| {
-                LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
-                ))
-            })
-            .unwrap();
-        Ok(true)
-    }
     async fn issue_refill(
         issue_number: String,
         owner: String,
@@ -4777,6 +4711,10 @@ impl LDNPullRequest {
         )
     }
 
+    pub(super) fn application_signed(actor: &str) -> String {
+        format!("Notary User {} Signed Application", actor)
+    }
+
     pub(super) fn application_move_to_approval_commit(actor: &str) -> String {
         format!(
             "Notary User {} Moved Application to Approval State from Proposal State",
@@ -4875,8 +4813,6 @@ mod tests {
             },
         )
         .await;
-        application_file.lifecycle = application_file.lifecycle.finish_approval();
-        assert_eq!(application_file.lifecycle.state, AppState::Granted);
         let application_file = application_file.move_back_to_submit_state();
         assert_eq!(application_file.lifecycle.state, AppState::Submitted);
     }

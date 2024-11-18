@@ -158,16 +158,10 @@ impl file::ApplicationFile {
         }
     }
 
-    pub fn add_signer_to_allocation(
-        &self,
-        signer: Verifier,
-        request_id: String,
-        app_lifecycle: LifeCycle,
-    ) -> Self {
-        let new_allocation = self.allocation.clone().add_signer(request_id, signer);
+    pub fn add_signer_to_allocation(&self, signer: Verifier, request_id: &str) -> Self {
+        let allocation_after_sign = self.allocation.clone().add_signer(request_id, signer);
         Self {
-            allocation: new_allocation,
-            lifecycle: app_lifecycle,
+            allocation: allocation_after_sign,
             ..self.clone()
         }
     }

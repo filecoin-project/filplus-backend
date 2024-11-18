@@ -97,7 +97,7 @@ impl Allocations {
         is_active
     }
 
-    pub fn add_signer(&self, request_id: String, signer: Verifier) -> Self {
+    pub fn add_signer(&self, request_id: &str, signer: Verifier) -> Self {
         let mut res: Vec<Allocation> = self.0.clone();
         for allocation in res.iter_mut() {
             if allocation.id == request_id && allocation.is_active {

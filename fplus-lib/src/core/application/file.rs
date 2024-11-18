@@ -393,6 +393,22 @@ impl ApplicationFile {
         let request_id = self.lifecycle.active_request.clone()?;
         self.allocation.find_one(request_id)
     }
+
+    pub fn get_active_allocation_signers(&self, request_id: &str) -> Vec<Verifier> {
+        self.allocation
+            .0
+            .iter()
+            .find(|&alloc| alloc.id == request_id && alloc.is_active)
+            .map_or(vec![], |alloc| alloc.signers.0.clone())
+    }
+
+    pub fn update_lifecycle_after_sign_datacap_proposal(&self, validated_by: &str) -> Self {
+        let lifecycle = self.lifecycle.sign_grant_datacap_proposal(validated_by);
+        Self {
+            lifecycle,
+            ..self.clone()
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
