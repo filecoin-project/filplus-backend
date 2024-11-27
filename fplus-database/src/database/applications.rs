@@ -261,13 +261,13 @@ pub async fn merge_application_by_pr_number(
     owner: String,
     repo: String,
     pr_number: u64,
-) -> Result<ApplicationModel, sea_orm::DbErr> {
+) -> Result<(), sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     let pr_application =
         get_application_by_pr_number(owner.clone(), repo.clone(), pr_number).await?;
-    let mut exists_merged = true;
 
-    let mut merged_application = match get_application(
+    let mut application_active_model: ActiveModel;
+    if let Ok(application) = get_application(
         pr_application.id.clone(),
         owner.clone(),
         repo.clone(),
@@ -275,52 +275,17 @@ pub async fn merge_application_by_pr_number(
     )
     .await
     {
-        Ok(application) => application.into_active_model(),
-        Err(_) => {
-            exists_merged = false;
-            ActiveModel {
-                id: Set(pr_application.id.clone()),
-                owner: Set(owner),
-                repo: Set(repo),
-                pr_number: Set(0),
-                application: Set(pr_application.application.clone()),
-                path: Set(pr_application.path.clone()),
-                ..Default::default()
-            }
-        }
-    };
-
-    let mut hasher = Sha1::new();
-    let application = match pr_application.application.clone() {
-        Some(app) => format!("blob {}\x00{}", app.len(), app),
-        None => "".to_string(),
-    };
-    hasher.update(application.as_bytes());
-    let file_sha = format!("{:x}", hasher.finalize());
-    merged_application.sha = Set(Some(file_sha));
-    merged_application.application = Set(pr_application.application.clone());
-
-    pr_application.delete(&conn).await?;
-
-    if exists_merged {
-        let result = merged_application.update(&conn).await;
-        match result {
-            Ok(application) => Ok(application),
-            Err(e) => Err(sea_orm::DbErr::Custom(format!(
-                "Failed to merge application: {}",
-                e
-            ))),
-        }
+        application_active_model = application.into_active_model();
+        application_active_model.application = Set(pr_application.application.clone());
+        application_active_model.sha = Set(pr_application.sha.clone());
+        application_active_model.update(&conn).await?;
     } else {
-        let result = merged_application.insert(&conn).await;
-        match result {
-            Ok(application) => Ok(application),
-            Err(e) => Err(sea_orm::DbErr::Custom(format!(
-                "Failed to merge application: {}",
-                e
-            ))),
-        }
+        application_active_model = pr_application.clone().into_active_model();
+        application_active_model.pr_number = Set(0);
+        application_active_model.insert(&conn).await?;
     }
+    pr_application.delete(&conn).await?;
+    Ok(())
 }
 
 /**
