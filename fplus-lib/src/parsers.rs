@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::get_env_var_or_default,
     core::application::file::{Client, DataType, Datacap, DatacapGroup, Project, Version},
+    error::LDNError,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -127,10 +128,13 @@ pub struct ParsedIssue {
 }
 
 impl ParsedIssue {
-    pub fn from_issue_body(body: &str) -> Self {
-        let tree: Node = to_mdast(body, &ParseOptions::default()).unwrap();
+    pub fn from_issue_body(body: &str) -> Result<Self, LDNError> {
+        let tree: Node = to_mdast(body, &ParseOptions::default())
+            .map_err(|e| LDNError::Load(format!("Failed to get node: {}", e)))?;
         let mut data: IssueValidData = IssueValidData::default();
-        let children = tree.children().unwrap();
+        let children = tree.children().ok_or(LDNError::Load(
+            "Failed to get children from node.".to_string(),
+        ))?;
         let child_iter = children.iter();
 
         for chunk in child_iter.collect::<Vec<_>>().chunks_exact(2) {
@@ -148,24 +152,26 @@ impl ParsedIssue {
         }
         let client = Client::from(data.clone());
         let project = Project::from(data.clone());
-        let datacap = Datacap::from(data.clone());
+        let datacap = Datacap::try_from(data.clone())?;
         let id = data
             .0
             .into_iter()
             .find(|(prop, _)| prop.0 == "On-chain address for first allocation")
-            .unwrap()
+            .ok_or(LDNError::Load(
+                "Failed to get on-chain address for first allocation.".to_string(),
+            ))?
             .1
              .0;
 
         let version = get_env_var_or_default("ISSUE_TEMPLATE_VERSION");
 
-        Self {
+        Ok(Self {
             id,
             version: Version::Text(version),
             client,
             project,
             datacap,
-        }
+        })
     }
 }
 
@@ -261,16 +267,21 @@ impl From<IssueValidData> for Client {
     }
 }
 
-impl From<IssueValidData> for Datacap {
-    fn from(data: IssueValidData) -> Self {
+impl TryFrom<IssueValidData> for Datacap {
+    type Error = LDNError;
+    fn try_from(data: IssueValidData) -> Result<Self, Self::Error> {
         let mut datacap = Datacap::default();
         for (prop, value) in data.0 {
             match prop.0.into() {
                 ParsedApplicationDataFields::DatacapGroup => {
-                    datacap._group = DatacapGroup::from_str(&value.0).unwrap();
+                    datacap._group = DatacapGroup::from_str(&value.0).map_err(|e| {
+                        LDNError::Load(format!("Failed to get DataCap group: {}", e))
+                    })?;
                 }
                 ParsedApplicationDataFields::Type => {
-                    datacap.data_type = DataType::from_str(&value.0).unwrap();
+                    datacap.data_type = DataType::from_str(&value.0).map_err(|e| {
+                        LDNError::Load(format!("Failed to get DataCap type: {}", e))
+                    })?;
                 }
                 ParsedApplicationDataFields::TotalRequestedAmount => {
                     datacap.total_requested_amount = value.0;
@@ -279,7 +290,9 @@ impl From<IssueValidData> for Datacap {
                     datacap.single_size_dataset = value.0;
                 }
                 ParsedApplicationDataFields::Replicas => {
-                    datacap.replicas = value.0.parse::<u8>().unwrap();
+                    datacap.replicas = value.0.parse::<u8>().map_err(|e| {
+                        LDNError::Load(format!("Failed to parse replicas to u8: {}", e))
+                    })?;
                 }
                 ParsedApplicationDataFields::WeeklyAllocation => {
                     datacap.weekly_allocation = value.0;
@@ -295,7 +308,7 @@ impl From<IssueValidData> for Datacap {
         }
         log::info!("Datacap: {:?}", datacap);
 
-        datacap
+        Ok(datacap)
     }
 }
 

@@ -2,7 +2,7 @@ use crate::get_database_connection;
 use crate::models::applications::{
     ActiveModel, Column, Entity as Application, Model as ApplicationModel,
 };
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use sea_orm::{entity::*, query::*, DbBackend, DbErr};
 use sha1::{Digest, Sha1};
 
@@ -44,43 +44,39 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
     .all(&conn)
     .await?;
 
-    //Iterate over the results and convert them to ApplicationModel
-    let mut applications: Vec<ApplicationModel> = Vec::new();
-    for app in app_data {
-        applications.push(ApplicationModel {
-            id: app.get("id").unwrap().as_str().unwrap().to_string(),
-            owner: app.get("owner").unwrap().as_str().unwrap().to_string(),
-            repo: app.get("repo").unwrap().as_str().unwrap().to_string(),
-            pr_number: app.get("pr_number").unwrap().as_i64().unwrap(),
-            issue_number: app
-                .get("issue_number")
-                .expect("Issue number should be in the application data")
-                .as_i64()
-                .expect("Issue number must exist"),
-            application: Some(
-                app.get("application")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .to_string(),
-            ),
-            updated_at: Utc.from_utc_datetime(
-                &app.get("updated_at")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .parse::<DateTime<Utc>>()
-                    .unwrap()
-                    .naive_utc(),
-            ),
-            sha: Some(app.get("sha").unwrap().as_str().unwrap().to_string()),
-            path: Some(app.get("path").unwrap().as_str().unwrap().to_string()),
-            client_contract_address: app
-                .get("client_contract_address")
-                .map(|client_contract_address| client_contract_address.to_string()),
-        });
-    }
+    let applications = app_data
+        .into_iter()
+        .map(|app| ApplicationModel {
+            id: get_string_field(&app, "id").expect("ID must exist"),
+            owner: get_string_field(&app, "owner").expect("Owner must exist"),
+            repo: get_string_field(&app, "repo").expect("Repo must exist"),
+            pr_number: get_i64_field(&app, "pr_number").expect("PR number must exist"),
+            issue_number: get_i64_field(&app, "issue_number").expect("Issue number must exist"),
+            application: get_string_field(&app, "application"),
+            updated_at: parse_datetime_field(&app, "updated_at")
+                .expect("Updated_at must be a valid datetime"),
+            sha: get_string_field(&app, "sha"),
+            path: get_string_field(&app, "path"),
+            client_contract_address: get_string_field(&app, "client_contract_address"),
+        })
+        .collect();
+
     Ok(applications)
+}
+
+fn get_string_field(json: &JsonValue, field: &str) -> Option<String> {
+    json.get(field)?.as_str().map(|s| s.to_string())
+}
+
+/// Retrieves an i64 field from a JSON value, if it exists.
+fn get_i64_field(json: &JsonValue, field: &str) -> Option<i64> {
+    json.get(field)?.as_i64()
+}
+
+fn parse_datetime_field(json: &JsonValue, field: &str) -> Option<DateTime<Utc>> {
+    json.get(field)?
+        .as_str()
+        .and_then(|s| s.parse::<DateTime<Utc>>().ok())
 }
 
 /**

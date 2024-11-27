@@ -7,9 +7,12 @@ pub async fn last_client_allocation(
     query: web::Query<LastAutoallocationQueryParams>,
 ) -> impl Responder {
     match autoallocations_db::get_last_client_autoallocation(query.evm_wallet_address).await {
-        Ok(last_client_allocation) => {
-            HttpResponse::Ok().body(serde_json::to_string_pretty(&last_client_allocation).unwrap())
-        }
+        Ok(last_client_allocation) => match serde_json::to_string_pretty(&last_client_allocation) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -17,7 +20,10 @@ pub async fn last_client_allocation(
 #[post("autoallocator/trigger_autoallocation")]
 pub async fn trigger_autoallocation(info: web::Json<TriggerAutoallocationInfo>) -> impl Responder {
     match autoallocator::trigger_autoallocation(&info.into_inner()).await {
-        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Success")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
