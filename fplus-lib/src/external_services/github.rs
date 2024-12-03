@@ -13,7 +13,7 @@ use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
 use octocrab::{AuthState, Error as OctocrabError, GitHubError, Octocrab, OctocrabBuilder, Page};
-
+use reqwest::header::HeaderValue;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -88,7 +88,7 @@ struct Author {
     name: String,
 }
 
-pub async fn github_async_new(owner: String, repo: String) -> GithubWrapper {
+pub async fn github_async_new(owner: String, repo: String) -> Result<GithubWrapper, LDNError> {
     let allocator_result = get_allocator(owner.as_str(), repo.as_str()).await;
 
     let allocator = match allocator_result {
@@ -109,7 +109,11 @@ pub async fn github_async_new(owner: String, repo: String) -> GithubWrapper {
 }
 
 impl GithubWrapper {
-    pub fn new(owner: String, repo: String, installation_id: Option<i64>) -> Self {
+    pub fn new(
+        owner: String,
+        repo: String,
+        installation_id: Option<i64>,
+    ) -> Result<Self, LDNError> {
         let app_id_str = get_env_var_or_default("GITHUB_APP_ID");
 
         let app_id = app_id_str.parse::<u64>().unwrap_or_else(|_| {
@@ -137,13 +141,15 @@ impl GithubWrapper {
             .pool_idle_timeout(std::time::Duration::from_secs(15))
             .build(connector);
 
-        let key = jsonwebtoken::EncodingKey::from_rsa_pem(gh_private_key.as_bytes()).unwrap();
+        let key = jsonwebtoken::EncodingKey::from_rsa_pem(gh_private_key.as_bytes())
+            .map_err(|e| LDNError::Load(format!("Failed to get encoding key: {}", e)))?;
+        let header_value = HeaderValue::from_static("octocrab");
         let octocrab = OctocrabBuilder::new_empty()
             .with_service(client)
             .with_layer(&BaseUriLayer::new(Uri::from_static(GITHUB_API_URL)))
             .with_layer(&ExtraHeadersLayer::new(Arc::new(vec![(
                 USER_AGENT,
-                "octocrab".parse().unwrap(),
+                header_value,
             )])))
             .with_auth(AuthState::App(AppAuth {
                 app_id: app_id.into(),
@@ -161,11 +167,11 @@ impl GithubWrapper {
             octocrab
         };
 
-        Self {
+        Ok(Self {
             owner,
             repo,
             inner: Arc::new(octocrab),
-        }
+        })
     }
 
     pub async fn list_issues(&self) -> Result<Vec<Issue>, OctocrabError> {
@@ -522,7 +528,7 @@ impl GithubWrapper {
         Ok(request)
     }
 
-    pub async fn get_main_branch_sha(&self) -> Result<String, http::Error> {
+    pub async fn get_main_branch_sha(&self) -> Result<String, LDNError> {
         let url = format!(
             "https://api.github.com/repos/{}/{}/git/refs",
             self.owner, self.repo
@@ -530,7 +536,10 @@ impl GithubWrapper {
         let request = http::request::Builder::new()
             .method(http::Method::GET)
             .uri(url);
-        let request = self.inner.build_request::<String>(request, None).unwrap();
+        let request = self
+            .inner
+            .build_request::<String>(request, None)
+            .map_err(|e| LDNError::Load(format!("Failed to build request: {}", e)))?;
 
         let mut response = match self.inner.execute(request).await {
             Ok(r) => r,
@@ -540,9 +549,12 @@ impl GithubWrapper {
             }
         };
         let response = response.body_mut();
-        let body = hyper::body::to_bytes(response).await.unwrap();
+        let body = hyper::body::to_bytes(response)
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to serialize to bytes: {}", e)))?;
         let shas = body.into_iter().map(|b| b as char).collect::<String>();
-        let shas: RefList = serde_json::from_str(&shas).unwrap();
+        let shas: RefList = serde_json::from_str(&shas)
+            .map_err(|e| LDNError::Load(format!("Failed to serialize to RefList: {}", e)))?;
         for sha in shas.0 {
             if sha._ref == "refs/heads/main" {
                 return Ok(sha.object.sha);
@@ -704,7 +716,7 @@ impl GithubWrapper {
         Ok(contents_items)
     }
 
-    pub async fn get_last_commit_author(&self, pr_number: u64) -> Result<String, http::Error> {
+    pub async fn get_last_commit_author(&self, pr_number: u64) -> Result<String, LDNError> {
         let url = format!(
             "https://api.github.com/repos/{}/{}/pulls/{}/commits",
             self.owner, self.repo, pr_number
@@ -714,7 +726,10 @@ impl GithubWrapper {
             .method(http::Method::GET)
             .uri(url);
 
-        let request = self.inner.build_request::<String>(request, None).unwrap();
+        let request = self
+            .inner
+            .build_request::<String>(request, None)
+            .map_err(|e| LDNError::Load(format!("Failed to build request: {}", e)))?;
 
         let mut response = match self.inner.execute(request).await {
             Ok(r) => r,
@@ -725,11 +740,17 @@ impl GithubWrapper {
         };
 
         let response_body = response.body_mut();
-        let body = hyper::body::to_bytes(response_body).await.unwrap();
-        let body_str = String::from_utf8(body.to_vec()).unwrap();
-        let commits: Vec<CommitData> = serde_json::from_str(&body_str).unwrap();
+        let body = hyper::body::to_bytes(response_body)
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to serialize to bytes: {}", e)))?;
+        let body_str = String::from_utf8(body.to_vec())
+            .map_err(|e| LDNError::Load(format!("Failed to parse to string: {}", e)))?;
+        let commits: Vec<CommitData> = serde_json::from_str(&body_str)
+            .map_err(|e| LDNError::Load(format!("Failed to commit data: {}", e)))?;
 
-        let last_commit: &CommitData = commits.last().unwrap();
+        let last_commit: &CommitData = commits
+            .last()
+            .ok_or(LDNError::Load("Failed to get last commit".to_string()))?;
         let author = last_commit.commit.author.name.clone();
 
         Ok(author)

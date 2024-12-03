@@ -23,7 +23,12 @@ pub async fn create(info: web::Json<CreateApplicationInfo>) -> impl Responder {
 pub async fn single(query: web::Query<ApplicationQueryParams>) -> impl Responder {
     let ApplicationQueryParams { id, owner, repo } = query.into_inner();
     match LDNApplication::load_from_db(id, owner, repo).await {
-        Ok(app_file) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app_file).unwrap()),
+        Ok(app_file) => match serde_json::to_string_pretty(&app_file) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -68,7 +73,12 @@ pub async fn trigger(
         )
         .await
     {
-        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+        Ok(app) => match serde_json::to_string_pretty(&app) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
         Err(e) => HttpResponse::BadRequest()
             .body(format!("Application is not in the correct state {}", e)),
     }
@@ -89,7 +99,12 @@ pub async fn approve_changes(query: web::Query<VerifierActionsQueryParams>) -> i
         .approve_changes(query.owner.clone(), query.repo.clone())
         .await
     {
-        Ok(result) => HttpResponse::Ok().body(result),
+        Ok(result) => match serde_json::to_string_pretty(&result) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -129,7 +144,12 @@ pub async fn propose(
         )
         .await
     {
-        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+        Ok(app) => match serde_json::to_string_pretty(&app) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -170,7 +190,10 @@ pub async fn propose_storage_providers(
         )
         .await
     {
-        Ok(_) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Success")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -205,7 +228,10 @@ pub async fn approve_storage_providers(
         )
         .await
     {
-        Ok(_) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Success")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -241,7 +267,12 @@ pub async fn approve(
         )
         .await
     {
-        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+        Ok(app) => match serde_json::to_string_pretty(&app) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -260,7 +291,12 @@ pub async fn decline(query: web::Query<VerifierActionsQueryParams>) -> impl Resp
         .decline_application(query.owner.clone(), query.repo.clone())
         .await
     {
-        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+        Ok(app) => match serde_json::to_string_pretty(&app) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
         Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
     }
 }
@@ -283,7 +319,12 @@ pub async fn additional_info_required(
         .additional_info_required(query.owner.clone(), query.repo.clone(), verifier_message)
         .await
     {
-        Ok(app) => HttpResponse::Ok().body(serde_json::to_string_pretty(&app).unwrap()),
+        Ok(app) => match serde_json::to_string_pretty(&app) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
         Err(_) => HttpResponse::BadRequest().body("Application is not in the correct state"),
     }
 }
@@ -311,18 +352,27 @@ pub async fn all_applications() -> impl Responder {
 #[get("/application/active")]
 pub async fn active(query: web::Query<GithubQueryParams>) -> impl Responder {
     let GithubQueryParams { owner, repo } = query.into_inner();
-    let apps = match LDNApplication::active(owner, repo, None).await {
-        Ok(app) => app,
-        Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
-    };
-    HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap())
+    match LDNApplication::active(owner, repo, None).await {
+        Ok(app) => match serde_json::to_string_pretty(&app) {
+            Ok(response) => HttpResponse::Ok().body(response),
+            Err(_) => {
+                HttpResponse::InternalServerError().body("Failed to serialize success message")
+            }
+        },
+        Err(e) => HttpResponse::BadRequest().body(e.to_string()),
+    }
 }
 
 #[get("/application/merged")]
 pub async fn merged(query: web::Query<GithubQueryParams>) -> actix_web::Result<impl Responder> {
     let GithubQueryParams { owner, repo } = query.into_inner();
     match LDNApplication::merged(owner, repo).await {
-        Ok(apps) => Ok(HttpResponse::Ok().body(serde_json::to_string_pretty(&apps).unwrap())),
+        Ok(apps) => match serde_json::to_string_pretty(&apps) {
+            Ok(response) => Ok(HttpResponse::Ok().body(response)),
+            Err(_) => {
+                Ok(HttpResponse::InternalServerError().body("Failed to serialize success message"))
+            }
+        },
         Err(e) => Ok(HttpResponse::InternalServerError().body(e.to_string())),
     }
 }
@@ -330,7 +380,10 @@ pub async fn merged(query: web::Query<GithubQueryParams>) -> actix_web::Result<i
 #[post("/application/notify_refill")]
 pub async fn notify_refill(info: web::Json<NotifyRefillInfo>) -> impl Responder {
     match LDNApplication::notify_refill(info.into_inner()).await {
-        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Success")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -523,8 +576,10 @@ pub async fn submit_kyc(info: web::Json<SubmitKYCInfo>) -> impl Responder {
         Err(e) => return HttpResponse::BadRequest().body(e.to_string()),
     };
     match ldn_application.submit_kyc(&info.into_inner()).await {
-        Ok(()) => HttpResponse::Ok()
-            .body(serde_json::to_string_pretty("Address verified with score").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Address verified with score")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -546,7 +601,10 @@ pub async fn request_kyc(query: web::Query<VerifierActionsQueryParams>) -> impl 
         .request_kyc(&query.id, &query.owner, &query.repo)
         .await
     {
-        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Success")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -565,7 +623,10 @@ pub async fn trigger_ssa(
     )
     .await
     {
-        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Success")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -584,7 +645,10 @@ pub async fn remove_pending_allocation(
         .remove_pending_allocation(&query.id, &query.owner, &query.repo)
         .await
     {
-        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Success")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
@@ -601,7 +665,10 @@ pub async fn allocation_failed(query: web::Query<VerifierActionsQueryParams>) ->
         .revert_to_ready_to_sign(&query.id, &query.owner, &query.repo)
         .await
     {
-        Ok(()) => HttpResponse::Ok().body(serde_json::to_string_pretty("Success").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("Success")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }

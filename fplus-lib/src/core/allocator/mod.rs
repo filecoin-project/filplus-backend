@@ -36,7 +36,7 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     let branch = "main";
     let path = file_name.to_string();
 
-    let gh = GithubWrapper::new(owner.clone(), repo.clone(), Some(installation_id));
+    let gh = GithubWrapper::new(owner.clone(), repo.clone(), Some(installation_id))?;
     let content_items: ContentItems = gh
         .get_files_from_public_repo(&owner, &repo, branch, Some(&path))
         .await
@@ -152,7 +152,11 @@ pub async fn create_file_in_repo(
     let file_path = file.path.clone();
     let file_sha = file.sha.clone();
     let file = reqwest::Client::new()
-        .get(file.download_url.clone().unwrap())
+        .get(
+            file.download_url
+                .clone()
+                .ok_or(LDNError::Load("Failed get file download url".to_string()))?,
+        )
         .send()
         .await
         .map_err(|e| LDNError::Load(format!("here {}", e)))?;
@@ -272,20 +276,28 @@ pub async fn init_allocator_repo(gh: &GithubWrapper) -> Result<(), LDNError> {
     Ok(())
 }
 
-pub async fn generate_github_app_jwt() -> Result<String, jsonwebtoken::errors::Error> {
-    let app_id = get_env_var_or_default("GITHUB_APP_ID").parse().unwrap();
+pub async fn generate_github_app_jwt() -> Result<String, LDNError> {
+    let app_id = get_env_var_or_default("GITHUB_APP_ID")
+        .parse::<u64>()
+        .map_err(|e| {
+            LDNError::New(format!(
+                "Parse days to next allocation to i64 failed: {}",
+                e
+            ))
+        })?;
     let pem = get_env_var_or_default("GH_PRIVATE_KEY");
 
-    return match EncodingKey::from_rsa_pem(pem.to_string().as_bytes()) {
+    match EncodingKey::from_rsa_pem(pem.to_string().as_bytes()) {
         Ok(key) => {
-            let token = create_jwt(octocrab::models::AppId(app_id), &key).unwrap();
+            let token = create_jwt(octocrab::models::AppId(app_id), &key)
+                .map_err(|e| LDNError::Load(format!("Failed to create jwt: {}", e)))?;
             Ok(token)
         }
         Err(e) => {
             println!("Error: {:?}", e);
-            Err(e)
+            Err(LDNError::Load(format!("{}", e)))
         }
-    };
+    }
 }
 
 pub async fn fetch_installation_ids(client: &Client, jwt: &str) -> Result<Vec<u64>> {
@@ -362,20 +374,23 @@ pub async fn fetch_repositories_for_installation_id(
     jwt: &str,
     id: u64,
 ) -> Result<Vec<RepositoryInfo>> {
-    let token = fetch_access_token(client, jwt, id).await.unwrap();
-    let repositories = fetch_repositories(client, &token).await.unwrap();
+    let token = fetch_access_token(client, jwt, id).await?;
+    let repositories = fetch_repositories(client, &token).await?;
     Ok(repositories)
 }
 
 pub async fn update_installation_ids_in_db(
     installation: InstallationRepositories,
 ) -> Result<(), LDNError> {
-    let installation_id = installation.installation_id;
+    let installation_id: i64 = installation
+        .installation_id
+        .try_into()
+        .map_err(|e| LDNError::Load(format!("Failed to pasre installation id to i64: {}", e)))?;
     for repo in installation.repositories.iter() {
         update_allocator_installation_ids(
             repo.owner.clone(),
             repo.slug.clone(),
-            Some(installation_id.try_into().unwrap()),
+            Some(installation_id),
         )
         .await
         .map_err(|e| {
@@ -403,7 +418,12 @@ pub async fn update_installation_ids_logic() -> Result<(), LDNError> {
         let repositories: Vec<RepositoryInfo> =
             fetch_repositories_for_installation_id(&client, &jwt, id)
                 .await
-                .unwrap();
+                .map_err(|e| {
+                    LDNError::Load(format!(
+                        "Failed to fetch repositories for installation id: {}",
+                        e
+                    ))
+                })?;
         results.push(InstallationRepositories {
             installation_id: id,
             repositories,
@@ -469,7 +489,7 @@ pub async fn force_update_allocators(
             )));
         }
 
-        let gh = GithubWrapper::new(allocator.owner, allocator.repo, allocator.installation_id);
+        let gh = GithubWrapper::new(allocator.owner, allocator.repo, allocator.installation_id)?;
 
         let ignored_files = gh.filplus_ignored_files(branch).await?;
         log::debug!("List of ignored files: {ignored_files:?}");
@@ -560,9 +580,11 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
                     let amount_type = allocation_amount
                         .amount_type
                         .clone()
-                        .unwrap()
+                        .ok_or(LDNError::Load("Failed to get amount type".to_string()))?
                         .to_lowercase(); // Assuming you still want to unwrap here
-                    quantity_options = allocation_amount.quantity_options.unwrap(); // Assuming unwrap is desired
+                    quantity_options = allocation_amount
+                        .quantity_options
+                        .ok_or(LDNError::Load("Failed to get quantity options".to_string()))?;
 
                     for option in quantity_options.iter_mut() {
                         *option = process_amount(option.clone());
@@ -575,7 +597,9 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
                         .application
                         .allocation_amount
                         .as_mut()
-                        .unwrap()
+                        .ok_or(LDNError::Load(
+                            "Failed to get allocation amount".to_string(),
+                        ))?
                         .quantity_options = Some(quantity_options);
                 }
 
@@ -592,7 +616,7 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
                 };
                 let owner = model.owner.clone().unwrap_or_default().to_string();
                 let repo = model.repo.clone().unwrap_or_default().to_string();
-                let gh = GithubWrapper::new(owner.to_string(), repo.to_string(), None);
+                let gh = GithubWrapper::new(owner.to_string(), repo.to_string(), None)?;
                 let installation_id: i64 = gh
                     .inner
                     .apps()
@@ -613,7 +637,7 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
                     })?;
 
                 let gh =
-                    GithubWrapper::new(owner.to_string(), repo.to_string(), Some(installation_id));
+                    GithubWrapper::new(owner.to_string(), repo.to_string(), Some(installation_id))?;
 
                 match is_allocator_repo_initialized(&gh).await {
                     Ok(true) => (),
@@ -664,18 +688,22 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
                     })?;
 
                 if let Some(allocation_amount) = model.application.allocation_amount.clone() {
-                    let allocation_amounts = allocation_amount.quantity_options.unwrap();
-
-                    for allocation_amount in allocation_amounts {
-                        let parsed_allocation_amount = allocation_amount.replace('%', "");
-                        create_allocation_amount(allocator_id, parsed_allocation_amount)
-                            .await
-                            .map_err(|e| {
-                                LDNError::New(format!(
-                                    "Create allocation amount rows in the database failed: {}",
-                                    e
-                                ))
-                            })?;
+                    if let Some(allocation_amounts) = allocation_amount.quantity_options {
+                        for allocation_amount in allocation_amounts {
+                            let parsed_allocation_amount = allocation_amount.replace('%', "");
+                            create_allocation_amount(allocator_id, parsed_allocation_amount)
+                                .await
+                                .map_err(|e| {
+                                    LDNError::New(format!(
+                                        "Create allocation amount rows in the database failed: {}",
+                                        e
+                                    ))
+                                })?;
+                        }
+                    } else {
+                        return Err(LDNError::New(
+                            "Failed to get quantity options for allocation amount".to_string(),
+                        ));
                     }
                 }
             }

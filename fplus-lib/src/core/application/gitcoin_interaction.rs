@@ -96,14 +96,16 @@ async fn get_gitcoin_score_for_address(rpc_url: &str, address: Address) -> Resul
         .with_input(input);
 
     match provider.call(&tx).block(BlockId::latest()).await {
-        Ok(response) => Ok(calculate_score(response)),
+        Ok(response) => Ok(calculate_score(response)?),
         Err(_) => Ok(0.0),
     }
 }
 
-fn calculate_score(response: Bytes) -> f64 {
-    let score = U256::from_str(&response.to_string()).unwrap().to::<u128>();
-    score as f64 / 10000.0
+fn calculate_score(response: Bytes) -> Result<f64, LDNError> {
+    let score = U256::from_str(&response.to_string())
+        .map_err(|e| LDNError::Load(format!("Failed to parse response to U256: {}", e)))?
+        .to::<u128>();
+    Ok(score as f64 / 10000.0)
 }
 
 pub fn get_address_from_signature<T: SolStruct>(

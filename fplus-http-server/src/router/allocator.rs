@@ -38,8 +38,10 @@ pub async fn allocators() -> impl Responder {
 pub async fn create_allocator_from_json(files: web::Json<ChangedAllocators>) -> impl Responder {
     let ChangedAllocators { files_changed } = files.into_inner();
     match create_allocator_from_file(files_changed).await {
-        Ok(()) => HttpResponse::Ok()
-            .body(serde_json::to_string_pretty("All files processed successfully").unwrap()),
+        Ok(_) => HttpResponse::Ok().body(
+            serde_json::to_string_pretty("All files processed successfully")
+                .expect("Serialization of static string should succeed"),
+        ),
         Err(e) => HttpResponse::BadRequest().body(e.to_string()),
     }
 }
