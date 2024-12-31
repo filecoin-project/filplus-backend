@@ -8,6 +8,6 @@ pub mod verifier;
 
 /// Return server health status
 #[get("/health")]
-pub async fn health() -> impl Responder {
-    HttpResponse::Ok().body("OK")
+pub async fn health() -> actix_web::Result<impl Responder> {
+    Ok(HttpResponse::Ok().body("OK"))
 }

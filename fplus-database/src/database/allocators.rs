@@ -275,11 +275,9 @@ pub async fn update_allocator_threshold(
  */
 pub async fn delete_allocator(owner: &str, repo: &str) -> Result<(), sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let allocator = get_allocator(owner, repo).await?;
-    let allocator = match allocator {
-        Some(allocator) => allocator,
-        None => return Err(DbErr::Custom("Allocator not found".to_string())),
-    };
+    let allocator = get_allocator(owner, repo)
+        .await?
+        .ok_or(DbErr::Custom("Allocator not found".to_string()))?;
     allocator.delete(&conn).await?;
     Ok(())
 }

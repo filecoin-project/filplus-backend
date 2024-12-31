@@ -89,21 +89,12 @@ struct Author {
 }
 
 pub async fn github_async_new(owner: String, repo: String) -> Result<GithubWrapper, LDNError> {
-    let allocator_result = get_allocator(owner.as_str(), repo.as_str()).await;
+    let allocator = get_allocator(owner.as_str(), repo.as_str())
+        .await
+        .map_err(|e| LDNError::Load(format!("Failed to get allocator: {}", e)))?
+        .ok_or(LDNError::Load("Allocator not found".to_string()))?;
 
-    let allocator = match allocator_result {
-        Ok(allocator) => allocator,
-        Err(e) => {
-            log::error!("Failed to get allocator from database: {:?}", e);
-            std::process::exit(1);
-        }
-    };
-
-    if allocator.is_none() {
-        log::error!("No allocator found for owner: {}, repo: {}", owner, repo);
-    }
-
-    let installation_id = allocator.expect("Allocator exist").installation_id;
+    let installation_id = allocator.installation_id;
 
     GithubWrapper::new(owner, repo, installation_id)
 }
@@ -335,13 +326,14 @@ impl GithubWrapper {
             .send()
             .await?;
 
-        match commits.items.into_iter().next() {
-            Some(commit) => match commit.commit.author.and_then(|author| author.date) {
-                Some(date) => Ok(date),
-                None => Ok(chrono::Utc::now()),
-            },
-            None => Ok(chrono::Utc::now()),
-        }
+        let date = commits
+            .items
+            .into_iter()
+            .next()
+            .and_then(|commit| commit.commit.author.and_then(|author| author.date))
+            .unwrap_or_else(chrono::Utc::now);
+
+        Ok(date)
     }
 
     pub async fn list_branches(&self) -> Result<Vec<Branch>, OctocrabError> {
@@ -357,13 +349,10 @@ impl GithubWrapper {
     /// creates new branch under head on github
     /// you should use build_create_ref_request function to construct request
     pub async fn create_branch(&self, request: Request<String>) -> Result<bool, OctocrabError> {
-        match self.inner.execute(request).await {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error creating branch: {:?}", e);
-                return Ok(false);
-            }
-        };
+        if let Err(e) = self.inner.execute(request).await {
+            println!("Error creating branch: {:?}", e);
+            return Ok(false);
+        }
         Ok(true)
     }
 
@@ -731,13 +720,10 @@ impl GithubWrapper {
             .build_request::<String>(request, None)
             .map_err(|e| LDNError::Load(format!("Failed to build request: {}", e)))?;
 
-        let mut response = match self.inner.execute(request).await {
-            Ok(r) => r,
-            Err(e) => {
-                println!("Error fetching last commit author: {:?}", e);
-                return Ok("".to_string());
-            }
-        };
+        let mut response =
+            self.inner.execute(request).await.map_err(|e| {
+                LDNError::Load(format!("Error fetching last commit author: {:?}", e))
+            })?;
 
         let response_body = response.body_mut();
         let body = hyper::body::to_bytes(response_body)
@@ -773,24 +759,21 @@ impl GithubWrapper {
         path: Option<&str>,
     ) -> Result<ContentItems, OctocrabError> {
         //if path is not provided, take all files from root
-        let contents_items = match path {
-            Some(p) => {
-                self.inner
-                    .repos(owner, repo)
-                    .get_content()
-                    .r#ref(branch)
-                    .path(p)
-                    .send()
-                    .await?
-            }
-            None => {
-                self.inner
-                    .repos(owner, repo)
-                    .get_content()
-                    .r#ref(branch)
-                    .send()
-                    .await?
-            }
+        let contents_items = if let Some(path) = path {
+            self.inner
+                .repos(owner, repo)
+                .get_content()
+                .r#ref(branch)
+                .path(path)
+                .send()
+                .await?
+        } else {
+            self.inner
+                .repos(owner, repo)
+                .get_content()
+                .r#ref(branch)
+                .send()
+                .await?
         };
 
         Ok(contents_items)

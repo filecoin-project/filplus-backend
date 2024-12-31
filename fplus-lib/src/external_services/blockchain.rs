@@ -54,20 +54,19 @@ impl BlockchainData {
     pub async fn get_verified_clients(&self) -> Result<String, BlockchainDataError> {
         let query = "getVerifiedClients";
         let url = self.build_url(query);
-        let res = match self.client.get(url).send().await {
-            Ok(res) => res,
-            Err(e) => {
-                println!("Error: {}", e);
-                return Err(BlockchainDataError::Err(e.to_string()));
-            }
-        };
-        let body = match res.text().await {
-            Ok(body) => body,
-            Err(e) => {
-                log::error!("Error: {}", e);
-                return Err(BlockchainDataError::Err(e.to_string()));
-            }
-        };
+
+        let res = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| BlockchainDataError::Err(e.to_string()))?;
+
+        let body = res
+            .text()
+            .await
+            .map_err(|e| BlockchainDataError::Err(e.to_string()))?;
+
         Ok(body)
     }
 
