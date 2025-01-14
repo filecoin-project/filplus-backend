@@ -1,4 +1,4 @@
-use actix_web::{get, web, HttpResponse, Responder};
+use actix_web::{error::ErrorInternalServerError, get, web, HttpResponse, Responder};
 use fplus_lib::external_services::{
     blockchain::BlockchainData, filecoin::get_allowance_for_address,
 };
@@ -22,11 +22,11 @@ use fplus_lib::external_services::{
 /// ```
 
 #[get("/blockchain/address_allowance/{address}")]
-pub async fn address_allowance(address: web::Path<String>) -> impl Responder {
-    match get_allowance_for_address(&address.into_inner()).await {
-        Ok(res) => HttpResponse::Ok().body(res),
-        Err(_) => HttpResponse::InternalServerError().body("SOMETHING IS WRONG WITH DEMOB SETUP!"),
-    }
+pub async fn address_allowance(address: web::Path<String>) -> actix_web::Result<impl Responder> {
+    let res = get_allowance_for_address(&address.into_inner())
+        .await
+        .map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok().body(res))
 }
 
 /// Verified Clients.
@@ -48,10 +48,11 @@ pub async fn address_allowance(address: web::Path<String>) -> impl Responder {
 /// ```
 
 #[get("/blockchain/verified_clients")]
-pub async fn verified_clients() -> impl Responder {
+pub async fn verified_clients() -> actix_web::Result<impl Responder> {
     let blockchain = BlockchainData::new();
-    match blockchain.get_verified_clients().await {
-        Ok(res) => HttpResponse::Ok().body(res),
-        Err(_) => HttpResponse::InternalServerError().body("SOMETHING IS WRONG WITH DEMOB SETUP!"),
-    }
+    let res = blockchain
+        .get_verified_clients()
+        .await
+        .map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok().body(res))
 }

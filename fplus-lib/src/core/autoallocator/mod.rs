@@ -31,14 +31,11 @@ pub async fn trigger_autoallocation(info: &TriggerAutoallocationInfo) -> Result<
             ))
         })?;
     upsert_autoallocation_if_eligible(&evm_address_from_signature).await?;
-    match add_verified_client(fil_client_address, &amount).await {
-        Ok(_) => {}
-        Err(e) => {
-            autoallocations_db::delete_autoallocation(evm_address_from_signature)
-                .await
-                .map_err(|e| LDNError::New(format!("Delete autoallocation failed: {}", e)))?;
-            return Err(LDNError::New(format!("Add verified client failed: {}", e)));
-        }
+    if let Err(e) = add_verified_client(fil_client_address, &amount).await {
+        autoallocations_db::delete_autoallocation(evm_address_from_signature)
+            .await
+            .map_err(|err| LDNError::New(format!("Delete autoallocation failed: {}", err)))?;
+        return Err(LDNError::New(format!("Add verified client failed: {}", e)));
     }
     Ok(())
 }

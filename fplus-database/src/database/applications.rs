@@ -174,15 +174,13 @@ pub async fn get_application(
         query = query.filter(Column::PrNumber.eq(number as i64));
     }
 
-    let result = query
+    let application = query
         .order_by(Column::PrNumber, Order::Desc)
         .one(&conn)
-        .await?;
+        .await?
+        .ok_or(DbErr::Custom("Application not found".to_string()))?;
 
-    match result {
-        Some(application) => Ok(application),
-        None => Err(DbErr::Custom("Application not found".to_string())),
-    }
+    Ok(application)
 }
 
 /**
@@ -202,17 +200,15 @@ pub async fn get_application_by_pr_number(
     pr_number: u64,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let result = Application::find()
+    let application = Application::find()
         .filter(Column::Owner.contains(owner))
         .filter(Column::Repo.contains(repo))
         .filter(Column::PrNumber.eq(pr_number as i64))
         .one(&conn)
-        .await?;
+        .await?
+        .ok_or(DbErr::Custom("Application not found".to_string()))?;
 
-    match result {
-        Some(application) => Ok(application),
-        None => Err(DbErr::Custom("Application not found".to_string())),
-    }
+    Ok(application)
 }
 
 /**
@@ -312,36 +308,32 @@ pub async fn update_application(
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
-    match get_application(id.clone(), owner.clone(), repo.clone(), Some(pr_number)).await {
-        Ok(existing_application) => {
-            let mut active_application: ActiveModel = existing_application.into_active_model();
-            active_application.application = Set(Some(app_file.clone()));
-            let file_sha = sha.unwrap_or_else(|| {
-                //Calculate SHA
-                let mut hasher = Sha1::new();
-                let application = format!("blob {}\x00{}", app_file.len(), app_file);
-                hasher.update(application.as_bytes());
-                format!("{:x}", hasher.finalize())
-            });
-            active_application.sha = Set(Some(file_sha));
+    let existing_application =
+        get_application(id.clone(), owner.clone(), repo.clone(), Some(pr_number)).await?;
 
-            if let Some(path) = path {
-                active_application.path = Set(Some(path));
-            };
+    let mut active_application: ActiveModel = existing_application.into_active_model();
+    active_application.application = Set(Some(app_file.clone()));
+    let file_sha = sha.unwrap_or_else(|| {
+        //Calculate SHA
+        let mut hasher = Sha1::new();
+        let application = format!("blob {}\x00{}", app_file.len(), app_file);
+        hasher.update(application.as_bytes());
+        format!("{:x}", hasher.finalize())
+    });
+    active_application.sha = Set(Some(file_sha));
 
-            if let Some(client_contract_address) = client_contract_address {
-                active_application.client_contract_address = Set(Some(client_contract_address));
-            } else {
-                active_application.client_contract_address = Set(None);
-            }
+    if let Some(path) = path {
+        active_application.path = Set(Some(path));
+    };
 
-            let updated_application = active_application.update(&conn).await?;
-            Ok(updated_application)
-        }
-        Err(_) => Err(sea_orm::DbErr::Custom(
-            "Failed to find the application to update.".into(),
-        )),
+    if let Some(client_contract_address) = client_contract_address {
+        active_application.client_contract_address = Set(Some(client_contract_address));
+    } else {
+        active_application.client_contract_address = Set(None);
     }
+
+    let updated_application = active_application.update(&conn).await?;
+    Ok(updated_application)
 }
 
 /**
@@ -387,13 +379,8 @@ pub async fn create_application(
         ..Default::default()
     };
 
-    match new_application.insert(&conn).await {
-        Ok(application) => Ok(application),
-        Err(e) => Err(sea_orm::DbErr::Custom(format!(
-            "Failed to insert new application: {}",
-            e
-        ))),
-    }
+    let application = new_application.insert(&conn).await?;
+    Ok(application)
 }
 
 /**

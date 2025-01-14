@@ -88,36 +88,28 @@ where
                     .header("Authorization", format!("Bearer {}", token))
                     .header("User-Agent", "Actix-web")
                     .send()
-                    .await;
+                    .await
+                    .map_err(actix_web::error::ErrorBadRequest)?;
 
-                match user_info_result {
-                    Ok(response) => {
-                        //Raise an actix test error
-                        if response.status().is_success() {
-                            let user_info = response
-                                .json::<serde_json::Value>()
-                                .await
-                                .expect("Failed to parse JSON");
+                if user_info_result.status().is_success() {
+                    let user_info = user_info_result
+                        .json::<serde_json::Value>()
+                        .await
+                        .expect("Failed to parse JSON");
 
-                            if let Some(login) = user_info.get("login").and_then(|v| v.as_str()) {
-                                user_handle = login.to_string();
-                            } else {
-                                println!("GitHub handle information not found.");
-                                return Err(actix_web::error::ErrorInternalServerError(
-                                    "GitHub handle information not found.",
-                                ));
-                            }
-                        } else {
-                            println!("Failed to get GitHub user info");
-                            return Err(actix_web::error::ErrorUnauthorized(
-                                "Failed to get GitHub user info.",
-                            ));
-                        }
+                    if let Some(login) = user_info.get("login").and_then(|v| v.as_str()) {
+                        user_handle = login.to_string();
+                    } else {
+                        println!("GitHub handle information not found.");
+                        return Err(actix_web::error::ErrorInternalServerError(
+                            "GitHub handle information not found.",
+                        ));
                     }
-                    Err(e) => {
-                        println!("Request error: {:?}", e);
-                        return Err(actix_web::error::ErrorBadRequest(e));
-                    }
+                } else {
+                    println!("Failed to get GitHub user info");
+                    return Err(actix_web::error::ErrorUnauthorized(
+                        "Failed to get GitHub user info.",
+                    ));
                 }
             }
 
