@@ -390,8 +390,7 @@ impl ApplicationFile {
     }
 
     pub fn get_last_request_allowance(&self) -> Option<Allocation> {
-        let request_id = self.lifecycle.active_request.clone()?;
-        self.allocation.find_one(request_id)
+        self.allocation.0.last().cloned()
     }
 
     pub fn get_active_allocation_signers(&self, request_id: &str) -> Vec<Verifier> {

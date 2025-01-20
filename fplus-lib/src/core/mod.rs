@@ -3305,7 +3305,7 @@ _(NEW vs OLD)_
             datacap_allocation_requested.clone_from(&allocation.amount);
             id.clone_from(&allocation.id);
 
-            if let Some(first_verifier) = allocation.signers.0.first() {
+            if let Some(first_verifier) = allocation.signers.0.last() {
                 signing_address.clone_from(&first_verifier.signing_address);
                 message_cid.clone_from(&first_verifier.message_cid);
                 increase_allowance_cid = first_verifier.increase_allowance_cid.clone();
