@@ -30,7 +30,8 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
                 a.updated_at, 
                 a.sha,
                 a.path,
-                a.client_contract_address
+                a.client_contract_address,
+                a.issue_reporter_handle
             FROM 
                 applications a 
             ORDER BY 
@@ -58,6 +59,7 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
             sha: get_string_field(&app, "sha"),
             path: get_string_field(&app, "path"),
             client_contract_address: get_string_field(&app, "client_contract_address"),
+            issue_reporter_handle: get_string_field(&app, "issue_reporter_handle"),
         })
         .collect();
 
@@ -351,6 +353,7 @@ pub async fn update_application(
  * # Returns
  * @return Result<ApplicationModel, sea_orm::DbErr> - The result of the operation
  */
+#[allow(clippy::too_many_arguments)]
 pub async fn create_application(
     id: String,
     owner: String,
@@ -359,6 +362,7 @@ pub async fn create_application(
     issue_number: i64,
     app_file: String,
     path: String,
+    issue_reporter_handle: Option<String>,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     //Calculate SHA
@@ -376,6 +380,7 @@ pub async fn create_application(
         application: Set(Some(app_file)),
         sha: Set(Some(file_sha)),
         path: Set(Some(path)),
+        issue_reporter_handle: Set(issue_reporter_handle),
         ..Default::default()
     };
 

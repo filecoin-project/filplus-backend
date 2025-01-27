@@ -47,8 +47,8 @@ use fplus_database::database::{
 use fplus_database::models::applications::Model as ApplicationModel;
 
 use self::application::file::{
-    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, DeepCompare,
-    ValidVerifierList, VerifierInput,
+    AllocationRequest, AllocationRequestType, AppState, ApplicationFile, ApplicationResponse,
+    DeepCompare, ValidVerifierList, VerifierInput,
 };
 
 use crate::core::application::file::Allocation;
@@ -498,14 +498,14 @@ impl LDNApplication {
         let app = Self::single_merged(application_id, owner.clone(), repo.clone()).await?;
         Ok(Self {
             github: gh,
-            application_id: app.1.id.clone(),
+            application_id: app.1.file.id.clone(),
             file_sha: app.0.sha.clone(),
             file_name: app.0.path.clone(),
             branch_name: "main".to_string(),
         })
     }
 
-    pub async fn all_applications() -> Result<Vec<(ApplicationFile, String, String)>, LDNError> {
+    pub async fn all_applications() -> Result<Vec<ApplicationResponse>, LDNError> {
         let db_apps = database::applications::get_applications()
             .await
             .map_err(|e| {
@@ -514,11 +514,16 @@ impl LDNApplication {
                     e
                 ))
             })?;
-        let mut all_apps: Vec<(ApplicationFile, String, String)> = Vec::new();
+        let mut all_apps: Vec<ApplicationResponse> = Vec::new();
         for app in db_apps {
             if let Some(application_data) = app.application {
                 if let Ok(app_file) = ApplicationFile::from_str(&application_data) {
-                    all_apps.push((app_file, app.owner, app.repo));
+                    all_apps.push(ApplicationResponse {
+                        file: app_file,
+                        issue_reporter_handle: app.issue_reporter_handle,
+                        repo: app.repo,
+                        owner: app.owner,
+                    });
                 }
             }
         }
@@ -529,14 +534,14 @@ impl LDNApplication {
         owner: String,
         repo: String,
         filter: Option<String>,
-    ) -> Result<Vec<ApplicationFile>, LDNError> {
+    ) -> Result<Vec<ApplicationResponse>, LDNError> {
         // Get all active applications from the database.
         let active_apps = database::applications::get_active_applications(Some(owner), Some(repo))
             .await
             .map_err(|e| LDNError::Load(format!("Failed to get active applications: {}", e)))?;
 
         // Filter and convert active applications.
-        let mut apps: Vec<ApplicationFile> = Vec::new();
+        let mut apps: Vec<ApplicationResponse> = Vec::new();
         for app_model in active_apps {
             // If a filter was provided and it doesn't match the application's id, continue to the next iteration.
             if let Some(ref filter_id) = filter {
@@ -548,7 +553,14 @@ impl LDNApplication {
             // Try to deserialize the `application` field to `ApplicationFile`.
             if let Some(app_json) = app_model.application {
                 match from_str::<ApplicationFile>(&app_json) {
-                    Ok(app) => apps.push(app),
+                    Ok(app) => {
+                        apps.push(ApplicationResponse {
+                            file: app,
+                            issue_reporter_handle: app_model.issue_reporter_handle,
+                            repo: app_model.repo,
+                            owner: app_model.owner,
+                        });
+                    }
                     //if error, don't push into apps
                     Err(err) => {
                         log::error!("Failed to parse application file from DB: {}", err);
@@ -656,7 +668,7 @@ impl LDNApplication {
     pub async fn new_from_issue(info: CreateApplicationInfo) -> Result<Self, LDNError> {
         let issue_number = info.issue_number;
         let gh = github_async_new(info.owner.to_string(), info.repo.to_string()).await?;
-        let (mut parsed_ldn, _) = LDNApplication::parse_application_issue(
+        let (mut parsed_ldn, issue_reporter_handle) = LDNApplication::parse_application_issue(
             issue_number.clone(),
             info.owner.clone(),
             info.repo.clone(),
@@ -849,6 +861,7 @@ impl LDNApplication {
                         issue_number,
                         file_content,
                         LDNPullRequest::application_path(&app_id),
+                        Some(issue_reporter_handle),
                     )
                     .await
                     .map_err(|e| {
@@ -1262,6 +1275,7 @@ impl LDNApplication {
             );
             let parsed_app_file = serde_json::to_string_pretty(&app_file)
                 .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+
             LDNPullRequest::create_pr_for_existing_application(
                 app_file.id.clone(),
                 parsed_app_file,
@@ -1546,10 +1560,10 @@ impl LDNApplication {
         let merged = Self::merged(owner.clone(), repo.clone()).await?;
         let application = merged
             .par_iter()
-            .find_first(|(_, app)| app.id == application_id);
+            .find_first(|(_, app)| app.file.id == application_id);
         if let Some(app) = application {
-            if app.1.lifecycle.get_state() == AppState::Granted {
-                let app = app.1.reached_total_datacap();
+            if app.1.file.lifecycle.get_state() == AppState::Granted {
+                let app = app.1.file.reached_total_datacap();
                 let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
                 let ldn_app =
                     LDNApplication::load(application_id.clone(), owner.clone(), repo.clone())
@@ -1593,7 +1607,7 @@ impl LDNApplication {
             } else {
                 Err(LDNError::Load(format!(
                     "Application state is {:?}. Expected Granted",
-                    app.1.lifecycle.get_state()
+                    app.1.file.lifecycle.get_state()
                 )))
             }
         } else {
@@ -1658,11 +1672,11 @@ impl LDNApplication {
         application_id: String,
         owner: String,
         repo: String,
-    ) -> Result<(ApplicationGithubInfo, ApplicationFile), LDNError> {
+    ) -> Result<(ApplicationGithubInfo, ApplicationResponse), LDNError> {
         LDNApplication::merged(owner, repo)
             .await?
             .into_iter()
-            .find(|(_, app)| app.id == application_id)
+            .find(|(_, app)| app.file.id == application_id)
             .map_or_else(
                 || {
                     Err(LDNError::Load(format!(
@@ -1710,7 +1724,7 @@ impl LDNApplication {
     pub async fn merged(
         owner: String,
         repo: String,
-    ) -> Result<Vec<(ApplicationGithubInfo, ApplicationFile)>, LDNError> {
+    ) -> Result<Vec<(ApplicationGithubInfo, ApplicationResponse)>, LDNError> {
         // Retrieve all applications in the main branch from the database.
         let merged_app_models = database::applications::get_merged_applications(
             Some(owner.clone()),
@@ -1720,7 +1734,7 @@ impl LDNApplication {
         .map_err(|e| LDNError::Load(format!("Database error:: {}", e)))?;
 
         // Convert applications from the main branch.
-        let mut merged_apps: Vec<(ApplicationGithubInfo, ApplicationFile)> = Vec::new();
+        let mut merged_apps: Vec<(ApplicationGithubInfo, ApplicationResponse)> = Vec::new();
         for app_model in merged_app_models {
             // Try to deserialize the `application` field to `ApplicationFile`.
             if let Some(app_json) = app_model.application {
@@ -1731,15 +1745,25 @@ impl LDNApplication {
                     let path = app_model
                         .path
                         .ok_or(LDNError::Load("Failed to get path".to_string()))?;
-                    merged_apps.push((ApplicationGithubInfo { sha, path }, app));
+                    merged_apps.push((
+                        ApplicationGithubInfo { sha, path },
+                        ApplicationResponse {
+                            file: app,
+                            issue_reporter_handle: app_model.issue_reporter_handle,
+                            repo: app_model.repo,
+                            owner: app_model.owner,
+                        },
+                    ));
                 }
             }
         }
 
         let active_apps = Self::active(owner, repo, None).await?;
-        let mut apps: Vec<(ApplicationGithubInfo, ApplicationFile)> = vec![];
+        let mut apps: Vec<(ApplicationGithubInfo, ApplicationResponse)> = vec![];
         for app in merged_apps {
-            if !active_apps.iter().any(|a| a.id == app.1.id) && app.1.lifecycle.is_active {
+            if !active_apps.iter().any(|a| a.file.id == app.1.file.id)
+                && app.1.file.lifecycle.is_active
+            {
                 apps.push(app);
             }
         }
@@ -1750,7 +1774,9 @@ impl LDNApplication {
     async fn refill(verfier: &str, refill_info: RefillInfo) -> Result<bool, LDNError> {
         let apps =
             LDNApplication::merged(refill_info.owner.clone(), refill_info.repo.clone()).await?;
-        if let Some((content, mut app)) = apps.into_iter().find(|(_, app)| app.id == refill_info.id)
+        if let Some((content, mut app)) = apps
+            .into_iter()
+            .find(|(_, app)| app.file.id == refill_info.id)
         {
             let uuid = uuidv4::uuid::v4();
             let request_id = uuid.clone();
@@ -1760,19 +1786,19 @@ impl LDNApplication {
                 AllocationRequestType::Refill(0),
                 format!("{}{}", refill_info.amount, refill_info.amount_type),
             );
-            let app_file = app.start_refill_request(new_request);
+            let app_file = app.file.start_refill_request(new_request);
             Self::issue_refill(
-                app.issue_number.clone(),
+                app.file.issue_number.clone(),
                 refill_info.owner.clone(),
                 refill_info.repo.clone(),
             )
             .await?;
 
-            let pr_title = format!("Datacap for {}", app.client.name.clone());
+            let pr_title = format!("Datacap for {}", app.file.client.name.clone());
             let parsed_app_file = serde_json::to_string_pretty(&app_file)
                 .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
             LDNPullRequest::create_pr_for_existing_application(
-                app.id.clone(),
+                app.file.id.clone(),
                 parsed_app_file,
                 content.path.clone(), // filename
                 request_id.clone(),
@@ -2557,6 +2583,11 @@ impl LDNApplication {
                         application_file.issue_number, e
                     ))
                 })?;
+                let issue_reporter_handle = gh
+                    .get_issue_reporter_handle(
+                        &issue_number.try_into().expect("Value must be non-negative"),
+                    )
+                    .await?;
                 database::applications::create_application(
                     application_id,
                     owner.clone(),
@@ -2565,6 +2596,7 @@ impl LDNApplication {
                     issue_number,
                     file_content.clone(),
                     filename.clone(),
+                    Some(issue_reporter_handle),
                 )
                 .await
                 .map_err(|e| {
@@ -3540,6 +3572,12 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 let parsed_app_file = serde_json::to_string_pretty(&gh_app.application_file)
                     .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
                 // Call the create_application function if the GH app is not in DB
+                let gh: GithubWrapper = github_async_new(owner.clone(), repo.clone()).await?;
+                let issue_reporter_handle = gh
+                    .get_issue_reporter_handle(
+                        &issue_number.try_into().expect("Value must be non-negative"),
+                    )
+                    .await?;
                 database::applications::create_application(
                     gh_app.application_file.id.clone(),
                     owner.clone(),
@@ -3548,6 +3586,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     issue_number,
                     parsed_app_file,
                     gh_app.path,
+                    Some(issue_reporter_handle),
                 )
                 .await
                 .map_err(|e| {
@@ -3639,6 +3678,12 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 // Call the create_application function if the GH app is not in DB
                 let parsed_app_file = serde_json::to_string_pretty(&gh_app.application_file)
                     .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+                let gh: GithubWrapper = github_async_new(owner.clone(), repo.clone()).await?;
+                let issue_reporter_handle = gh
+                    .get_issue_reporter_handle(
+                        &issue_number.try_into().expect("Value must be non-negative"),
+                    )
+                    .await?;
                 database::applications::create_application(
                     gh_app.application_file.id.clone(),
                     owner.clone(),
@@ -3647,6 +3692,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     issue_number,
                     parsed_app_file,
                     gh_app.path,
+                    Some(issue_reporter_handle),
                 )
                 .await
                 .map_err(|e| {
@@ -4427,6 +4473,11 @@ impl LDNPullRequest {
             let issue_number = issue_number
                 .parse::<i64>()
                 .map_err(|e| LDNError::New(format!("Parse issue number to i64 failed: {}", e)))?;
+            let issue_reporter_handle = gh
+                .get_issue_reporter_handle(
+                    &issue_number.try_into().expect("Value must be non-negative"),
+                )
+                .await?;
             database::applications::create_application(
                 application_id.clone(),
                 owner,
@@ -4435,6 +4486,7 @@ impl LDNPullRequest {
                 issue_number,
                 file_content,
                 file_name,
+                Some(issue_reporter_handle),
             )
             .await
             .map_err(|e| {
