@@ -9,6 +9,7 @@ pub mod lifecycle;
 pub mod sps_change;
 
 impl file::ApplicationFile {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         issue_number: String,
         multisig_address: String,

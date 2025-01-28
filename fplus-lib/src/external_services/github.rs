@@ -806,4 +806,14 @@ impl GithubWrapper {
                     .collect())
             })
     }
+
+    pub async fn get_issue_reporter_handle(&self, issue_number: &u64) -> Result<String, LDNError> {
+        let issue = self.list_issue(*issue_number).await.map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to retrieve issue {} from GitHub: {}",
+                issue_number, e
+            ))
+        })?;
+        Ok(issue.user.login)
+    }
 }

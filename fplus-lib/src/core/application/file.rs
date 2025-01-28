@@ -70,6 +70,16 @@ pub struct ApplicationFile {
     pub allowed_sps: Option<SpsChangeRequests>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ApplicationResponse {
+    #[serde(flatten)]
+    pub file: ApplicationFile,
+    #[serde(rename = "Issue Reporter Handle")]
+    pub issue_reporter_handle: Option<String>,
+    pub repo: String,
+    pub owner: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Client {
     #[serde(rename = "Name")]
