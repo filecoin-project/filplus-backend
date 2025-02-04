@@ -5,6 +5,8 @@ use alloy::primitives::Address;
 
 use application::file::{SpsChangeRequest, StorageProviderChangeVerifier};
 use chrono::{DateTime, Local, Utc};
+use fplus_database::database::comparable_applications::create_comparable_application;
+use fplus_database::models::comparable_applications::ApplicationComparableData;
 use futures::future;
 use octocrab::models::{
     pulls::PullRequest,
@@ -869,6 +871,19 @@ impl LDNApplication {
                             "Application issue {} cannot create application in DB /// {}",
                             application_id, e
                         ))
+                    })?;
+                    create_comparable_application(
+                        &application_id,
+                        &ApplicationComparableData {
+                            project_desc: application_file.project.history,
+                            stored_data_desc: application_file.project.stored_data_desc,
+                            data_owner_name: application_file.client.name,
+                            data_set_sample: application_file.project.data_sample_link,
+                        },
+                    )
+                    .await
+                    .map_err(|e| {
+                        LDNError::New(format!("Failed to create application in DB: {}", e))
                     })?;
                 }
 
