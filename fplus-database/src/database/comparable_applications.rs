@@ -3,7 +3,8 @@ use crate::models::comparable_applications::{
     ActiveModel, ApplicationComparableData, Entity as ComparableApplication,
     Model as ComparableApplicationModel,
 };
-use sea_orm::{entity::*, DbErr};
+use sea_orm::prelude::Expr;
+use sea_orm::{entity::*, Condition, DbErr, QueryFilter};
 
 pub async fn create_comparable_application(
     client_address: &str,
@@ -20,6 +21,14 @@ pub async fn create_comparable_application(
 
 pub async fn get_comparable_applications() -> Result<Vec<ComparableApplicationModel>, DbErr> {
     let conn = get_database_connection().await?;
-    let response = ComparableApplication::find().all(&conn).await?;
+    let condition = Condition::any()
+        .add(Expr::cust("char_length(application->>'project_desc') > 40"))
+        .add(Expr::cust(
+            "char_length(application->>'stored_data_desc') > 40",
+        ));
+    let response = ComparableApplication::find()
+        .filter(condition)
+        .all(&conn)
+        .await?;
     Ok(response)
 }

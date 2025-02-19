@@ -423,3 +423,16 @@ pub async fn get_applications_by_client_id(
         .await?;
     Ok(result)
 }
+
+pub async fn get_applications_by_clients_addresses(
+    clients_addresses: Vec<String>,
+) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+
+    let result = Application::find()
+        .filter(Column::Id.is_in(clients_addresses))
+        .all(&conn)
+        .await?;
+
+    Ok(result)
+}

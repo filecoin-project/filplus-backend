@@ -41,6 +41,8 @@ pub fn default_env_vars() -> &'static HashMap<&'static str, &'static str> {
             "0x640bD4be149f40714D95aBcD414338bc7CfF39a3",
         );
         m.insert("AUTOALLOCATION_AMOUNT", "1099511627776"); // 1099511627776 B == 1 TiB
+        m.insert("TFIDF_THRESHOLD", "0.4");
+        m.insert("LEVENSHTEIN_THRESHOLD", "8");
         m
     })
 }
