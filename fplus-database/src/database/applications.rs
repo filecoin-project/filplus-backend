@@ -424,13 +424,17 @@ pub async fn get_applications_by_client_id(
     Ok(result)
 }
 
-pub async fn get_applications_by_clients_addresses(
+pub async fn get_distinct_applications_by_clients_addresses(
     clients_addresses: Vec<String>,
 ) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-
     let result = Application::find()
-        .filter(Column::Id.is_in(clients_addresses))
+        .from_raw_sql(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT DISTINCT ON (id) * FROM applications 
+         WHERE id = ANY($1)",
+            [clients_addresses.into()],
+        ))
         .all(&conn)
         .await?;
 
