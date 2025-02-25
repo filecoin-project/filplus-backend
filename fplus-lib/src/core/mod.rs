@@ -970,11 +970,14 @@ impl LDNApplication {
             .await
             .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
-        let db_multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
-            "Failed to get multisig address.".to_string(),
-        ))?;
-        Self::is_allowance_sufficient(&db_multisig_address.clone(), &allocation_amount_parsed)
-            .await?;
+        let address_to_check_allowance_address = db_allocator
+            .address
+            .ok_or(LDNError::Load("Failed to get address.".to_string()))?;
+        Self::is_allowance_sufficient(
+            &address_to_check_allowance_address,
+            &allocation_amount_parsed,
+        )
+        .await?;
 
         let uuid = uuidv4::uuid::v4();
         let request = AllocationRequest::new(
@@ -1125,7 +1128,14 @@ impl LDNApplication {
 
         if let Some(new_allocation_amount) = new_allocation_amount {
             if app_file.allocation.0.len() > 1 {
-                Self::is_allowance_sufficient(&db_multisig_address, &new_allocation_amount).await?;
+                let address_to_check_allowance_address = db_allocator
+                    .address
+                    .ok_or(LDNError::Load("Failed to get address.".to_string()))?;
+                Self::is_allowance_sufficient(
+                    &address_to_check_allowance_address,
+                    &new_allocation_amount,
+                )
+                .await?;
 
                 let parsed_allocation_amount = process_amount(new_allocation_amount);
 
@@ -2993,10 +3003,10 @@ impl LDNApplication {
     }
 
     async fn is_allowance_sufficient(
-        db_multisig_address: &str,
+        address: &str,
         new_allocation_amount: &str,
     ) -> Result<(), LDNError> {
-        let allowance = get_allowance_for_address(db_multisig_address)
+        let allowance = get_allowance_for_address(address)
             .await
             .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?;
 
