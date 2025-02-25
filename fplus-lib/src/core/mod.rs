@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
 use crate::external_services::dmob::get_client_allocation;
+use crate::external_services::similarity_detection::detect_similar_applications;
 use crate::{
     base64,
     config::get_env_var_or_default,
@@ -702,7 +703,7 @@ impl LDNApplication {
                     parsed_ldn.version,
                     parsed_ldn.id.clone(),
                     parsed_ldn.client.clone(),
-                    parsed_ldn.project,
+                    parsed_ldn.project.clone(),
                     parsed_ldn.datacap,
                 )
                 .await;
@@ -872,6 +873,21 @@ impl LDNApplication {
                             application_id, e
                         ))
                     })?;
+                    let comparable_data = ApplicationComparableData {
+                        project_desc: parsed_ldn.project.history.clone(),
+                        stored_data_desc: parsed_ldn.project.stored_data_desc.clone(),
+                        data_owner_name: parsed_ldn.client.name.clone(),
+                        data_set_sample: parsed_ldn.project.data_sample_link.clone(),
+                    };
+
+                    detect_similar_applications(
+                        &parsed_ldn.id,
+                        &comparable_data,
+                        &info.owner,
+                        &info.repo,
+                        &(issue_number as u64),
+                    )
+                    .await?;
                     create_comparable_application(
                         &application_id,
                         &ApplicationComparableData {

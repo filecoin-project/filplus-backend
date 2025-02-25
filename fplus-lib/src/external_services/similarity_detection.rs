@@ -1,7 +1,8 @@
+use super::github::github_async_new;
 use crate::{config::get_env_var_or_default, error::LDNError};
 use fplus_database::{
     database::{
-        applications::get_applications_by_clients_addresses,
+        applications::get_distinct_applications_by_clients_addresses,
         comparable_applications::get_comparable_applications,
     },
     models::comparable_applications::ApplicationComparableData,
@@ -16,9 +17,19 @@ pub struct Document {
     pub text: String,
 }
 
+type Owner = String;
+type Repo = String;
+type ClientAddress = String;
+type Similarities = Vec<String>;
+type RepoSimilarities = HashMap<(Owner, Repo), Vec<(ClientAddress, Similarities)>>;
+type SortedRepoSimilarities = Vec<((Owner, Repo), Vec<(ClientAddress, Similarities)>)>;
+
 pub async fn detect_similar_applications(
     client_address: &str,
     comparable_data: &ApplicationComparableData,
+    owner: &str,
+    repo: &str,
+    issue_number: &u64,
 ) -> Result<(), LDNError> {
     let comparable_applications = get_comparable_applications().await.map_err(|e| {
         LDNError::New(format!(
@@ -80,16 +91,81 @@ pub async fn detect_similar_applications(
     let similar_data_set_sample = get_similar_texts_levenshtein(&data_set_samples)?;
 
     let unique_addresses: HashSet<String> = similar_project_desciptions
+        .clone()
         .into_iter()
-        .chain(similar_stored_data_desciptions.into_iter())
-        .chain(similar_project_and_stored_data_desciptions.into_iter())
-        .chain(similar_data_set_sample.into_iter())
+        .chain(similar_stored_data_desciptions.clone().into_iter())
+        .chain(
+            similar_project_and_stored_data_desciptions
+                .clone()
+                .into_iter(),
+        )
+        .chain(similar_data_set_sample.clone().into_iter())
+        .chain(existing_data_owner_name.clone().into_iter())
         .collect();
-    let unique_addresses: Vec<String> = unique_addresses.into_iter().collect();
 
-    let _applications = get_applications_by_clients_addresses(unique_addresses)
+    let unique_addresses: Vec<String> = unique_addresses.into_iter().collect();
+    let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
+
+    if unique_addresses.is_empty() {
+        let comment = "## Similarity Report\n\nNo similar applications found for the issue";
+        gh.add_comment_to_issue(*issue_number, comment)
+            .await
+            .map_err(|e| LDNError::New(format!("Failed to get add comment to the issue: {}", e)))?;
+        return Ok(());
+    }
+
+    let applications = get_distinct_applications_by_clients_addresses(unique_addresses)
         .await
         .map_err(|e| LDNError::New(format!("Failed to get applications from database: {}", e)))?;
+
+    let mut repo_similarities: RepoSimilarities = HashMap::new();
+
+    for application in applications {
+        let repo_key = (application.owner.clone(), application.repo.clone());
+        let issue_link = format!(
+            "https://github.com/{}/{}/issues/{}",
+            application.owner, application.repo, application.issue_number
+        );
+
+        let entry = repo_similarities.entry(repo_key).or_default();
+        let mut similarities = Vec::new();
+
+        if similar_project_and_stored_data_desciptions.contains(&application.id) {
+            similarities.push("Similar project and stored data description".to_string());
+        } else if similar_project_desciptions.contains(&application.id) {
+            similarities.push("Similar project description".to_string());
+        } else if similar_stored_data_desciptions.contains(&application.id) {
+            similarities.push("Similar stored data description".to_string());
+        }
+        if similar_data_set_sample.contains(&application.id) {
+            similarities.push("Similar data set sample".to_string());
+        }
+        if existing_data_owner_name.contains(&application.id) {
+            similarities.push("The same data owner name".to_string());
+        }
+
+        if !similarities.is_empty() {
+            entry.push((issue_link, similarities));
+        }
+    }
+
+    let mut sorted_results: SortedRepoSimilarities = repo_similarities.into_iter().collect();
+    sorted_results.sort_by(|owner_repo, similarities| {
+        similarities
+            .1
+            .iter()
+            .map(|(_, sim)| sim.len())
+            .sum::<usize>()
+            .cmp(&owner_repo.1.iter().map(|(_, sim)| sim.len()).sum::<usize>())
+    });
+
+    let comment = format!(
+        "## Similarity Report\n\nThis application is similar to the following applications:\n\n{}",
+        format_comment(&sorted_results)
+    );
+    gh.add_comment_to_issue(*issue_number, &comment)
+        .await
+        .map_err(|e| LDNError::New(format!("Failed to get add comment to the issue: {}", e)))?;
     Ok(())
 }
 
@@ -171,4 +247,25 @@ fn cosine_similarity(v1: &Array1<f64>, v2: &Array1<f64>) -> f64 {
     } else {
         dot_product / (norm_v1 * norm_v2)
     }
+}
+
+fn format_comment(repos: &SortedRepoSimilarities) -> String {
+    repos
+        .iter()
+        .map(|((owner, repo), issues)| {
+            format!(
+                "### {}/{}\n\n{}",
+                owner,
+                repo,
+                issues
+                    .iter()
+                    .map(|(issue, similarities)| {
+                        format!("* {}:\n    * {}", issue, similarities.join("\n    * "))
+                    })
+                    .collect::<Vec<String>>()
+                    .join("\n\n")
+            )
+        })
+        .collect::<Vec<String>>()
+        .join("\n\n")
 }
