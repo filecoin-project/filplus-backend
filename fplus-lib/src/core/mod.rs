@@ -605,7 +605,7 @@ impl LDNApplication {
                     path,
                 };
 
-                if filter.as_ref().map_or(true, |f| &app_file.id == f) {
+                if filter.as_ref().is_none_or(|f| &app_file.id == f) {
                     apps.push(app_with_date);
                 }
             }
