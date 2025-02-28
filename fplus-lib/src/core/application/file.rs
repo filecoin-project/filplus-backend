@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::LDNError;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum DatacapGroup {
     #[serde(rename = "da")]
     DA,
@@ -27,7 +27,7 @@ impl FromStr for DatacapGroup {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum Version {
     Number(u8),
@@ -80,7 +80,7 @@ pub struct ApplicationResponse {
     pub owner: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct Client {
     #[serde(rename = "Name")]
     pub name: String,
@@ -98,7 +98,7 @@ pub struct Client {
     pub role: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Datacap {
     #[serde(rename = "Type")]
     pub _group: DatacapGroup,
@@ -133,7 +133,7 @@ impl Default for Datacap {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum DataType {
     #[serde(rename = "Slingshot")]
     Slingshot,
@@ -203,7 +203,7 @@ pub enum StorageProviders {
     Other(String),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct Project {
     #[serde(rename = "Brief history of your project and organization")]
     pub history: String,
