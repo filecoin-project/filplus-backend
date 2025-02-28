@@ -118,7 +118,7 @@ impl From<String> for ParsedApplicationDataFields {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct ParsedIssue {
     pub version: Version,
     pub id: String,

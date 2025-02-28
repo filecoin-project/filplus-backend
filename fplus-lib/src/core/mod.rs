@@ -2883,6 +2883,8 @@ impl LDNApplication {
             LDNError::Load(format!("Failed to parse application file from DB: {}", e))
         })?;
 
+        Self::check_if_application_has_changed(&parsed_ldn, &pr_application)?;
+
         if pr_application.lifecycle.get_state() == AppState::AdditionalInfoRequired {
             pr_application.lifecycle.state = AppState::AdditionalInfoSubmitted;
             let _ = Self::issue_additional_info_submitted(
@@ -3040,8 +3042,9 @@ impl LDNApplication {
             LDNError::Load(format!("Failed to parse application file from DB: {}", e))
         })?;
 
-        let application_id = parsed_ldn.id.clone();
+        Self::check_if_application_has_changed(&parsed_ldn, &merged_application)?;
 
+        let application_id = parsed_ldn.id.clone();
         //Create new application file with updated info from issue
         let application_file = ApplicationFile::edited(
             merged_application.issue_number.clone(),
@@ -3116,6 +3119,39 @@ impl LDNApplication {
             file_name,
             branch_name,
         })
+    }
+
+    fn check_if_application_has_changed(
+        updated_parsed_issue: &ParsedIssue,
+        old_application: &ApplicationFile,
+    ) -> Result<(), LDNError> {
+        let old_parsed_issue = ParsedIssue {
+            id: old_application.id.clone(),
+            version: old_application.version.clone(),
+            client: old_application.client.clone(),
+            project: old_application.project.clone(),
+            datacap: old_application.datacap.clone(),
+        };
+        let mut parsed_issue_without_unnecessary_fields = updated_parsed_issue.clone();
+
+        // The `custom_multisig` and `identifier` fields are not relevant because:
+        // - They are not included in the client's JSON representation
+        // - They are not stored in the database
+        parsed_issue_without_unnecessary_fields
+            .datacap
+            .custom_multisig
+            .clear();
+        parsed_issue_without_unnecessary_fields
+            .datacap
+            .identifier
+            .clear();
+
+        if parsed_issue_without_unnecessary_fields == old_parsed_issue {
+            return Err(LDNError::Load(
+                "No changes detected in issue modification".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     pub async fn delete_branch(
