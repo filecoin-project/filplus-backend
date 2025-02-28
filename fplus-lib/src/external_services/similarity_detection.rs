@@ -1,5 +1,7 @@
 use super::github::github_async_new;
-use crate::{config::get_env_var_or_default, error::LDNError};
+use crate::{
+    config::get_env_var_or_default, core::application::file::ApplicationFile, error::LDNError,
+};
 use fplus_database::{
     database::{
         applications::get_distinct_applications_by_clients_addresses,
@@ -8,7 +10,10 @@ use fplus_database::{
     models::comparable_applications::ApplicationComparableData,
 };
 use ndarray::Array1;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 use strsim::levenshtein;
 
 #[derive(Debug, Clone)]
@@ -120,32 +125,47 @@ pub async fn detect_similar_applications(
 
     let mut repo_similarities: RepoSimilarities = HashMap::new();
 
-    for application in applications {
-        let repo_key = (application.owner.clone(), application.repo.clone());
-        let issue_link = format!(
-            "https://github.com/{}/{}/issues/{}",
-            application.owner, application.repo, application.issue_number
+    for app_model in applications {
+        let app_str = app_model.application.ok_or_else(|| {
+            LDNError::Load(format!(
+                "Application {} does not have an application field",
+                app_model.id
+            ))
+        })?;
+
+        let application = ApplicationFile::from_str(&app_str).map_err(|e| {
+            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+        })?;
+
+        let similar_application_link = format!(
+            "[#{} - {}](https://allocator.tech/application/{}/{}/{})",
+            app_model.issue_number,
+            application.client.name,
+            app_model.owner,
+            app_model.repo,
+            app_model.id
         );
 
+        let repo_key = (app_model.owner.clone(), app_model.repo.clone());
         let entry = repo_similarities.entry(repo_key).or_default();
         let mut similarities = Vec::new();
 
-        if similar_project_and_stored_data_desciptions.contains(&application.id) {
+        if similar_project_and_stored_data_desciptions.contains(&app_model.id) {
             similarities.push("Similar project and stored data description".to_string());
-        } else if similar_project_desciptions.contains(&application.id) {
+        } else if similar_project_desciptions.contains(&app_model.id) {
             similarities.push("Similar project description".to_string());
-        } else if similar_stored_data_desciptions.contains(&application.id) {
+        } else if similar_stored_data_desciptions.contains(&app_model.id) {
             similarities.push("Similar stored data description".to_string());
         }
-        if similar_data_set_sample.contains(&application.id) {
+        if similar_data_set_sample.contains(&app_model.id) {
             similarities.push("Similar data set sample".to_string());
         }
-        if existing_data_owner_name.contains(&application.id) {
+        if existing_data_owner_name.contains(&app_model.id) {
             similarities.push("The same data owner name".to_string());
         }
 
         if !similarities.is_empty() {
-            entry.push((issue_link, similarities));
+            entry.push((similar_application_link, similarities));
         }
     }
 
