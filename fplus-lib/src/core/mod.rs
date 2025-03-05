@@ -2882,7 +2882,23 @@ impl LDNApplication {
         let mut pr_application = ApplicationFile::from_str(app_str).map_err(|e| {
             LDNError::Load(format!("Failed to parse application file from DB: {}", e))
         })?;
-
+        let gh = github_async_new(
+            application_model.owner.to_string(),
+            application_model.repo.to_string(),
+        )
+        .await?;
+        if !pr_application.lifecycle.is_active {
+            let information = "The requested DataCap has been reached for this application. Updates on this issue will no longer be processed. Please create a new application.";
+            gh.add_comment_to_issue(application_model.issue_number as u64, information)
+                .await
+                .map_err(|e| {
+                    LDNError::New(format!(
+                        "Error adding comment to issue {} /// {}",
+                        application_model.issue_number, e
+                    ))
+                })?;
+            return Err(LDNError::Load(information.to_string()));
+        }
         Self::check_if_application_has_changed(&parsed_ldn, &pr_application)?;
 
         if pr_application.lifecycle.get_state() == AppState::AdditionalInfoRequired {
@@ -2934,11 +2950,6 @@ impl LDNApplication {
         };
 
         //Create a new commit with the updated application file
-        let gh = github_async_new(
-            application_model.owner.to_string(),
-            application_model.repo.to_string(),
-        )
-        .await?;
         let branch_name = gh
             .get_branch_name_from_pr(application_model.pr_number as u64)
             .await
@@ -3042,6 +3053,24 @@ impl LDNApplication {
             LDNError::Load(format!("Failed to parse application file from DB: {}", e))
         })?;
 
+        let gh = github_async_new(
+            application_model.owner.to_string(),
+            application_model.repo.to_string(),
+        )
+        .await?;
+
+        if !merged_application.lifecycle.is_active {
+            let information = "The requested DataCap has been reached for this application. Updates on this issue will no longer be processed. Please create a new application.";
+            gh.add_comment_to_issue(application_model.issue_number as u64, information)
+                .await
+                .map_err(|e| {
+                    LDNError::New(format!(
+                        "Error adding comment to issue {} /// {}",
+                        application_model.issue_number, e
+                    ))
+                })?;
+            return Err(LDNError::Load(information.to_string()));
+        }
         Self::check_if_application_has_changed(&parsed_ldn, &merged_application)?;
 
         let application_id = parsed_ldn.id.clone();
@@ -3099,12 +3128,6 @@ impl LDNApplication {
             false,
             application_file.issue_number.clone(),
             pr_title,
-        )
-        .await?;
-
-        let gh = github_async_new(
-            application_model.owner.to_string(),
-            application_model.repo.to_string(),
         )
         .await?;
 
