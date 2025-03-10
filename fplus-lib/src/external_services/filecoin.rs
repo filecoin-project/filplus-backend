@@ -35,7 +35,7 @@ pub async fn get_multisig_threshold_for_actor(actor_address: &str) -> Result<u64
     Ok(actor_state_info.result.state.num_approvals_threshold)
 }
 
-pub async fn get_allowance_for_address(address: &str) -> Result<String, reqwest::Error> {
+pub async fn get_allowance_for_address_direct(address: &str) -> Result<String, reqwest::Error> {
     let allowance = get_allowance_for_client(address).await;
     if let Ok(allowance) = allowance {
         if allowance != "0" {
@@ -75,6 +75,27 @@ pub async fn get_allowance_for_client(address: &str) -> Result<String, reqwest::
         "method": "Filecoin.StateVerifiedClientStatus",
         "params": [address, null],
         "id": 1
+    });
+
+    let request = client.post(&node_url).json(&body);
+
+    let response = request
+        .send()
+        .await?
+        .json::<StateVerifiedClientStatusResponse>()
+        .await?;
+    Ok(response.result)
+}
+
+pub async fn filecoin_address_to_evm_address(address: &str) -> Result<String, reqwest::Error> {
+    let node_url = get_env_var_or_default("GLIF_NODE_URL");
+
+    let client = reqwest::Client::new();
+    let body = json!({
+        "jsonrpc": "2.0",
+        "method": "Filecoin.FilecoinAddressToEthAddress",
+        "params": [address, null],
+        "id": 0
     });
 
     let request = client.post(&node_url).json(&body);
