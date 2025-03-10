@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
 
@@ -17,6 +18,7 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
+use crate::external_services::blockchain::get_allowance_for_address_contract;
 use crate::external_services::dmob::get_client_allocation;
 use crate::external_services::similarity_detection::detect_similar_applications;
 use crate::{
@@ -31,7 +33,7 @@ use crate::{
     },
     error::LDNError,
     external_services::{
-        filecoin::{get_allowance_for_address, get_multisig_threshold_for_actor},
+        filecoin::{get_allowance_for_address_direct, get_multisig_threshold_for_actor},
         github::{
             github_async_new, CreateMergeRequestData, CreateRefillMergeRequestData, GithubWrapper,
         },
@@ -734,7 +736,7 @@ impl LDNApplication {
                     log::info!("Application does not exist in the database");
 
                     // Check the allowance for the address
-                    match get_allowance_for_address(&application_id).await {
+                    match get_allowance_for_address_direct(&application_id).await {
                         Ok(allowance) if allowance != "0" => {
                             log::info!("Allowance found and is not zero. Value is {}", allowance);
                             // If allowance is found and is not zero, issue the pathway mismatch comment
@@ -970,12 +972,18 @@ impl LDNApplication {
             .await
             .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
-        let address_to_check_allowance_address = db_allocator
-            .address
-            .ok_or(LDNError::Load("Failed to get address.".to_string()))?;
+        let contract_address = db_allocator
+            .tooling
+            .filter(|tooling| tooling.contains("smart_contract_allocator"))
+            .and_then(|_| db_allocator.address.clone());
+
+        let multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
+            "Failed to get multisig address.".to_string(),
+        ))?;
         Self::is_allowance_sufficient(
-            &address_to_check_allowance_address,
+            &multisig_address,
             &allocation_amount_parsed,
+            contract_address,
         )
         .await?;
 
@@ -1072,16 +1080,15 @@ impl LDNApplication {
             .await
             .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
-        let db_multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
+        let multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
             "Failed to get multisig address.".to_string(),
         ))?;
 
         // Get multisig threshold from blockchain
-        let blockchain_threshold =
-            match get_multisig_threshold_for_actor(&db_multisig_address).await {
-                Ok(threshold) => Some(threshold),
-                Err(_) => None,
-            };
+        let blockchain_threshold = match get_multisig_threshold_for_actor(&multisig_address).await {
+            Ok(threshold) => Some(threshold),
+            Err(_) => None,
+        };
 
         let db_threshold: u64 = db_allocator.multisig_threshold.unwrap_or(2) as u64;
 
@@ -1128,12 +1135,14 @@ impl LDNApplication {
 
         if let Some(new_allocation_amount) = new_allocation_amount {
             if app_file.allocation.0.len() > 1 {
-                let address_to_check_allowance_address = db_allocator
-                    .address
-                    .ok_or(LDNError::Load("Failed to get address.".to_string()))?;
+                let contract_address = db_allocator
+                    .tooling
+                    .filter(|tooling| tooling.contains("smart_contract_allocator"))
+                    .and_then(|_| db_allocator.address.clone());
                 Self::is_allowance_sufficient(
-                    &address_to_check_allowance_address,
+                    &multisig_address,
                     &new_allocation_amount,
+                    contract_address,
                 )
                 .await?;
 
@@ -3018,10 +3027,26 @@ impl LDNApplication {
     async fn is_allowance_sufficient(
         address: &str,
         new_allocation_amount: &str,
+        contract_address: Option<String>,
     ) -> Result<(), LDNError> {
-        let allowance = get_allowance_for_address(address)
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?;
+        let allowance;
+
+        if let Some(contract_address) = contract_address {
+            let client_allowance_on_contract =
+                get_allowance_for_address_contract(address, &contract_address).await?;
+            let contract_allowance = get_allowance_for_address_direct(&contract_address)
+                .await
+                .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?;
+
+            let contract_allowance = contract_allowance.parse::<u64>().map_err(|e| {
+                LDNError::New(format!("Parse contract allowance to u64 failed: {}", e))
+            })?;
+            allowance = min(client_allowance_on_contract, contract_allowance).to_string();
+        } else {
+            allowance = get_allowance_for_address_direct(address)
+                .await
+                .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?;
+        }
 
         if allowance != "0" {
             if is_allocator_allowance_bigger_than_allocation_amount(

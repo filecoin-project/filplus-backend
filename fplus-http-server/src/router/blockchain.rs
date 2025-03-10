@@ -1,6 +1,6 @@
 use actix_web::{error::ErrorInternalServerError, get, web, HttpResponse, Responder};
 use fplus_lib::external_services::{
-    blockchain::BlockchainData, filecoin::get_allowance_for_address,
+    blockchain::BlockchainData, filecoin::get_allowance_for_address_direct,
 };
 
 /// Address Allowance.
@@ -23,7 +23,7 @@ use fplus_lib::external_services::{
 
 #[get("/blockchain/address_allowance/{address}")]
 pub async fn address_allowance(address: web::Path<String>) -> actix_web::Result<impl Responder> {
-    let res = get_allowance_for_address(&address.into_inner())
+    let res = get_allowance_for_address_direct(&address.into_inner())
         .await
         .map_err(ErrorInternalServerError)?;
     Ok(HttpResponse::Ok().body(res))
