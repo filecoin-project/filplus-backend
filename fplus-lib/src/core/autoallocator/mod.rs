@@ -3,9 +3,15 @@ use crate::core::get_env_var_or_default;
 use crate::core::verify_on_gitcoin;
 use crate::core::{LDNApplication, TriggerAutoallocationInfo};
 use crate::error::LDNError;
+use crate::external_services::blockchain::get_allowance_for_address_contract;
+use crate::external_services::filecoin::evm_address_to_filecoin_address;
+use crate::external_services::filecoin::get_allowance_for_address_direct;
 use alloy::primitives::Address;
+use alloy::signers::local::PrivateKeySigner;
+use fplus_database::config::get_env_or_throw;
 use fplus_database::database::applications::get_applications_by_client_id;
 use fplus_database::database::autoallocations as autoallocations_db;
+use std::cmp::min;
 
 pub mod metaallocator_interaction;
 
@@ -62,4 +68,47 @@ async fn upsert_autoallocation_if_eligible(evm_client_address: &Address) -> Resu
         )));
     }
     Ok(())
+}
+
+pub async fn check_if_allowance_is_sufficient() -> Result<bool, LDNError> {
+    let contract_address = get_env_var_or_default("ALLOCATOR_CONTRACT_ADDRESS");
+    let parsed_constract_address_to_fil = evm_address_to_filecoin_address(&contract_address)
+        .await
+        .map_err(|e| {
+            LDNError::Load(format!("Failed to parse EVM address to FIL address: {}", e))
+        })?;
+    let contract_allowance = get_allowance_for_address_direct(&parsed_constract_address_to_fil)
+        .await
+        .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?
+        .parse::<u64>()
+        .map_err(|e| LDNError::New(format!("Parse contract allowance to u64 failed: {}", e)))?;
+
+    let parsed_contract_address_to_evm: Address = contract_address.parse().map_err(|e| {
+        LDNError::New(format!(
+            "Failed to get evm address from filecoin address: {e:?}"
+        ))
+    })?;
+    let allocator_private_key = get_env_or_throw("AUTOALLOCATOR_PRIVATE_KEY");
+    let allocator_address = allocator_private_key
+        .parse::<PrivateKeySigner>()
+        .expect("Should parse private key")
+        .address();
+
+    let allocator_allowance_on_contract =
+        get_allowance_for_address_contract(&allocator_address, &parsed_contract_address_to_evm)
+            .await?;
+
+    let allowance = min(allocator_allowance_on_contract, contract_allowance);
+    let autoallocation_amount = get_env_var_or_default("AUTOALLOCATION_AMOUNT")
+        .parse::<u64>()
+        .map_err(|e| {
+            LDNError::New(format!(
+                "Parse days to next allocation to i64 failed: {}",
+                e
+            ))
+        })?;
+    if allowance < autoallocation_amount {
+        return Ok(false);
+    }
+    Ok(true)
 }
