@@ -7,6 +7,9 @@ on:
       version:
         required: false
         type: string
+      commit_sha:
+        required: false
+        type: string
 
 env:
   ECR_REPOSITORY: "filplus-backend"
@@ -19,6 +22,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
