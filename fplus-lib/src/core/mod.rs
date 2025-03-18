@@ -18,7 +18,9 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
-use crate::external_services::blockchain::get_allowance_for_address_contract;
+use crate::external_services::blockchain::{
+    filecoin_address_to_evm_address_type, get_allowance_for_address_contract,
+};
 use crate::external_services::dmob::get_client_allocation;
 use crate::external_services::similarity_detection::detect_similar_applications;
 use crate::{
@@ -3032,8 +3034,12 @@ impl LDNApplication {
         let allowance;
 
         if let Some(contract_address) = contract_address {
+            let evm_user_address = filecoin_address_to_evm_address_type(address).await?;
+            let evm_contract_address = filecoin_address_to_evm_address_type(address).await?;
+
             let client_allowance_on_contract =
-                get_allowance_for_address_contract(address, &contract_address).await?;
+                get_allowance_for_address_contract(&evm_user_address, &evm_contract_address)
+                    .await?;
             let contract_allowance = get_allowance_for_address_direct(&contract_address)
                 .await
                 .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?;
