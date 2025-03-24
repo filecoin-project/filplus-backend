@@ -29,3 +29,11 @@ pub async fn trigger_autoallocation(
             .expect("Serialization of static string should succeed"),
     ))
 }
+
+#[get("/autoallocator/check_if_allowance_is_sufficient")]
+pub async fn check_if_allowance_is_sufficient() -> actix_web::Result<impl Responder> {
+    let allowance_sufficient = autoallocator::check_if_allowance_is_sufficient()
+        .await
+        .map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok().json(allowance_sufficient))
+}
