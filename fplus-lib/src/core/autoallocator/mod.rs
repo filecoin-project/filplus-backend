@@ -72,12 +72,12 @@ async fn upsert_autoallocation_if_eligible(evm_client_address: &Address) -> Resu
 
 pub async fn check_if_allowance_is_sufficient() -> Result<bool, LDNError> {
     let contract_address = get_env_var_or_default("ALLOCATOR_CONTRACT_ADDRESS");
-    let parsed_constract_address_to_fil = evm_address_to_filecoin_address(&contract_address)
+    let parsed_contract_address_to_fil = evm_address_to_filecoin_address(&contract_address)
         .await
         .map_err(|e| {
-            LDNError::Load(format!("Failed to parse EVM address to FIL address: {}", e))
-        })?;
-    let contract_allowance = get_allowance_for_address_direct(&parsed_constract_address_to_fil)
+        LDNError::Load(format!("Failed to parse EVM address to FIL address: {}", e))
+    })?;
+    let contract_allowance = get_allowance_for_address_direct(&parsed_contract_address_to_fil)
         .await
         .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?
         .parse::<u64>()
