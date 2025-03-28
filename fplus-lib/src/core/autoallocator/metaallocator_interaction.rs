@@ -55,9 +55,7 @@ pub async fn add_verified_client(address: &str, amount: &u64) -> Result<(), LDNE
 
     let tx = TransactionRequest::default()
         .with_to(allocator_contract)
-        .with_input(input)
-        .with_gas_limit(45_000_000);
-
+        .with_input(input);
     let tx = provider
         .send_transaction(tx)
         .await
