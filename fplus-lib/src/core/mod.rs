@@ -3035,7 +3035,8 @@ impl LDNApplication {
 
         if let Some(contract_address) = contract_address {
             let evm_user_address = filecoin_address_to_evm_address_type(address).await?;
-            let evm_contract_address = filecoin_address_to_evm_address_type(address).await?;
+            let evm_contract_address =
+                filecoin_address_to_evm_address_type(&contract_address).await?;
 
             let client_allowance_on_contract =
                 get_allowance_for_address_contract(&evm_user_address, &evm_contract_address)
