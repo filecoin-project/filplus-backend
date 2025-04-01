@@ -96,6 +96,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::merged)
             .service(router::application::active)
             .service(router::application::all_applications)
+            .service(router::application::closed_applications)
             .service(router::application::notify_refill)
             .service(router::application::total_dc_reached)
             .service(router::application::single)

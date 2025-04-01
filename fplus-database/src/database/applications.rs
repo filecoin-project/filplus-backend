@@ -31,7 +31,8 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
                 a.sha,
                 a.path,
                 a.client_contract_address,
-                a.issue_reporter_handle
+                a.issue_reporter_handle,
+                a.closed
             FROM 
                 applications a 
             ORDER BY 
@@ -60,6 +61,7 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
             path: get_string_field(&app, "path"),
             client_contract_address: get_string_field(&app, "client_contract_address"),
             issue_reporter_handle: get_string_field(&app, "issue_reporter_handle"),
+            closed: get_bool_field(&app, "closed"),
         })
         .collect();
 
@@ -79,6 +81,10 @@ fn parse_datetime_field(json: &JsonValue, field: &str) -> Option<DateTime<Utc>> 
     json.get(field)?
         .as_str()
         .and_then(|s| s.parse::<DateTime<Utc>>().ok())
+}
+
+fn get_bool_field(json: &JsonValue, field: &str) -> Option<bool> {
+    json.get(field)?.as_bool()
 }
 
 /**
@@ -307,6 +313,7 @@ pub async fn update_application(
     path: Option<String>,
     sha: Option<String>,
     client_contract_address: Option<String>,
+    closed: Option<bool>,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
@@ -332,6 +339,10 @@ pub async fn update_application(
         active_application.client_contract_address = Set(Some(client_contract_address));
     } else {
         active_application.client_contract_address = Set(None);
+    }
+
+    if let Some(closed) = closed {
+        active_application.closed = Set(Some(closed));
     }
 
     let updated_application = active_application.update(&conn).await?;
@@ -363,6 +374,7 @@ pub async fn create_application(
     app_file: String,
     path: String,
     issue_reporter_handle: Option<String>,
+    closed: Option<bool>,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
     //Calculate SHA
@@ -381,6 +393,7 @@ pub async fn create_application(
         sha: Set(Some(file_sha)),
         path: Set(Some(path)),
         issue_reporter_handle: Set(issue_reporter_handle),
+        closed: Set(closed),
         ..Default::default()
     };
 
@@ -438,5 +451,19 @@ pub async fn get_distinct_applications_by_clients_addresses(
         .all(&conn)
         .await?;
 
+    Ok(result)
+}
+
+pub async fn get_closed_applications(
+    owner: &str,
+    repo: &str,
+) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+    let result = Application::find()
+        .filter(Column::Closed.eq(true))
+        .filter(Column::Owner.eq(owner))
+        .filter(Column::Repo.eq(repo))
+        .all(&conn)
+        .await?;
     Ok(result)
 }

@@ -29,6 +29,8 @@ pub struct Model {
     pub client_contract_address: Option<String>,
     #[sea_orm(nullable)]
     pub issue_reporter_handle: Option<String>,
+    #[sea_orm(nullable)]
+    pub closed: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

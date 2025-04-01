@@ -869,6 +869,7 @@ impl LDNApplication {
                         file_content,
                         LDNPullRequest::application_path(&app_id),
                         Some(issue_reporter_handle),
+                        Some(!application_file.lifecycle.is_active),
                     )
                     .await
                     .map_err(|e| {
@@ -1032,6 +1033,7 @@ impl LDNApplication {
                 Some(app_path.clone()),
                 None,
                 client_contract_address,
+                None,
             )
             .await
             .map_err(|e| {
@@ -1184,6 +1186,7 @@ impl LDNApplication {
                 Some(self.file_name.clone()),
                 None,
                 app_file.client_contract_address.clone(),
+                None,
             )
             .await
             .map_err(|e| {
@@ -1759,13 +1762,7 @@ impl LDNApplication {
             .await
             .map_err(|e| LDNError::Load(format!("here1 {}", e)))?;
         let app = match ApplicationFile::from_str(&file) {
-            Ok(app) => {
-                if app.lifecycle.is_active {
-                    app
-                } else {
-                    return Ok(None);
-                }
-            }
+            Ok(app) => app,
             Err(_) => {
                 return Ok(None);
             }
@@ -2271,6 +2268,7 @@ impl LDNApplication {
                     Some(ldn_application.file_name.clone()),
                     None,
                     app_file.client_contract_address,
+                    Some(!app_file.lifecycle.is_active),
                 )
                 .await
                 .map_err(|e| LDNError::Load(format!("Failed to update application: {}", e)))?;
@@ -2343,6 +2341,7 @@ impl LDNApplication {
                 Some(filename.clone()),
                 None,
                 db_application_file.client_contract_address.clone(),
+                Some(!db_application_file.lifecycle.is_active),
             )
             .await
             .map_err(|e| {
@@ -2619,6 +2618,7 @@ impl LDNApplication {
                     Some(filename.clone()),
                     None,
                     application_file.client_contract_address.clone(),
+                    Some(!application_file.lifecycle.is_active),
                 )
                 .await
                 .map_err(|e| {
@@ -2649,6 +2649,7 @@ impl LDNApplication {
                     file_content.clone(),
                     filename.clone(),
                     Some(issue_reporter_handle),
+                    Some(!application_file.lifecycle.is_active),
                 )
                 .await
                 .map_err(|e| {
@@ -3006,6 +3007,7 @@ impl LDNApplication {
                     application_model.path.clone(),
                     None,
                     app_file.client_contract_address,
+                    None,
                 )
                 .await
                 .map_err(|e| {
@@ -3659,6 +3661,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                         None,
                         Some(gh_app.sha.clone()),
                         gh_app.application_file.client_contract_address.clone(),
+                        Some(!gh_app.application_file.lifecycle.is_active),
                     )
                     .await
                     .map_err(|e| {
@@ -3718,6 +3721,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     parsed_app_file,
                     gh_app.path,
                     Some(issue_reporter_handle),
+                    Some(!gh_app.application_file.lifecycle.is_active),
                 )
                 .await
                 .map_err(|e| {
@@ -3766,6 +3770,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                         Some(gh_app.path.clone()),
                         Some(gh_app.sha.clone()),
                         gh_app.application_file.client_contract_address.clone(),
+                        Some(!gh_app.application_file.lifecycle.is_active),
                     )
                     .await
                     .map_err(|e| {
@@ -3824,6 +3829,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     parsed_app_file,
                     gh_app.path,
                     Some(issue_reporter_handle),
+                    Some(!gh_app.application_file.lifecycle.is_active),
                 )
                 .await
                 .map_err(|e| {
@@ -4018,6 +4024,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             app_model.path.clone(),
             None,
             application_file.client_contract_address.clone(),
+            None,
         )
         .await
         .map_err(|e| LDNError::Load(format!("Failed to update application: {} /// {}", id, e)))?;
@@ -4184,6 +4191,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             app_model.path.clone(),
             None,
             application_file.client_contract_address.clone(),
+            None,
         )
         .await
         .map_err(|e| {
@@ -4601,6 +4609,9 @@ impl LDNPullRequest {
             .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {}", e)))?;
 
         if should_create_in_db {
+            let app_file = ApplicationFile::from_str(&file_content).map_err(|e| {
+                LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+            })?;
             let issue_number = issue_number
                 .parse::<i64>()
                 .map_err(|e| LDNError::New(format!("Parse issue number to i64 failed: {}", e)))?;
@@ -4618,6 +4629,7 @@ impl LDNPullRequest {
                 file_content,
                 file_name,
                 Some(issue_reporter_handle),
+                Some(!app_file.lifecycle.is_active),
             )
             .await
             .map_err(|e| {

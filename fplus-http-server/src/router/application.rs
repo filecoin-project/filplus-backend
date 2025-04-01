@@ -2,6 +2,7 @@ use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError, ErrorNotFound},
     get, post, web, HttpResponse, Responder,
 };
+use fplus_database::database::applications::get_closed_applications;
 use fplus_lib::core::{
     application::file::{StorageProviderChangeVerifier, VerifierInput},
     ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo,
@@ -274,6 +275,21 @@ pub async fn all_applications() -> actix_web::Result<impl Responder> {
     let apps = LDNApplication::all_applications()
         .await
         .map_err(ErrorNotFound)?;
+
+    let parsed = serde_json::to_string_pretty(&apps).map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(parsed))
+}
+
+#[get("/applications/closed")]
+pub async fn closed_applications(
+    query: web::Query<GithubQueryParams>,
+) -> actix_web::Result<impl Responder> {
+    let GithubQueryParams { owner, repo } = query.into_inner();
+    let apps = get_closed_applications(&owner, &repo)
+        .await
+        .map_err(ErrorInternalServerError)?;
 
     let parsed = serde_json::to_string_pretty(&apps).map_err(ErrorInternalServerError)?;
     Ok(HttpResponse::Ok()
