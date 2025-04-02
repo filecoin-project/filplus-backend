@@ -12,7 +12,7 @@ use sha1::{Digest, Sha1};
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+pub async fn get_active_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
 
     //Get all applications from the database.
@@ -34,6 +34,8 @@ pub async fn get_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr>
                 a.issue_reporter_handle
             FROM 
                 applications a 
+            WHERE 
+                (application::json->'Lifecycle'->>'Active')::boolean IS TRUE
             ORDER BY 
                 a.owner, 
                 a.repo, 
@@ -125,7 +127,7 @@ pub async fn get_merged_applications(
  * # Returns
  * @return Result<Vec<ApplicationModel>, sea_orm::DbErr> - The result of the operation
  */
-pub async fn get_active_applications(
+pub async fn get_applications_with_open_pull_request(
     owner: Option<String>,
     repo: Option<String>,
 ) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
@@ -438,5 +440,40 @@ pub async fn get_distinct_applications_by_clients_addresses(
         .all(&conn)
         .await?;
 
+    Ok(result)
+}
+
+pub async fn get_closed_applications() -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+    let result = Application::find()
+        .from_raw_sql(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT * 
+            FROM applications 
+            WHERE (application::json->'Lifecycle'->>'Active')::boolean IS NOT TRUE",
+            [],
+        ))
+        .all(&conn)
+        .await?;
+    Ok(result)
+}
+
+pub async fn get_allocator_closed_applications(
+    owner: &str,
+    repo: &str,
+) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+    let result = Application::find()
+        .from_raw_sql(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT * 
+            FROM applications 
+            WHERE (application::json->'Lifecycle'->>'Active')::boolean IS NOT TRUE
+            AND owner = $1
+            AND repo = $2",
+            [owner.into(), repo.into()],
+        ))
+        .all(&conn)
+        .await?;
     Ok(result)
 }

@@ -2,6 +2,9 @@ use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError, ErrorNotFound},
     get, post, web, HttpResponse, Responder,
 };
+use fplus_database::database::applications::{
+    get_allocator_closed_applications, get_closed_applications,
+};
 use fplus_lib::core::{
     application::file::{StorageProviderChangeVerifier, VerifierInput},
     ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo,
@@ -32,6 +35,33 @@ pub async fn single(
         .map_err(ErrorNotFound)?;
     let body = serde_json::to_string_pretty(&app_file).map_err(ErrorInternalServerError)?;
     Ok(HttpResponse::Ok().body(body))
+}
+
+#[get("/applications/closed")]
+pub async fn closed_applications() -> actix_web::Result<impl Responder> {
+    let apps = get_closed_applications()
+        .await
+        .map_err(ErrorInternalServerError)?;
+
+    let parsed = serde_json::to_string_pretty(&apps).map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(parsed))
+}
+
+#[get("/applications/closed/allocator")]
+pub async fn closed_allocator_applications(
+    query: web::Query<GithubQueryParams>,
+) -> actix_web::Result<impl Responder> {
+    let GithubQueryParams { owner, repo } = query.into_inner();
+    let apps = get_allocator_closed_applications(&owner, &repo)
+        .await
+        .map_err(ErrorInternalServerError)?;
+
+    let parsed = serde_json::to_string_pretty(&apps).map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(parsed))
 }
 
 #[get("/application/with-allocation-amount")]
@@ -269,7 +299,7 @@ pub async fn additional_info_required(
     Ok(HttpResponse::Ok().body(serialized_app))
 }
 
-#[get("/applications")]
+#[get("/applications/active")]
 pub async fn all_applications() -> actix_web::Result<impl Responder> {
     let apps = LDNApplication::all_applications()
         .await
@@ -281,7 +311,7 @@ pub async fn all_applications() -> actix_web::Result<impl Responder> {
         .body(parsed))
 }
 
-#[get("/application/active")]
+#[get("/applications/open_pull_request")]
 pub async fn active(query: web::Query<GithubQueryParams>) -> actix_web::Result<impl Responder> {
     let GithubQueryParams { owner, repo } = query.into_inner();
     let app = LDNApplication::active(owner, repo, None)

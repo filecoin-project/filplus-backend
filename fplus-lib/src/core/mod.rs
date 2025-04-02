@@ -513,7 +513,7 @@ impl LDNApplication {
     }
 
     pub async fn all_applications() -> Result<Vec<ApplicationResponse>, LDNError> {
-        let db_apps = database::applications::get_applications()
+        let db_apps = database::applications::get_active_applications()
             .await
             .map_err(|e| {
                 LDNError::Load(format!(
@@ -543,9 +543,12 @@ impl LDNApplication {
         filter: Option<String>,
     ) -> Result<Vec<ApplicationResponse>, LDNError> {
         // Get all active applications from the database.
-        let active_apps = database::applications::get_active_applications(Some(owner), Some(repo))
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to get active applications: {}", e)))?;
+        let active_apps = database::applications::get_applications_with_open_pull_request(
+            Some(owner),
+            Some(repo),
+        )
+        .await
+        .map_err(|e| LDNError::Load(format!("Failed to get active applications: {}", e)))?;
 
         // Filter and convert active applications.
         let mut apps: Vec<ApplicationResponse> = Vec::new();
@@ -712,7 +715,7 @@ impl LDNApplication {
                 )
                 .await;
 
-                let applications = database::applications::get_applications()
+                let applications = database::applications::get_active_applications()
                     .await
                     .map_err(|e| LDNError::Load(format!("Failed to get applications: {}", e)))?;
 
@@ -1759,13 +1762,7 @@ impl LDNApplication {
             .await
             .map_err(|e| LDNError::Load(format!("here1 {}", e)))?;
         let app = match ApplicationFile::from_str(&file) {
-            Ok(app) => {
-                if app.lifecycle.is_active {
-                    app
-                } else {
-                    return Ok(None);
-                }
-            }
+            Ok(app) => app,
             Err(_) => {
                 return Ok(None);
             }
@@ -3631,7 +3628,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let active_from_gh: Vec<ApplicationFileWithDate> =
             LDNApplication::active_apps_with_last_update(owner.clone(), repo.clone(), None).await?;
         let active_from_db: Vec<ApplicationModel> =
-            database::applications::get_active_applications(
+            database::applications::get_applications_with_open_pull_request(
                 Some(owner.clone()),
                 Some(repo.clone()),
             )
