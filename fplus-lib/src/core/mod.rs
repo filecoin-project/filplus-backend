@@ -1090,10 +1090,9 @@ impl LDNApplication {
         ))?;
 
         // Get multisig threshold from blockchain
-        let blockchain_threshold = match get_multisig_threshold_for_actor(&multisig_address).await {
-            Ok(threshold) => Some(threshold),
-            Err(_) => None,
-        };
+        let blockchain_threshold = get_multisig_threshold_for_actor(&multisig_address)
+            .await
+            .ok();
 
         let db_threshold: u64 = db_allocator.multisig_threshold.unwrap_or(2) as u64;
 
