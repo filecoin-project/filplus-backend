@@ -513,7 +513,7 @@ impl LDNApplication {
     }
 
     pub async fn all_applications() -> Result<Vec<ApplicationResponse>, LDNError> {
-        let db_apps = database::applications::get_active_applications()
+        let applications = database::applications::get_active_applications()
             .await
             .map_err(|e| {
                 LDNError::Load(format!(
@@ -521,11 +521,47 @@ impl LDNApplication {
                     e
                 ))
             })?;
-        let mut all_apps: Vec<ApplicationResponse> = Vec::new();
-        for app in db_apps {
+        let applications_response = Self::prepare_applications_response(applications);
+        Ok(applications_response)
+    }
+
+    pub async fn get_closed_applications() -> Result<Vec<ApplicationResponse>, LDNError> {
+        let applications = database::applications::get_closed_applications()
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to get applications from the database: {}",
+                    e
+                ))
+            })?;
+        let applications_response = Self::prepare_applications_response(applications);
+        Ok(applications_response)
+    }
+
+    pub async fn get_allocator_closed_applications(
+        owner: &str,
+        repo: &str,
+    ) -> Result<Vec<ApplicationResponse>, LDNError> {
+        let applications = database::applications::get_allocator_closed_applications(owner, repo)
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to get applications from the database: {}",
+                    e
+                ))
+            })?;
+        let applications_response = Self::prepare_applications_response(applications);
+        Ok(applications_response)
+    }
+
+    fn prepare_applications_response(
+        applications: Vec<ApplicationModel>,
+    ) -> Vec<ApplicationResponse> {
+        let mut applications_response: Vec<ApplicationResponse> = Vec::new();
+        for app in applications {
             if let Some(application_data) = app.application {
                 if let Ok(app_file) = ApplicationFile::from_str(&application_data) {
-                    all_apps.push(ApplicationResponse {
+                    applications_response.push(ApplicationResponse {
                         file: app_file,
                         issue_reporter_handle: app.issue_reporter_handle,
                         repo: app.repo,
@@ -534,7 +570,7 @@ impl LDNApplication {
                 }
             }
         }
-        Ok(all_apps)
+        applications_response
     }
 
     pub async fn active(
