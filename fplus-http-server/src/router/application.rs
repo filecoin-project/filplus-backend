@@ -2,9 +2,7 @@ use actix_web::{
     error::{ErrorBadRequest, ErrorInternalServerError, ErrorNotFound},
     get, post, web, HttpResponse, Responder,
 };
-use fplus_database::database::applications::{
-    get_allocator_closed_applications, get_closed_applications,
-};
+
 use fplus_lib::core::{
     application::file::{StorageProviderChangeVerifier, VerifierInput},
     ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo,
@@ -39,7 +37,7 @@ pub async fn single(
 
 #[get("/applications/closed")]
 pub async fn closed_applications() -> actix_web::Result<impl Responder> {
-    let apps = get_closed_applications()
+    let apps = LDNApplication::get_closed_applications()
         .await
         .map_err(ErrorInternalServerError)?;
 
@@ -54,7 +52,7 @@ pub async fn closed_allocator_applications(
     query: web::Query<GithubQueryParams>,
 ) -> actix_web::Result<impl Responder> {
     let GithubQueryParams { owner, repo } = query.into_inner();
-    let apps = get_allocator_closed_applications(&owner, &repo)
+    let apps = LDNApplication::get_allocator_closed_applications(&owner, &repo)
         .await
         .map_err(ErrorInternalServerError)?;
 
