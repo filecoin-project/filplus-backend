@@ -23,6 +23,7 @@ use crate::external_services::blockchain::{
 };
 use crate::external_services::dmob::get_client_allocation;
 use crate::external_services::similarity_detection::detect_similar_applications;
+use crate::helpers::format_size_human_readable;
 use crate::{
     base64,
     config::get_env_var_or_default,
@@ -3440,14 +3441,13 @@ _(NEW vs OLD)_
         owner: String,
         repo: String,
     ) -> Result<bool, LDNError> {
-        let mut datacap_allocation_requested = String::new();
+        let mut parsed_requested_datacap = String::new();
         let mut id = String::new();
 
         if let Some(allocation) = active_allocation {
-            datacap_allocation_requested.clone_from(&allocation.amount);
+            parsed_requested_datacap = format_size_human_readable(&allocation.amount)?;
             id.clone_from(&allocation.id);
         }
-
         let comment = format!(
             "## DataCap Allocation requested
 
@@ -3464,7 +3464,7 @@ _(NEW vs OLD)_
 > {}",
             application_file.datacap.identifier.clone(),
             application_file.lifecycle.client_on_chain_address.clone(),
-            datacap_allocation_requested,
+            parsed_requested_datacap,
             id
         );
 
@@ -3491,14 +3491,14 @@ _(NEW vs OLD)_
             .to_string()
             + &signature_step.chars().skip(1).collect::<String>();
 
-        let mut datacap_allocation_requested = String::new();
+        let mut parsed_requested_datacap = String::new();
         let mut id = String::new();
         let mut signing_address = String::new();
         let mut message_cid = String::new();
         let mut increase_allowance_cid: Option<String> = None;
 
         if let Some(allocation) = active_allocation {
-            datacap_allocation_requested.clone_from(&allocation.amount);
+            parsed_requested_datacap = format_size_human_readable(&allocation.amount)?;
             id.clone_from(&allocation.id);
 
             if let Some(first_verifier) = allocation.signers.0.last() {
@@ -3537,7 +3537,7 @@ Your Datacap Allocation Request has been {} by the Notary
             message_cid,
             increase_allowance_cid.unwrap_or_default(),
             application_file.lifecycle.client_on_chain_address.clone(),
-            datacap_allocation_requested,
+            parsed_requested_datacap,
             signing_address,
             id,
             message_cid,
