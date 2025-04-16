@@ -8,6 +8,13 @@ pub fn parse_size_to_bytes(size: &str) -> Option<u64> {
     bytes.try_into().ok()
 }
 
+pub fn format_size_human_readable(size: &str) -> Result<String, LDNError> {
+    let bytes = parse_size_to_bytes(size)
+        .ok_or(LDNError::Load("Failed to parse size to bytes".to_string()))?;
+    let parsed_value = Size::from_bytes(bytes);
+    Ok(parsed_value.to_string())
+}
+
 pub fn is_allocator_allowance_bigger_than_allocation_amount(
     allowance: &str,
     new_allocation_amount: &str,
