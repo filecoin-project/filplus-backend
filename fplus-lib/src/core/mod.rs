@@ -4082,16 +4082,12 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .iter()
             .max_by_key(|request| request.updated_at.clone());
 
-        let last_sps_change = application_file
-            .allowed_sps
-            .as_ref()
-            .map(|requests| {
-                requests
-                    .0
-                    .iter()
-                    .max_by_key(|request| request.updated_at.clone())
-            })
-            .flatten();
+        let last_sps_change = application_file.allowed_sps.as_ref().and_then(|requests| {
+            requests
+                .0
+                .iter()
+                .max_by_key(|request| request.updated_at.clone())
+        });
 
         if let Some(allocation) = last_allocation {
             if let Some(sps_change) = last_sps_change {
@@ -4099,11 +4095,9 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     return Some(sps_change.id.clone());
                 }
             }
-            return Some(allocation.id.clone());
-        } else if let Some(sps_change) = last_sps_change {
-            return Some(sps_change.id.clone());
+            Some(allocation.id.clone())
         } else {
-            return None;
+            last_sps_change.map(|sps_change| sps_change.id.clone())
         }
     }
 
