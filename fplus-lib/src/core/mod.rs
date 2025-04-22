@@ -1654,7 +1654,7 @@ impl LDNApplication {
             .find_first(|(_, app)| app.file.id == application_id);
         if let Some(app) = application {
             if app.1.file.lifecycle.get_state() == AppState::Granted {
-                let app = app.1.file.reached_total_datacap();
+                let app = app.1.file.close_application();
                 let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
                 let ldn_app =
                     LDNApplication::load(application_id.clone(), owner.clone(), repo.clone())
@@ -1978,6 +1978,9 @@ impl LDNApplication {
 
             Self::merge_application(pr_number, owner, repo).await?;
             return Ok(true);
+        } else if application.lifecycle.get_state() == AppState::DeclineApplication {
+            Self::merge_application(pr_number, owner, repo).await?;
+            return Ok(true);
         }
 
         log::warn!("- Application is not in a valid state");
@@ -2254,7 +2257,11 @@ impl LDNApplication {
                     true
                 }
                 AppState::ChangingSP => {
-                    log::warn!("Val Trigger (RtS) - Application state is ChangingSP");
+                    log::warn!("Val Trigger (CS) - Application state is ChangingSP");
+                    return Ok(false);
+                }
+                AppState::DeclineApplication => {
+                    log::warn!("Val Trigger (DC) - Application state is DeclineApplication");
                     return Ok(false);
                 }
                 AppState::Error => {
@@ -3872,7 +3879,6 @@ _The initial issue can be edited in order to solve the request of the verifier. 
     }
 
     pub async fn decline_application(&self, owner: String, repo: String) -> Result<(), LDNError> {
-        // Retrieve the application model from the database.
         let app_model = database::applications::get_application(
             self.application_id.clone(),
             owner.clone(),
@@ -3880,34 +3886,62 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             None,
         )
         .await
-        .map_err(|_| LDNError::Load("No application found".to_string()))?;
+        .map_err(|e| LDNError::New(format!("Failed to get application from database: {}", e)))?;
 
-        // Check if the application is associated with a PR.
-        if app_model.pr_number == 0 {
-            return Err(LDNError::New("Application is not in a PR".to_string()));
-        }
         let app_str = &app_model
             .application
-            .ok_or(LDNError::Load("Failed to get application".to_string()))?;
+            .ok_or(LDNError::New("Failed to get application file".to_string()))?;
 
-        let db_application_file =
-            serde_json::from_str::<ApplicationFile>(app_str).map_err(|e| {
-                LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
-            })?;
+        let application_file = ApplicationFile::from_str(app_str).map_err(|e| {
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+        })?;
 
-        if db_application_file.lifecycle.get_state() > AppState::Submitted {
-            return Err(LDNError::New(
-                "Application is in a state that cannot be declined".to_string(),
-            ));
+        let application_state = application_file.lifecycle.get_state();
+        let allowed_state = application_state == AppState::KYCRequested
+            || application_state == AppState::AdditionalInfoRequired
+            || application_state == AppState::Submitted
+            || application_state == AppState::AdditionalInfoSubmitted;
+
+        if (app_model.pr_number != 0 && !allowed_state)
+            || (app_model.pr_number == 0 && application_state != AppState::Granted)
+        {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected KYCRequested, AdditionalInfoRequired, Submitted, AdditionalInfoSubmitted or Granted",
+                application_state
+            )));
+        }
+        let closed_application = application_file.close_application();
+        if app_model.pr_number == 0 {
+            let file_content = serde_json::to_string_pretty(&closed_application)
+                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+            LDNPullRequest::create_pr_for_existing_application(
+                app_model.id.clone(),
+                file_content,
+                self.file_name.clone(),
+                format!("{}-decline-application", app_model.id),
+                self.file_sha.clone(),
+                owner.clone(),
+                repo.clone(),
+                true,
+                app_model.issue_number.to_string().clone(),
+                format!("Decline application: {}", closed_application.client.name),
+            )
+            .await?;
+        } else {
+            self.update_and_commit_application_state(
+                closed_application.clone(),
+                self.github.owner.clone(),
+                self.github.repo.clone(),
+                self.file_sha.clone(),
+                self.branch_name.clone(),
+                self.file_name.clone(),
+                "Decline application".to_string(),
+            )
+            .await?;
         }
 
-        let issue_number = self
-            .file()
-            .await
-            .map_err(|_| LDNError::Load("Failed to retrieve file details".into()))?
-            .issue_number;
         LDNApplication::issue_application_declined(
-            issue_number.clone(),
+            application_file.issue_number.clone(),
             owner.clone(),
             repo.clone(),
         )
@@ -3919,29 +3953,158 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             ))
         })?;
 
-        // Attempt to close the associated pull request.
-        LDNPullRequest::close_pull_request(owner.clone(), repo.clone(), app_model.pr_number as u64)
-            .await
-            .map_err(|e| LDNError::New(format!("Failed to close PR: {}", e)))?;
+        Ok(())
+    }
 
-        // Attempt to delete the associated branch.
-        LDNPullRequest::delete_branch(app_model.id, owner.clone(), repo.clone())
-            .await
-            .map_err(|e| LDNError::New(format!("Failed to delete branch: {}", e)))?;
-
-        // Delete the application from the database.
-        database::applications::delete_application(
-            self.application_id.clone(),
-            owner.clone(),
-            repo.clone(),
-            app_model.pr_number as u64,
+    pub async fn reopen_decline_application(
+        owner: &str,
+        repo: &str,
+        verifier: &str,
+        application_id: &str,
+    ) -> Result<(), LDNError> {
+        let app_model = database::applications::get_application(
+            application_id.into(),
+            owner.into(),
+            repo.into(),
+            None,
         )
         .await
-        .map_err(|_| LDNError::New("Failed to delete application".to_string()))?;
+        .map_err(|e| LDNError::New(format!("Failed to get application from database: {}", e)))?;
 
-        // Issue a notification about the application decline.
+        let app_str = &app_model
+            .application
+            .ok_or(LDNError::New("Failed to get application file".to_string()))?;
+
+        let application_file = ApplicationFile::from_str(app_str).map_err(|e| {
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+        })?;
+
+        let application_state = application_file.lifecycle.get_state();
+
+        if application_state != AppState::DeclineApplication {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected DeclineApplication",
+                application_state
+            )));
+        }
+
+        if app_model.pr_number != 0 {
+            return Err(LDNError::Load(format!(
+                "Reopening is not possible. The application already has an open pull request: {:?}.",
+                app_model.pr_number
+            )));
+        }
+
+        let reopen_application;
+        let issue_label;
+        if application_file.allocation.0.is_empty() {
+            reopen_application = application_file.reopen_decline_application_to_submitted_state();
+            issue_label = AppState::Submitted.as_str();
+        } else {
+            let last_active_request = Self::get_last_active_request(&application_file).ok_or(
+                LDNError::Load("Failed to get last active request".to_string()),
+            )?;
+            reopen_application = application_file.reopen_decline_application_to_granted_state(
+                verifier,
+                last_active_request.as_ref(),
+            );
+            issue_label = AppState::Granted.as_str();
+        }
+
+        let file_content = serde_json::to_string_pretty(&reopen_application)
+            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+        let path = app_model
+            .path
+            .ok_or(LDNError::Load("Failed to get application path".to_string()))?;
+        let sha = app_model
+            .sha
+            .ok_or(LDNError::Load("Failed to get application sha".to_string()))?;
+        let pr_number = LDNPullRequest::create_pr_for_existing_application(
+            app_model.id.clone(),
+            file_content,
+            path,
+            format!("{}-reopen-application", app_model.id),
+            sha,
+            owner.into(),
+            repo.into(),
+            true,
+            app_model.issue_number.to_string().clone(),
+            format!("Reopen application: {}", reopen_application.client.name),
+        )
+        .await?;
+
+        Self::add_comment_to_issue(
+            app_model.issue_number.to_string(),
+            owner.into(),
+            repo.into(),
+            "### The application has been reopened.".to_string(),
+        )
+        .await?;
+        Self::update_issue_labels(
+            app_model.issue_number.to_string(),
+            &[issue_label],
+            owner.into(),
+            repo.into(),
+        )
+        .await?;
+
+        if !application_file.allocation.0.is_empty() {
+            let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
+
+            gh.merge_pull_request(pr_number).await.map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to merge pull request {}. Reason: {}",
+                    pr_number, e
+                ))
+            })?;
+
+            database::applications::merge_application_by_pr_number(
+                owner.to_string(),
+                repo.to_string(),
+                pr_number,
+            )
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to update application in database. Reason: {}",
+                    e
+                ))
+            })?;
+        }
 
         Ok(())
+    }
+
+    fn get_last_active_request(application_file: &ApplicationFile) -> Option<String> {
+        let last_allocation = application_file
+            .allocation
+            .0
+            .iter()
+            .max_by_key(|request| request.updated_at.clone());
+
+        let last_sps_change = application_file
+            .allowed_sps
+            .as_ref()
+            .map(|requests| {
+                requests
+                    .0
+                    .iter()
+                    .max_by_key(|request| request.updated_at.clone())
+            })
+            .flatten();
+
+        if let Some(allocation) = last_allocation {
+            if let Some(sps_change) = last_sps_change {
+                if sps_change.updated_at > allocation.updated_at {
+                    return Some(sps_change.id.clone());
+                }
+            }
+            return Some(allocation.id.clone());
+        } else if let Some(sps_change) = last_sps_change {
+            return Some(sps_change.id.clone());
+        } else {
+            return None;
+        }
     }
 
     pub async fn additional_info_required(

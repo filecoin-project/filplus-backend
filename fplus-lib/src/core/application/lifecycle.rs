@@ -14,6 +14,7 @@ impl AppState {
             AppState::StartSignDatacap => "start sign datacap",
             AppState::Granted => "granted",
             AppState::TotalDatacapReached => "total datacap reached",
+            AppState::DeclineApplication => "decline application",
             AppState::ChangingSP => "changing SPs",
             AppState::Error => "error",
         }
@@ -116,13 +117,37 @@ impl LifeCycle {
         self.active_request
     }
 
-    pub fn reached_total_datacap(self) -> Self {
-        let empty = "".to_string();
-
+    pub fn close_application(self) -> Self {
         LifeCycle {
+            state: AppState::DeclineApplication,
             is_active: false,
             updated_at: Utc::now().to_string(),
-            active_request: Some(empty),
+            active_request: None,
+            ..self
+        }
+    }
+
+    pub fn reopen_decline_application_to_submitted_state(self) -> Self {
+        LifeCycle {
+            state: AppState::Submitted,
+            is_active: true,
+            updated_at: Utc::now().to_string(),
+            ..self
+        }
+    }
+
+    pub fn reopen_decline_application_to_granted_state(
+        self,
+        verifier: &str,
+        request_id: &str,
+    ) -> Self {
+        LifeCycle {
+            state: AppState::Granted,
+            validated_by: verifier.into(),
+            validated_at: Utc::now().to_string(),
+            is_active: true,
+            updated_at: Utc::now().to_string(),
+            active_request: Some(request_id.into()),
             ..self
         }
     }
