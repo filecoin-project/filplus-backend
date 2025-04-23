@@ -137,11 +137,7 @@ impl LifeCycle {
         }
     }
 
-    pub fn move_back_to_granted_state(
-        self,
-        verifier: &str,
-        request_id: &str,
-    ) -> Self {
+    pub fn move_back_to_granted_state(self, verifier: &str, request_id: &str) -> Self {
         LifeCycle {
             state: AppState::Granted,
             validated_by: verifier.into(),
