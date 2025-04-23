@@ -67,34 +67,27 @@ impl file::ApplicationFile {
         }
     }
 
-    pub fn close_application(&self) -> Self {
-        let new_life_cycle = self.lifecycle.clone().close_application();
+    pub fn reached_total_datacap(&self) -> Self {
+        let new_life_cycle = self.lifecycle.clone().reached_total_datacap();
         Self {
             lifecycle: new_life_cycle,
             ..self.clone()
         }
     }
 
-    pub fn reopen_decline_application_to_submitted_state(&self) -> Self {
-        let new_life_cycle = self
-            .lifecycle
-            .clone()
-            .reopen_decline_application_to_submitted_state();
+    pub fn decline(&self) -> Self {
+        let new_life_cycle = self.lifecycle.clone().decline();
         Self {
             lifecycle: new_life_cycle,
             ..self.clone()
         }
     }
 
-    pub fn reopen_decline_application_to_granted_state(
-        &self,
-        verifier: &str,
-        request_id: &str,
-    ) -> Self {
+    pub fn move_back_to_granted_state(&self, verifier: &str, request_id: &str) -> Self {
         let new_life_cycle = self
             .lifecycle
             .clone()
-            .reopen_decline_application_to_granted_state(verifier, request_id);
+            .move_back_to_granted_state(verifier, request_id);
         Self {
             lifecycle: new_life_cycle,
             ..self.clone()
@@ -223,7 +216,7 @@ impl file::ApplicationFile {
         }
     }
 
-    pub fn move_back_to_submit_state(self) -> Self {
+    pub fn move_back_to_submit_state(&self) -> Self {
         let new_life_cycle = self.lifecycle.clone().move_back_to_submit_state();
         Self {
             lifecycle: new_life_cycle,

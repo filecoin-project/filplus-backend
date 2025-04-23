@@ -1654,7 +1654,7 @@ impl LDNApplication {
             .find_first(|(_, app)| app.file.id == application_id);
         if let Some(app) = application {
             if app.1.file.lifecycle.get_state() == AppState::Granted {
-                let app = app.1.file.close_application();
+                let app = app.1.file.reached_total_datacap();
                 let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
                 let ldn_app =
                     LDNApplication::load(application_id.clone(), owner.clone(), repo.clone())
@@ -1978,7 +1978,7 @@ impl LDNApplication {
 
             Self::merge_application(pr_number, owner, repo).await?;
             return Ok(true);
-        } else if application.lifecycle.get_state() == AppState::DeclineApplication {
+        } else if application.lifecycle.get_state() == AppState::Declined {
             Self::merge_application(pr_number, owner, repo).await?;
             return Ok(true);
         }
@@ -2260,8 +2260,8 @@ impl LDNApplication {
                     log::warn!("Val Trigger (CS) - Application state is ChangingSP");
                     return Ok(false);
                 }
-                AppState::DeclineApplication => {
-                    log::warn!("Val Trigger (DC) - Application state is DeclineApplication");
+                AppState::Declined => {
+                    log::warn!("Val Trigger (DC) - Application state is Declined");
                     return Ok(false);
                 }
                 AppState::Error => {
@@ -3910,9 +3910,9 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 application_state
             )));
         }
-        let closed_application = application_file.close_application();
+        let declined_application = application_file.decline();
         if app_model.pr_number == 0 {
-            let file_content = serde_json::to_string_pretty(&closed_application)
+            let file_content = serde_json::to_string_pretty(&declined_application)
                 .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
             LDNPullRequest::create_pr_for_existing_application(
                 app_model.id.clone(),
@@ -3924,12 +3924,12 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 repo.clone(),
                 true,
                 app_model.issue_number.to_string().clone(),
-                format!("Decline application: {}", closed_application.client.name),
+                format!("Decline application: {}", declined_application.client.name),
             )
             .await?;
         } else {
             self.update_and_commit_application_state(
-                closed_application.clone(),
+                declined_application.clone(),
                 self.github.owner.clone(),
                 self.github.repo.clone(),
                 self.file_sha.clone(),
@@ -3956,7 +3956,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(())
     }
 
-    pub async fn reopen_decline_application(
+    pub async fn reopen_declined_application(
         owner: &str,
         repo: &str,
         verifier: &str,
@@ -3981,9 +3981,9 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let application_state = application_file.lifecycle.get_state();
 
-        if application_state != AppState::DeclineApplication {
+        if application_state != AppState::Declined {
             return Err(LDNError::Load(format!(
-                "Application state is {:?}. Expected DeclineApplication",
+                "Application state is {:?}. Expected Declined",
                 application_state
             )));
         }
@@ -3998,16 +3998,14 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let reopen_application;
         let issue_label;
         if application_file.allocation.0.is_empty() {
-            reopen_application = application_file.reopen_decline_application_to_submitted_state();
+            reopen_application = application_file.move_back_to_submit_state();
             issue_label = AppState::Submitted.as_str();
         } else {
             let last_active_request = Self::get_last_active_request(&application_file).ok_or(
                 LDNError::Load("Failed to get last active request".to_string()),
             )?;
-            reopen_application = application_file.reopen_decline_application_to_granted_state(
-                verifier,
-                last_active_request.as_ref(),
-            );
+            reopen_application =
+                application_file.move_back_to_granted_state(verifier, last_active_request.as_ref());
             issue_label = AppState::Granted.as_str();
         }
 

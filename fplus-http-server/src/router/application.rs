@@ -278,11 +278,11 @@ pub async fn decline(
     Ok(HttpResponse::Ok().body(()))
 }
 
-#[post("/application/reopen_decline_application")]
-pub async fn reopen_decline_application(
+#[post("/application/reopen_declined_application")]
+pub async fn reopen_declined_application(
     query: web::Query<VerifierActionsQueryParams>,
 ) -> actix_web::Result<impl Responder> {
-    LDNApplication::reopen_decline_application(
+    LDNApplication::reopen_declined_application(
         &query.owner,
         &query.repo,
         &query.github_username,
