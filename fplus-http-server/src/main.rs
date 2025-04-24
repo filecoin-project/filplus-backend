@@ -84,14 +84,15 @@ async fn main() -> std::io::Result<()> {
                     .service(router::application::approve_changes)
                     .service(router::application::propose)
                     .service(router::application::approve)
-                    .service(router::application::decline)
                     .service(router::application::additional_info_required)
                     .service(router::application::trigger_ssa)
                     .service(router::application::request_kyc)
                     .service(router::application::remove_pending_allocation)
                     .service(router::application::propose_storage_providers)
                     .service(router::application::approve_storage_providers)
-                    .service(router::application::allocation_failed),
+                    .service(router::application::allocation_failed)
+                    .service(router::application::decline)
+                    .service(router::application::reopen_declined_application),
             )
             .service(router::application::merged)
             .service(router::application::active)

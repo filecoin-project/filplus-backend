@@ -272,6 +272,7 @@ pub enum AppState {
     StartSignDatacap,
     Granted,
     TotalDatacapReached,
+    Declined,
     ChangingSP,
     Error,
 }

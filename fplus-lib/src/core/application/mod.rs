@@ -75,6 +75,25 @@ impl file::ApplicationFile {
         }
     }
 
+    pub fn decline(&self) -> Self {
+        let new_life_cycle = self.lifecycle.clone().decline();
+        Self {
+            lifecycle: new_life_cycle,
+            ..self.clone()
+        }
+    }
+
+    pub fn move_back_to_granted_state(&self, verifier: &str, request_id: &str) -> Self {
+        let new_life_cycle = self
+            .lifecycle
+            .clone()
+            .move_back_to_granted_state(verifier, request_id);
+        Self {
+            lifecycle: new_life_cycle,
+            ..self.clone()
+        }
+    }
+
     pub fn move_back_to_governance_review(&self) -> Self {
         let new_life_cycle = self.lifecycle.clone().move_back_to_governance_review(); // move back to submitted state
         let allocation = Allocations::default(); // empty allocations
@@ -197,7 +216,7 @@ impl file::ApplicationFile {
         }
     }
 
-    pub fn move_back_to_submit_state(self) -> Self {
+    pub fn move_back_to_submit_state(&self) -> Self {
         let new_life_cycle = self.lifecycle.clone().move_back_to_submit_state();
         Self {
             lifecycle: new_life_cycle,
