@@ -13,6 +13,20 @@ on:
         description: "Enter the version number"
         required: true
         default: "latest"
+      deploy:
+        description: "Deploy the new version?"
+        required: false
+        type: boolean
+        default: false
+      environment:
+        required: false
+        description: "Select the environment to deploy to"
+        type: choice
+        options:
+          - staging
+          # TODO: uncomment this when we want to deploy to production
+          # - production
+        default: staging
 
 jobs:
   code-check:
@@ -80,9 +94,25 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.bump-version.outputs.commit_sha }}
-
       - name: Create and push tag
         run: |
           TAG_NAME="v${{ inputs.version }}"
           git tag $TAG_NAME
           git push origin $TAG_NAME
+
+  trigger-deploy:
+    needs:
+      - code-check
+      - bump-version
+      - git-tag
+    uses: ./.github/workflows/put-ssm-version-deploy.yml
+    if: |
+      ${{ inputs.version != '' && inputs.deploy == true }} &&
+      always() &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    with:
+      version: ${{ inputs.version }}
+      environment: ${{ inputs.environment }}
+      ecr-repository: filplus-backend
+    secrets: inherit

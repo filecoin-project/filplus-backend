@@ -1,0 +1,49 @@
+name: Put SSM version for deploy
+run-name: "Put SSM version for ${{ github.ref_name }} triggered by ${{ github.actor }} for ${{ inputs.environment }}; version: ${{ inputs.version || 'N/A'}}"
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        type: string
+      environment:
+        required: true
+        type: string
+      ecr-repository:
+        required: false
+        type: string
+
+jobs:
+  trigger-deploy:
+    runs-on: ubuntu-latest
+    env:
+      ECR_REPOSITORY: ${{ inputs.ecr-repository }}
+      SSM_PARAMETER_NAME: "/${{ inputs.environment }}/${{ inputs.ecr-repository }}/version"
+      IMAGE_VERSION: "${{ inputs.version }}"
+      ENVIRONMENT: "${{ inputs.environment }}"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_IMAGE_DEPLOYER }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_IMAGE_DEPLOYER }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          mask-password: "true"
+          registry-type: public
+
+      - name: Change ${{ env.ECR_REPOSITORY }} version to ${{ env.IMAGE_VERSION }} on ${{ inputs.environment }} in SSM parameter store
+        run: node ./ci/scripts/check-and-change-image.js

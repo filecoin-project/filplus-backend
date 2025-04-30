@@ -1,0 +1,53 @@
+name: Manually trigger deploy to staging or production
+run-name: "Manually deploy ${{ github.ref_name }} triggered by ${{ github.actor }}; version: ${{ inputs.version }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Enter the version number"
+        required: true
+        default: "main"
+      environment:
+        required: false
+        description: "Select the environment to deploy to"
+        type: choice
+        options:
+          - staging
+          # TODO: uncomment this when we want to deploy to production
+          # - production
+        default: staging
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  trigger-staging-deploy:
+    uses: ./.github/workflows/put-ssm-version-deploy.yml
+    if: |
+      ${{ inputs.version != '' && inputs.environment == 'staging' }} &&
+      always() &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    with:
+      version: ${{ inputs.version }}
+      environment: staging
+      secrets-environment: staging-fidl
+      ecr-repository: filplus-backend
+    secrets: inherit
+
+  # TODO: uncomment this when we want to deploy to production
+  # trigger-production-deploy:
+  #   uses: ./.github/workflows/put-ssm-version-deploy.yml
+  #   if: |
+  #     ${{ inputs.version != '' && inputs.environment == 'production' }} &&
+  #     always() &&
+  #     !contains(needs.*.result, 'failure') &&
+  #     !contains(needs.*.result, 'cancelled')
+  #   with:
+  #     version: ${{ inputs.version }}
+  #     environment: ${{ inputs.environment }}
+  #     secrets-environment: production-fidl
+  #     ecr-repository: filplus-backend
+  #   secrets: inherit
