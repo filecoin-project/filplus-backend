@@ -361,7 +361,11 @@ pub async fn notify_refill(info: web::Json<NotifyRefillInfo>) -> actix_web::Resu
 #[post("/application/totaldcreached")]
 pub async fn total_dc_reached(data: web::Json<DcReachedInfo>) -> actix_web::Result<impl Responder> {
     let DcReachedInfo { id, owner, repo } = data.into_inner();
-    let applications = LDNApplication::total_dc_reached(id, owner, repo)
+    let ldn_application = LDNApplication::load(id.clone(), owner.clone(), repo.clone())
+        .await
+        .map_err(ErrorNotFound)?;
+    let applications = ldn_application
+        .total_dc_reached()
         .await
         .map_err(ErrorInternalServerError)?;
     Ok(HttpResponse::Ok().json(applications))
