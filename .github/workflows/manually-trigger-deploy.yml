@@ -25,11 +25,7 @@ permissions:
 jobs:
   trigger-deploy:
     uses: ./.github/workflows/put-ssm-version-deploy.yml
-    if: |
-      ${{ inputs.version != '' && inputs.environment != '' }} &&
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled')
+    if: ${{ inputs.version != '' && inputs.environment != '' }} &&
     with:
       version: ${{ inputs.version }}
       environment: ${{ inputs.environment }}
