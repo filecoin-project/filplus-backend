@@ -23,31 +23,15 @@ permissions:
   contents: read
 
 jobs:
-  trigger-staging-deploy:
+  trigger-deploy:
     uses: ./.github/workflows/put-ssm-version-deploy.yml
     if: |
-      ${{ inputs.version != '' && inputs.environment == 'staging' }} &&
+      ${{ inputs.version != '' && inputs.environment != '' }} &&
       always() &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
     with:
       version: ${{ inputs.version }}
-      environment: staging
-      secrets-environment: staging-fidl
+      environment: ${{ inputs.environment }}
       ecr-repository: filplus-backend
     secrets: inherit
-
-  # TODO: uncomment this when we want to deploy to production
-  # trigger-production-deploy:
-  #   uses: ./.github/workflows/put-ssm-version-deploy.yml
-  #   if: |
-  #     ${{ inputs.version != '' && inputs.environment == 'production' }} &&
-  #     always() &&
-  #     !contains(needs.*.result, 'failure') &&
-  #     !contains(needs.*.result, 'cancelled')
-  #   with:
-  #     version: ${{ inputs.version }}
-  #     environment: ${{ inputs.environment }}
-  #     secrets-environment: production-fidl
-  #     ecr-repository: filplus-backend
-  #   secrets: inherit
