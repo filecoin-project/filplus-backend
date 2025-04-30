@@ -107,7 +107,7 @@ jobs:
       - git-tag
     uses: ./.github/workflows/put-ssm-version-deploy.yml
     if: |
-      ${{ inputs.version != '' && inputs.deploy == true }} &&
+      ${{ inputs.version != '' && inputs.deploy == true && inputs.environment != ''}} &&
       always() &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
