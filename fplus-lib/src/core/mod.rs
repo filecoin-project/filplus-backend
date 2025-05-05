@@ -6,6 +6,7 @@ use alloy::primitives::Address;
 
 use application::file::{SpsChangeRequest, StorageProviderChangeVerifier};
 use chrono::{DateTime, Local, Utc};
+use fplus_database::database::applications::get_application;
 use fplus_database::database::comparable_applications::create_comparable_application;
 use fplus_database::models::comparable_applications::ApplicationComparableData;
 use futures::future;
@@ -1642,71 +1643,72 @@ impl LDNApplication {
         Ok(f.lifecycle.get_state())
     }
 
-    /// Return Application state
-    pub async fn total_dc_reached(
-        application_id: String,
-        owner: String,
-        repo: String,
-    ) -> Result<bool, LDNError> {
-        let merged = Self::merged(owner.clone(), repo.clone()).await?;
-        let application = merged
-            .par_iter()
-            .find_first(|(_, app)| app.file.id == application_id);
-        if let Some(app) = application {
-            if app.1.file.lifecycle.get_state() == AppState::Granted {
-                let app = app.1.file.reached_total_datacap();
-                let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
-                let ldn_app =
-                    LDNApplication::load(application_id.clone(), owner.clone(), repo.clone())
-                        .await?;
-                let ContentItems { items } = gh
-                    .get_file(&ldn_app.file_name, "main")
-                    .await
-                    .map_err(|e| LDNError::Load(format!("Failed to get file: {}", e)))?;
-                Self::add_comment_to_issue(
-                    app.issue_number.clone(),
-                    owner.clone(),
-                    repo.clone(),
-                    "Application is Completed".to_string(),
-                )
-                .await?;
-                Self::update_issue_labels(
-                    app.issue_number.clone(),
-                    &[AppState::TotalDatacapReached.as_str()],
-                    owner.clone(),
-                    repo.clone(),
-                )
-                .await?;
+    pub async fn total_dc_reached(&self) -> Result<bool, LDNError> {
+        let application_model = get_application(
+            self.application_id.clone(),
+            self.github.owner.clone(),
+            self.github.repo.clone(),
+            Some(0),
+        )
+        .await
+        .map_err(|e| LDNError::Load(format!("Failed to get application: {}", e)))?;
+        let application = application_model.application.ok_or(LDNError::Load(format!(
+            "Application {} does not have an application field",
+            self.application_id
+        )))?;
+        let app_file = ApplicationFile::from_str(&application).map_err(|e| {
+            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+        })?;
 
-                let pr_title = format!("Total Datacap reached for {}", app.id);
-                let parsed_app_file = serde_json::to_string_pretty(&app)
-                    .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
-                LDNPullRequest::create_pr_for_existing_application(
-                    app.id.clone(),
-                    parsed_app_file,
-                    ldn_app.file_name.clone(),
-                    format!("{}-total-dc-reached", app.id),
-                    items[0].sha.clone(),
-                    owner,
-                    repo,
-                    true,
-                    app.issue_number.clone(),
-                    pr_title,
-                )
-                .await?;
-                Ok(true)
-            } else {
-                Err(LDNError::Load(format!(
-                    "Application state is {:?}. Expected Granted",
-                    app.1.file.lifecycle.get_state()
-                )))
-            }
-        } else {
-            Err(LDNError::Load(format!(
-                "Application issue {} does not exist",
-                application_id
-            )))
+        let app_state = app_file.lifecycle.get_state();
+        if app_state != AppState::Granted {
+            return Err(LDNError::Load(format!(
+                "Application state is: {:?}. Expected Granted",
+                app_state
+            )));
         }
+
+        let requested_so_far = app_file.allocation.total_requested();
+        let total_requested = parse_size_to_bytes(&app_file.datacap.total_requested_amount).ok_or(
+            LDNError::Load("Can not parse total requested amount to bytes".into()),
+        )?;
+
+        if requested_so_far != total_requested {
+            return Err(LDNError::Load(
+                "Total DataCap has not been reached yet.".into(),
+            ));
+        }
+        let clompleted_application = app_file.reached_total_datacap();
+        let parsed_app_file = serde_json::to_string_pretty(&clompleted_application)
+            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+        LDNPullRequest::create_pr_for_existing_application(
+            clompleted_application.id.clone(),
+            parsed_app_file,
+            self.file_name.clone(),
+            format!("{}-total-dc-reached", clompleted_application.id),
+            self.file_sha.clone(),
+            application_model.owner.clone(),
+            application_model.repo.clone(),
+            true,
+            application_model.issue_number.to_string(),
+            format!("Total Datacap reached for {}", clompleted_application.id),
+        )
+        .await?;
+        Self::add_comment_to_issue(
+            application_model.issue_number.to_string().clone(),
+            application_model.owner.clone(),
+            application_model.repo.clone(),
+            "Application is Completed".to_string(),
+        )
+        .await?;
+        Self::update_issue_labels(
+            application_model.issue_number.to_string().clone(),
+            &[AppState::TotalDatacapReached.as_str()],
+            application_model.owner.clone(),
+            application_model.repo.clone(),
+        )
+        .await?;
+        Ok(true)
     }
 
     fn content_items_to_app_file(file: ContentItems) -> Result<ApplicationFile, LDNError> {
@@ -1978,7 +1980,9 @@ impl LDNApplication {
 
             Self::merge_application(pr_number, owner, repo).await?;
             return Ok(true);
-        } else if application.lifecycle.get_state() == AppState::Declined {
+        } else if application.lifecycle.get_state() == AppState::Declined
+            || application.lifecycle.get_state() == AppState::TotalDatacapReached
+        {
             Self::merge_application(pr_number, owner, repo).await?;
             return Ok(true);
         }
@@ -2444,7 +2448,18 @@ impl LDNApplication {
         let active_allocation_ref = match active_allocation.as_ref() {
             Some(allocation) => allocation,
             None => {
-                db_application_file.lifecycle.state = AppState::Granted;
+                if db_application_file.lifecycle.is_active {
+                    db_application_file.lifecycle.state = AppState::Granted;
+                } else {
+                    let last_active_request = Self::get_last_active_request(&db_application_file)
+                        .ok_or(LDNError::Load(
+                        "Failed to get last active request".to_string(),
+                    ))?;
+                    let last_verifier = Self::get_last_verifier(&db_application_file)?
+                        .ok_or(LDNError::Load("Failed to get last verifier".to_string()))?;
+                    db_application_file = db_application_file
+                        .move_back_to_granted_state(&last_verifier, &last_active_request);
+                }
                 db_application_file.lifecycle.edited = Some(false);
 
                 let _ = self
@@ -3121,7 +3136,7 @@ impl LDNApplication {
         let app_str = &application_model
             .application
             .ok_or(LDNError::Load("Failed to get application".to_string()))?;
-        let merged_application = ApplicationFile::from_str(app_str).map_err(|e| {
+        let app_file = ApplicationFile::from_str(app_str).map_err(|e| {
             LDNError::Load(format!("Failed to parse application file from DB: {}", e))
         })?;
 
@@ -3131,8 +3146,8 @@ impl LDNApplication {
         )
         .await?;
 
-        if !merged_application.lifecycle.is_active {
-            let information = "The requested DataCap has been reached for this application. Updates on this issue will no longer be processed. Please create a new application.";
+        if app_file.lifecycle.get_state() == AppState::Declined {
+            let information = "The application has been declined. Updates on this issue will no longer be processed. Please reopen application before or create a new application.";
             gh.add_comment_to_issue(application_model.issue_number as u64, information)
                 .await
                 .map_err(|e| {
@@ -3142,22 +3157,48 @@ impl LDNApplication {
                     ))
                 })?;
             return Err(LDNError::Load(information.to_string()));
+        } else if app_file.lifecycle.get_state() == AppState::TotalDatacapReached {
+            let new_requested_amount = parse_size_to_bytes(
+                &parsed_ldn.datacap.total_requested_amount,
+            )
+            .ok_or(LDNError::Load(
+                "Failed to parse new total requestd amount to bytes.".to_string(),
+            ))?;
+            let old_requested_amount = parse_size_to_bytes(
+                &app_file.datacap.total_requested_amount,
+            )
+            .ok_or(LDNError::Load(
+                "Failed to parse old total requestd amount to bytes.".to_string(),
+            ))?;
+            if new_requested_amount <= old_requested_amount {
+                let information = "The requested DataCap has been reached for this application. To proceed changes and reopen application increase the total requested DataCap amount.";
+                gh.add_comment_to_issue(application_model.issue_number as u64, information)
+                    .await
+                    .map_err(|e| {
+                        LDNError::New(format!(
+                            "Error adding comment to issue {} /// {}",
+                            application_model.issue_number, e
+                        ))
+                    })?;
+                return Err(LDNError::Load(information.to_string()));
+            }
         }
-        Self::check_if_application_has_changed(&parsed_ldn, &merged_application)?;
+
+        Self::check_if_application_has_changed(&parsed_ldn, &app_file)?;
 
         let application_id = parsed_ldn.id.clone();
         //Create new application file with updated info from issue
         let application_file = ApplicationFile::edited(
-            merged_application.issue_number.clone(),
+            app_file.issue_number.clone(),
             parsed_ldn.version,
             application_id.clone(),
             parsed_ldn.client.clone(),
             parsed_ldn.project,
             parsed_ldn.datacap,
-            merged_application.allocation.clone(),
-            merged_application.lifecycle.clone(),
-            merged_application.client_contract_address.clone(),
-            merged_application.allowed_sps.clone(),
+            app_file.allocation.clone(),
+            app_file.lifecycle.clone(),
+            app_file.client_contract_address.clone(),
+            app_file.allowed_sps.clone(),
         )
         .await;
 
@@ -3182,7 +3223,11 @@ impl LDNApplication {
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
         let uuid = uuidv4::uuid::v4();
 
-        let pr_title = format!("Issue modification for {}", parsed_ldn.client.name.clone());
+        let pr_title = if app_file.lifecycle.get_state() == AppState::TotalDatacapReached {
+            format!("Reopen application for {}", parsed_ldn.client.name.clone())
+        } else {
+            format!("Issue modification for {}", parsed_ldn.client.name.clone())
+        };
 
         let sha = application_model
             .sha
@@ -4096,6 +4141,45 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             Some(allocation.id.clone())
         } else {
             last_sps_change.map(|sps_change| sps_change.id.clone())
+        }
+    }
+
+    fn get_last_verifier(application_file: &ApplicationFile) -> Result<Option<String>, LDNError> {
+        let last_allocation = application_file
+            .allocation
+            .0
+            .iter()
+            .max_by_key(|request| request.updated_at.clone());
+
+        let last_sps_change = application_file.allowed_sps.as_ref().and_then(|requests| {
+            requests
+                .0
+                .iter()
+                .max_by_key(|request| request.updated_at.clone())
+        });
+
+        if let Some(allocation) = last_allocation {
+            if let Some(sps_change) = last_sps_change {
+                if sps_change.updated_at > allocation.updated_at {
+                    let last_signer = sps_change
+                        .signers
+                        .0
+                        .last()
+                        .ok_or(LDNError::Load("Failed to get last signer".to_string()))?;
+                    return Ok(Some(last_signer.github_username.clone()));
+                }
+            }
+            let last_signer = allocation
+                .signers
+                .0
+                .last()
+                .ok_or(LDNError::Load("Failed to get last signer".to_string()))?;
+            Ok(Some(last_signer.github_username.clone()))
+        } else {
+            let last_verifier = last_sps_change
+                .and_then(|sps_change| sps_change.signers.0.last())
+                .map(|signer| signer.github_username.clone());
+            Ok(last_verifier)
         }
     }
 

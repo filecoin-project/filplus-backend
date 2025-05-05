@@ -3,6 +3,7 @@ use crate::models::applications::{
     ActiveModel, Column, Entity as Application, Model as ApplicationModel,
 };
 use chrono::{DateTime, Utc};
+use sea_orm::prelude::Expr;
 use sea_orm::{entity::*, query::*, DbBackend, DbErr};
 use sha1::{Digest, Sha1};
 
@@ -132,7 +133,12 @@ pub async fn get_applications_with_open_pull_request(
     repo: Option<String>,
 ) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    let mut query = Application::find().filter(Column::PrNumber.ne(0));
+    let mut query = Application::find()
+        .filter(Column::PrNumber.ne(0))
+        .filter(Expr::cust(
+            "(application::json->'Lifecycle'->>'Active')::boolean IS TRUE",
+        ));
+
     if let Some(owner) = owner.clone() {
         query = query.filter(Column::Owner.contains(owner));
     }
@@ -466,11 +472,12 @@ pub async fn get_allocator_closed_applications(
     let result = Application::find()
         .from_raw_sql(Statement::from_sql_and_values(
             DbBackend::Postgres,
-            "SELECT * 
+            "SELECT DISTINCT ON (id) * 
             FROM applications 
             WHERE (application::json->'Lifecycle'->>'Active')::boolean IS NOT TRUE
             AND owner = $1
-            AND repo = $2",
+            AND repo = $2
+            ORDER BY id, pr_number DESC",
             [owner.into(), repo.into()],
         ))
         .all(&conn)

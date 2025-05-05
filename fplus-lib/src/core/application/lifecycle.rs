@@ -118,11 +118,11 @@ impl LifeCycle {
     }
 
     pub fn reached_total_datacap(self) -> Self {
-        let empty = "".to_string();
         LifeCycle {
+            state: AppState::TotalDatacapReached,
             is_active: false,
             updated_at: Utc::now().to_string(),
-            active_request: Some(empty),
+            active_request: None,
             ..self
         }
     }
