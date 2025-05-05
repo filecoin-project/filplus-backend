@@ -17,6 +17,7 @@ on:
 jobs:
   trigger-deploy:
     runs-on: ubuntu-latest
+    environment: "production-fidl"
     env:
       ECR_REPOSITORY: ${{ inputs.ecr-repository }}
       SSM_PARAMETER_NAME: "/${{ inputs.environment }}/${{ inputs.ecr-repository }}/version"
