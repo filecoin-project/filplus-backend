@@ -108,6 +108,7 @@ jobs:
       - build-and-publish
       - git-tag
     if: ${{ github.ref_name == 'main' && inputs.version != '' && inputs.deploy == true && inputs.environment != '' }}
+    environment: production-fidl
     steps:
       - name: Trigger deploy
         uses: neti-filplus-infra/filplus-deploy-action@main
@@ -118,4 +119,3 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_IMAGE_DEPLOYER }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_IMAGE_DEPLOYER }}
           aws-region: us-east-1
-          secrets-environment: production-fidl
