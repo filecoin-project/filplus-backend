@@ -14,7 +14,7 @@ actix-web = "4.3.1"
 actix-utils = "3.0.1"
 serde = { version =  "1.0.164", features = ["derive", "std",
 "serde_derive", "alloc", "rc"] } 
-tokio = { version = "1.29.1", features = ["full"] }
+tokio = { version = "1.38.2", features = ["full"] }
 env_logger = "0.10.0"
 serde_json = "1.0.96"
 chrono = "0.4.26"
