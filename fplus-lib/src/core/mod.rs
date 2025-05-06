@@ -3157,7 +3157,10 @@ impl LDNApplication {
                     ))
                 })?;
             return Err(LDNError::Load(information.to_string()));
-        } else if app_file.lifecycle.get_state() == AppState::TotalDatacapReached {
+        } else if app_file.lifecycle.get_state() == AppState::TotalDatacapReached
+            || (app_file.lifecycle.get_state() == AppState::Granted
+                && !app_file.lifecycle.is_active)
+        {
             let new_requested_amount = parse_size_to_bytes(
                 &parsed_ldn.datacap.total_requested_amount,
             )
@@ -3223,7 +3226,10 @@ impl LDNApplication {
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
         let uuid = uuidv4::uuid::v4();
 
-        let pr_title = if app_file.lifecycle.get_state() == AppState::TotalDatacapReached {
+        let pr_title = if app_file.lifecycle.get_state() == AppState::TotalDatacapReached
+            || (app_file.lifecycle.get_state() == AppState::Granted
+                && !app_file.lifecycle.is_active)
+        {
             format!("Reopen application for {}", parsed_ldn.client.name.clone())
         } else {
             format!("Issue modification for {}", parsed_ldn.client.name.clone())
