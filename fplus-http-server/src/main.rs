@@ -1,9 +1,7 @@
 use fplus_lib::core::allocator::update_installation_ids_logic;
-use log::info;
 mod middleware;
 use middleware::verifier_auth::VerifierAuth;
 pub(crate) mod router;
-use std::env;
 
 use actix_web::{
     middleware::{Compress, Logger},
@@ -47,10 +45,7 @@ where
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
-    let log_level = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    info!("Logger initialized at log level: {}", log_level);
-
+    env_logger::init();
     if let Err(e) = fplus_database::setup().await {
         panic!("Failed to setup database connection: {}", e);
     }
