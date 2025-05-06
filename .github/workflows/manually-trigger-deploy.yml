@@ -24,10 +24,16 @@ permissions:
 
 jobs:
   trigger-deploy:
-    uses: ./.github/workflows/put-ssm-version-deploy.yml
-    if: ${{ inputs.version != '' && inputs.environment != '' }}
-    with:
-      version: ${{ inputs.version }}
-      environment: ${{ inputs.environment }}
-      ecr-repository: filplus-backend
-    secrets: inherit
+    runs-on: ubuntu-latest
+    if: ${{ github.ref_name == 'main' && inputs.version != '' && inputs.deploy == true && inputs.environment != '' }}
+    steps:
+      - name: Trigger deploy
+        uses: neti-filplus-infra/filplus-deploy-action@main
+        with:
+          version: ${{ inputs.version }}
+          environment: ${{ inputs.environment }}
+          ecr-repository: filplus-backend
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_IMAGE_DEPLOYER }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_IMAGE_DEPLOYER }}
+          aws-region: us-east-1
+          secrets-environment: production-fidl
