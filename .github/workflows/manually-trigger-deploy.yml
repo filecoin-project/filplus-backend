@@ -46,7 +46,7 @@ jobs:
       - name: Trigger production deploy
         uses: neti-filplus-infra/filplus-deploy-action@main
         with:
-          version: "${{ inputs.version }}-production-fidl"
+          version: ${{ inputs.version }}
           environment: ${{ inputs.environment }}
           ecr-repository: filplus-registry
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_IMAGE_DEPLOYER }}
