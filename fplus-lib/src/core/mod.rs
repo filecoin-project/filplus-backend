@@ -1681,7 +1681,7 @@ impl LDNApplication {
         let clompleted_application = app_file.reached_total_datacap();
         let parsed_app_file = serde_json::to_string_pretty(&clompleted_application)
             .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
-        LDNPullRequest::create_pr_for_existing_application(
+        let pr_number = LDNPullRequest::create_pr_for_existing_application(
             clompleted_application.id.clone(),
             parsed_app_file,
             self.file_name.clone(),
@@ -1694,6 +1694,28 @@ impl LDNApplication {
             format!("Total Datacap reached for {}", clompleted_application.id),
         )
         .await?;
+
+        let gh = github_async_new(self.github.owner.clone(), self.github.repo.clone()).await?;
+
+        gh.merge_pull_request(pr_number).await.map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to merge pull request {}. Reason: {}",
+                pr_number, e
+            ))
+        })?;
+
+        database::applications::merge_application_by_pr_number(
+            self.github.owner.clone(),
+            self.github.repo.clone(),
+            pr_number,
+        )
+        .await
+        .map_err(|e| {
+            LDNError::Load(format!(
+                "Failed to update application in database. Reason: {}",
+                e
+            ))
+        })?;
         Self::add_comment_to_issue(
             application_model.issue_number.to_string().clone(),
             application_model.owner.clone(),
@@ -1980,9 +2002,7 @@ impl LDNApplication {
 
             Self::merge_application(pr_number, owner, repo).await?;
             return Ok(true);
-        } else if application.lifecycle.get_state() == AppState::Declined
-            || application.lifecycle.get_state() == AppState::TotalDatacapReached
-        {
+        } else if application.lifecycle.get_state() == AppState::Declined {
             Self::merge_application(pr_number, owner, repo).await?;
             return Ok(true);
         }
