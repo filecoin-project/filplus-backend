@@ -14,8 +14,7 @@ on:
         type: choice
         options:
           - staging
-          # TODO: uncomment this when we want to deploy to production
-          # - production
+          - production
         default: staging
 
 permissions:
