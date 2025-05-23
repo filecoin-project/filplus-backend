@@ -635,11 +635,11 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
                 .and_then(|a| a.amount_type.clone()),
             model.address,
             tooling,
-            Some(model.application.data_types),
             Some(model.application.required_sps),
             Some(model.application.required_replicas),
             Some(file_name.to_owned()),
             model.application.client_contract_address,
+            model.ma_address,
         )
         .await
         .map_err(|e| LDNError::New(format!("Create or update allocator failed: {}", e)))?;

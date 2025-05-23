@@ -48,10 +48,10 @@ pub async fn get_allocator(
  * @param verifiers_gh_handles: Option<String> - The GitHub handles of the verifiers
  * @param address: Option<String> - Address of the Allocator
  * @param tooling: Option<String> - Supported tooling
- * @param data_types: Option<Vec<String>> - Supported data_types
  * @param required_sps: Option<String> - Required number of SPs
  * @param required_replicas: Option<String> - Required number of replicas
  * @param registry_file_path: Option<String> - Path to JSON file specifying the allocator in registry repo
+ * @param ma_address: Option<String> - Metaallocator address
  *
  * # Returns
  * @return Result<AllocatorModel, sea_orm::DbErr> - The result of the operation
@@ -67,11 +67,11 @@ pub async fn create_or_update_allocator(
     allocation_amount_type: Option<String>,
     address: Option<String>,
     tooling: Option<String>,
-    data_types: Option<Vec<String>>,
     required_sps: Option<String>,
     required_replicas: Option<String>,
     registry_file_path: Option<String>,
     client_contract_address: Option<String>,
+    ma_address: Option<String>,
 ) -> Result<AllocatorModel, sea_orm::DbErr> {
     let existing_allocator = get_allocator(&owner, &repo).await?;
     if let Some(allocator_model) = existing_allocator {
@@ -109,8 +109,14 @@ pub async fn create_or_update_allocator(
             allocator_active_model.tooling = Set(tooling);
         }
 
-        if data_types.is_some() {
-            allocator_active_model.data_types = Set(data_types);
+        if let Some(ma_address) = ma_address {
+            if !ma_address.is_empty() {
+                allocator_active_model.ma_address = Set(Some(ma_address));
+            } else {
+                allocator_active_model.ma_address = Set(None);
+            }
+        } else {
+            allocator_active_model.ma_address = Set(None);
         }
 
         if required_sps.is_some() {
@@ -175,8 +181,12 @@ pub async fn create_or_update_allocator(
             new_allocator.tooling = Set(tooling);
         }
 
-        if data_types.is_some() {
-            new_allocator.data_types = Set(data_types);
+        if let Some(ma_address) = ma_address {
+            if !ma_address.is_empty() {
+                new_allocator.ma_address = Set(Some(ma_address));
+            } else {
+                new_allocator.ma_address = Set(None);
+            }
         }
 
         if required_sps.is_some() {
