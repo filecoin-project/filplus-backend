@@ -78,6 +78,7 @@ pub struct CreateApplicationInfo {
 pub struct TriggerSSAInfo {
     pub amount: String,
     pub amount_type: String,
+    pub early_refill_comment: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -158,6 +159,7 @@ pub struct RefillInfo {
     pub amount_type: String,
     pub owner: String,
     pub repo: String,
+    pub early_refill_comment: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1900,6 +1902,7 @@ impl LDNApplication {
                 app.file.issue_number.clone(),
                 refill_info.owner.clone(),
                 refill_info.repo.clone(),
+                refill_info.early_refill_comment,
             )
             .await?;
 
@@ -3631,6 +3634,7 @@ Your Datacap Allocation Request has been {} by the Notary
         issue_number: String,
         owner: String,
         repo: String,
+        early_refill_comment: Option<String>,
     ) -> Result<bool, LDNError> {
         Self::add_comment_to_issue(
             issue_number.clone(),
@@ -3639,6 +3643,15 @@ Your Datacap Allocation Request has been {} by the Notary
             "Application is in Refill".to_string(),
         )
         .await?;
+        if let Some(early_refill_comment) = early_refill_comment {
+            Self::add_comment_to_issue(
+                issue_number.clone(),
+                owner.clone(),
+                repo.clone(),
+                format!("## Reason for triggering a new allocation despite 75% of the previous one not being utilized\n {}", early_refill_comment),
+            )
+            .await?;
+        }
         Self::update_issue_labels(issue_number, &["Refill"], owner, repo).await?;
         Ok(true)
     }
@@ -4431,6 +4444,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             amount_type: info.amount_type,
             owner: app_model.owner,
             repo: app_model.repo,
+            early_refill_comment: info.early_refill_comment,
         };
         Self::refill(verifier, refill_info).await?;
         Ok(())
