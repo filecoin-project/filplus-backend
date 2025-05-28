@@ -1,7 +1,7 @@
 [package]
 name = "fplus-database"
 authors = ["clriesco", "kokal33", "alexmcon"]
-version = "2.2.18"
+version = "2.2.19"
 edition = "2021"
 description = "FPlus main database module"
 license = "MIT OR Apache-2.0"
