@@ -8,6 +8,7 @@ pub struct AllocatorModel {
     pub owner: Option<String>,
     pub repo: Option<String>,
     pub address: Option<String>,
+    pub ma_address: Option<String>,
     pub client_contract_address: Option<String>,
 }
 
@@ -24,7 +25,6 @@ pub struct Application {
     pub allocation_bookkeeping: String,
     pub allocation_amount: Option<AllocationAmount>,
     pub tooling: Vec<String>,
-    pub data_types: Vec<String>,
     pub required_sps: String,
     pub required_replicas: String,
     pub client_contract_address: Option<String>,
