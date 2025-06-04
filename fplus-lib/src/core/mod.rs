@@ -237,6 +237,7 @@ pub struct ApplicationQueryParams {
 pub struct CompleteGovernanceReviewInfo {
     pub allocation_amount: String,
     pub client_contract_address: Option<String>,
+    pub reason_for_not_using_client_smart_contract: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -998,6 +999,7 @@ impl LDNApplication {
         repo: String,
         allocation_amount: String,
         client_contract_address: Option<String>,
+        reason_for_not_using_client_smart_contract: Option<String>,
     ) -> Result<ApplicationFile, LDNError> {
         let app_state = self.app_state().await?;
         if app_state != AppState::KYCRequested
@@ -1074,7 +1076,7 @@ impl LDNApplication {
                 file_content,
                 Some(app_path.clone()),
                 None,
-                client_contract_address,
+                client_contract_address.clone(),
             )
             .await
             .map_err(|e| {
@@ -1100,11 +1102,25 @@ impl LDNApplication {
             .await?;
             Self::add_comment_to_issue(
                 app_file.issue_number.clone(),
-                owner,
-                repo,
+                owner.clone(),
+                repo.clone(),
                 "Application is ready to sign".to_string(),
             )
             .await?;
+            if let Some(reason_for_not_using_client_smart_contract) =
+                reason_for_not_using_client_smart_contract
+            {
+                Self::add_comment_to_issue(
+                    app_file.issue_number.clone(),
+                    owner.clone(),
+                    repo.clone(),
+                    format!(
+                        "## Reason for not using Client Smart Contract\n {}",
+                        reason_for_not_using_client_smart_contract
+                    ),
+                )
+                .await?;
+            }
         }
 
         Ok(app_file)
@@ -1589,6 +1605,19 @@ impl LDNApplication {
 
         self.issue_updates(&app_file.issue_number, comment, label)
             .await?;
+
+        if app_file.allocation.0.len() == 1 {
+            if let Some(client_contract_address) = app_file.client_contract_address.clone() {
+                Self::add_comment_to_issue(
+                    app_file.issue_number.clone(),
+                    owner.clone(),
+                    repo.clone(),
+                    format!("## Allocation has been made through the Client Smart Contract\nContract address: `{}`\n[How to create verified DDO deals using DataCap?](https://github.com/fidlabs/contract-metaallocator/blob/main/HowToUseClientSmartContract.md#this-step-by-step-guide-explains-how-to-create-verified-ddo-deals-using-datacap-granted-through-a-client-smart-contract-with-boost)", client_contract_address),
+                )
+                .await?;
+            }
+        }
+
         Ok(app_file)
     }
 
