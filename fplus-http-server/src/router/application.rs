@@ -87,6 +87,7 @@ pub async fn trigger(
     let CompleteGovernanceReviewInfo {
         allocation_amount,
         client_contract_address,
+        reason_for_not_using_client_smart_contract,
     } = info.into_inner();
     let response = ldn_application
         .complete_governance_review(
@@ -95,6 +96,7 @@ pub async fn trigger(
             query.repo.clone(),
             allocation_amount,
             client_contract_address,
+            reason_for_not_using_client_smart_contract,
         )
         .await
         .map_err(ErrorBadRequest)?;
