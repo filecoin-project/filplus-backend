@@ -873,12 +873,14 @@ impl LDNApplication {
                     file_content.clone(),
                     info.owner.clone(),
                     info.repo.clone(),
+                    application_id.clone(),
                 )
                 .await?;
                 Self::issue_waiting_for_gov_review(
                     issue_number.clone(),
                     info.owner.clone(),
                     info.repo.clone(),
+                    app_id.clone(),
                 )
                 .await?;
                 Self::update_issue_labels(
@@ -3373,12 +3375,14 @@ impl LDNApplication {
         issue_number: String,
         owner: String,
         repo: String,
+        application_id: String,
     ) -> Result<bool, LDNError> {
+        let allocator_tech_url = get_env_var_or_default("ALLOCATOR_TECH_URL");
         Self::add_comment_to_issue(
             issue_number,
-            owner,
-            repo,
-            "Application is waiting for allocator review".to_string(),
+            owner.clone(),
+            repo.clone(),
+            format!("Application is waiting for allocator review.\n[Link to application on Allocator.tech]({}/application/{}/{}/{})", allocator_tech_url, owner, repo, application_id ),
         )
         .await?;
 
@@ -4817,6 +4821,7 @@ pub struct LDNPullRequest {
 }
 
 impl LDNPullRequest {
+    #[allow(clippy::too_many_arguments)]
     async fn create_pr_for_new_application(
         issue_number: String,
         owner_name: String,
@@ -4825,6 +4830,7 @@ impl LDNPullRequest {
         file_content: String,
         owner: String,
         repo: String,
+        application_id: String,
     ) -> Result<String, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &issue_number);
         let gh: GithubWrapper = github_async_new(owner.to_string(), repo.to_string()).await?;
@@ -4855,6 +4861,7 @@ impl LDNPullRequest {
                 ref_request: create_ref_request,
                 file_content,
                 commit: initial_commit,
+                application_id,
             })
             .await
             .map_err(|e| {
@@ -4908,6 +4915,7 @@ impl LDNPullRequest {
                 branch_name,
                 file_content: file_content.clone(),
                 commit: pr_title,
+                application_id: application_id.clone(),
             })
             .await
             .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {}", e)))?;
