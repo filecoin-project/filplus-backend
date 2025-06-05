@@ -53,6 +53,7 @@ pub struct CreateRefillMergeRequestData {
     pub branch_name: String,
     pub commit: String,
     pub file_sha: String,
+    pub application_id: String,
 }
 
 #[derive(Debug)]
@@ -64,6 +65,7 @@ pub struct CreateMergeRequestData {
     pub file_name: String,
     pub branch_name: String,
     pub commit: String,
+    pub application_id: String,
 }
 
 #[derive(Debug)]
@@ -626,12 +628,15 @@ impl GithubWrapper {
             branch_name,
             commit,
             file_sha,
+            application_id,
         } = data;
         let _create_branch_res = self.create_branch(ref_request).await?;
         self.update_file_content(&file_name, &commit, &file_content, &branch_name, &file_sha)
             .await?;
+        let allocator_tech_url = get_env_var_or_default("ALLOCATOR_TECH_URL");
+        let pr_body = format!("[Link to related GitHub issue]({})\n[Link to your application on Allocator.tech]({}/application/{}/{}/{})",issue_link, allocator_tech_url, self.owner, self.repo, application_id);
         let pr = self
-            .create_pull_request(&commit, &branch_name, &issue_link.to_string())
+            .create_pull_request(&commit, &branch_name, &pr_body.to_string())
             .await?;
 
         Ok((pr, file_sha))
@@ -649,17 +654,20 @@ impl GithubWrapper {
             file_name,
             branch_name,
             commit,
+            application_id,
         } = data;
         let _create_branch_res = self.create_branch(ref_request).await?;
         let add_file_res = self
             .add_file(&file_name, &file_content, &commit, &branch_name)
             .await?;
         let file_sha = add_file_res.content.sha;
+        let allocator_tech_url = get_env_var_or_default("ALLOCATOR_TECH_URL");
+        let pr_body = format!("[Link to related GitHub issue]({})\n[Link to application on Allocator.tech]({}/application/{}/{}/{})",issue_link, allocator_tech_url, self.owner, self.repo, application_id);
         let pr = self
             .create_pull_request(
                 &format!("Datacap for {}", owner_name),
                 &branch_name,
-                &issue_link.to_string(),
+                pr_body,
             )
             .await?;
 
