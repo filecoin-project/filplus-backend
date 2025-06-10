@@ -2497,62 +2497,46 @@ impl LDNApplication {
         }
 
         let active_allocation = db_application_file.allocation.active();
-        let mut remove_allocation = false;
 
-        let active_allocation_ref = match active_allocation.as_ref() {
-            Some(allocation) => allocation,
-            None => {
-                if db_application_file.lifecycle.is_active {
-                    db_application_file.lifecycle.state = AppState::Granted;
-                } else {
-                    let last_active_request = Self::get_last_active_request(&db_application_file)
-                        .ok_or(LDNError::Load(
-                        "Failed to get last active request".to_string(),
-                    ))?;
-                    let last_verifier = Self::get_last_verifier(&db_application_file)?
-                        .ok_or(LDNError::Load("Failed to get last verifier".to_string()))?;
-                    db_application_file = db_application_file
-                        .move_back_to_granted_state(&last_verifier, &last_active_request);
-                }
-                db_application_file.lifecycle.edited = Some(false);
-
-                let _ = self
-                    .finalize_changes_approval(
-                        db_application_file,
-                        owner,
-                        repo,
-                        sha,
-                        branch_name,
-                        filename,
-                    )
-                    .await;
-                return Ok("Changes approved".to_string()); // or return an error if appropriate
+        if let Some(active_allocation) = active_allocation {
+            if active_allocation.signers.0.is_empty() {
+                db_application_file.lifecycle.state = AppState::ReadyToSign
+            } else {
+                db_application_file.lifecycle.state = AppState::StartSignDatacap
             }
-        };
-
-        if allocation_count == 1 && active_allocation_ref.signers.0.is_empty() {
-            // case with exactly ONE allocation which is active, but not signed yet
-            remove_allocation = true;
-            db_application_file.lifecycle.state = AppState::Submitted
-        } else if active_allocation_ref.signers.0.is_empty() {
-            // case with more than one allocations one of which is active, but not signed yet
-            remove_allocation = true;
-            db_application_file.lifecycle.state = AppState::Granted
+        } else if !db_application_file.lifecycle.is_active {
+            // If application is not active, we need to move it back to granted state and set last verifier and last active request
+            let last_active_request = Self::get_last_active_request(&db_application_file).ok_or(
+                LDNError::Load("Failed to get last active request".to_string()),
+            )?;
+            let last_verifier = Self::get_last_verifier(&db_application_file)?
+                .ok_or(LDNError::Load("Failed to get last verifier".to_string()))?;
+            db_application_file = db_application_file
+                .move_back_to_granted_state(&last_verifier, &last_active_request);
+        } else if let (Some(active_request), Some(sps_change_requests)) = (
+            db_application_file.lifecycle.active_request.as_ref(),
+            db_application_file.allowed_sps.as_ref(),
+        ) {
+            if sps_change_requests
+                .get_active_change_request(active_request)
+                .is_some()
+            {
+                db_application_file.lifecycle.state = AppState::ChangingSP;
+            }
         } else {
-            // case with more than one allocations one of which is active and signed, and the number of signatures is 2 because otherwise there'd be no active one
-            db_application_file.lifecycle.state = AppState::StartSignDatacap
-        };
-
-        db_application_file.lifecycle.edited = Some(false);
-
-        if remove_allocation {
-            db_application_file.remove_active_allocation();
+            db_application_file.lifecycle.state = AppState::Granted;
         }
 
-        let _ = self
-            .finalize_changes_approval(db_application_file, owner, repo, sha, branch_name, filename)
-            .await;
-
+        db_application_file.lifecycle.edited = Some(false);
+        self.finalize_changes_approval(
+            db_application_file,
+            owner,
+            repo,
+            sha,
+            branch_name,
+            filename,
+        )
+        .await?;
         Ok("Changes approved".to_string())
     }
 
