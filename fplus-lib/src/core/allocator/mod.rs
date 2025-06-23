@@ -678,3 +678,19 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
     }
     Ok(())
 }
+
+pub async fn check_repo_app_installed(owner: &str, repo: &str) -> Result<(), LDNError> {
+    let gh = GithubWrapper::new(owner.to_string(), repo.to_string(), None)?;
+    gh.inner
+        .apps()
+        .get_repository_installation(owner.to_string(), repo.to_string())
+        .await
+        .map(|installation| installation.id.0)
+        .map_err(|e| {
+            LDNError::New(format!(
+                "Installation Id not found for a repo: {} /// {}",
+                repo, e
+            ))
+        })?;
+    Ok(())
+}

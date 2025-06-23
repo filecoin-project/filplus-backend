@@ -6,10 +6,10 @@ use actix_web::{
 use fplus_database::database::allocators as allocators_db;
 use fplus_lib::core::{
     allocator::{
-        create_allocator_from_file, fetch_installation_ids, force_update_allocators,
-        generate_github_app_jwt,
+        check_repo_app_installed, create_allocator_from_file, fetch_installation_ids,
+        force_update_allocators, generate_github_app_jwt,
     },
-    AllocatorUpdateForceInfo, ChangedAllocators,
+    AllocatorUpdateForceInfo, ChangedAllocators, GithubQueryParams,
 };
 use reqwest::Client;
 /**
@@ -125,4 +125,14 @@ pub async fn get_installation_ids() -> actix_web::Result<impl Responder> {
         ErrorInternalServerError(e)
     })?;
     Ok(HttpResponse::Ok().json(ids))
+}
+
+#[get("/allocator/check_if_repository_application_is_installed")]
+pub async fn check_if_repository_application_is_installed(
+    query: web::Query<GithubQueryParams>,
+) -> actix_web::Result<impl Responder> {
+    check_repo_app_installed(&query.owner, &query.repo)
+        .await
+        .map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok().json("Application is installed"))
 }
