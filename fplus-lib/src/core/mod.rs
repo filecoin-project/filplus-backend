@@ -88,6 +88,12 @@ pub struct BranchDeleteInfo {
     pub branch_name: String,
 }
 
+#[derive(Deserialize)]
+pub struct NewPrNumberAndFileSha {
+    pub pr_number: u64,
+    pub file_sha: String,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct VerifierList(pub Vec<String>);
 
@@ -901,6 +907,7 @@ impl LDNApplication {
                         file_content,
                         LDNPullRequest::application_path(&app_id),
                         Some(issue_reporter_handle),
+                        file_sha.clone(),
                     )
                     .await
                     .map_err(|e| {
@@ -1043,7 +1050,7 @@ impl LDNApplication {
         let app_path = &self.file_name.clone();
         let app_branch = self.branch_name.clone();
         Self::issue_datacap_request_trigger(app_file.clone(), owner.clone(), repo.clone()).await?;
-        LDNPullRequest::add_commit_to(
+        let new_file_sha = LDNPullRequest::add_commit_to(
             app_path.to_string(),
             app_branch.clone(),
             LDNPullRequest::application_move_to_proposal_commit(&actor),
@@ -1066,7 +1073,7 @@ impl LDNApplication {
                 pr.number,
                 file_content,
                 Some(app_path.clone()),
-                None,
+                new_file_sha,
                 client_contract_address.clone(),
             )
             .await
@@ -1208,7 +1215,7 @@ impl LDNApplication {
         let file_content = serde_json::to_string_pretty(&app_file)
             .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
 
-        LDNPullRequest::add_commit_to(
+        let new_file_sha = LDNPullRequest::add_commit_to(
             self.file_name.to_string(),
             self.branch_name.clone(),
             LDNPullRequest::application_move_to_approval_commit(&signer.signing_address),
@@ -1233,7 +1240,7 @@ impl LDNApplication {
                 pr.number,
                 file_content,
                 Some(self.file_name.clone()),
-                None,
+                new_file_sha,
                 app_file.client_contract_address.clone(),
             )
             .await
@@ -1702,19 +1709,20 @@ impl LDNApplication {
         let clompleted_application = app_file.reached_total_datacap();
         let parsed_app_file = serde_json::to_string_pretty(&clompleted_application)
             .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
-        let pr_number = LDNPullRequest::create_pr_for_existing_application(
-            clompleted_application.id.clone(),
-            parsed_app_file,
-            self.file_name.clone(),
-            format!("{}-total-dc-reached", clompleted_application.id),
-            self.file_sha.clone(),
-            application_model.owner.clone(),
-            application_model.repo.clone(),
-            true,
-            application_model.issue_number.to_string(),
-            format!("Total Datacap reached for {}", clompleted_application.id),
-        )
-        .await?;
+        let NewPrNumberAndFileSha { pr_number, .. } =
+            LDNPullRequest::create_pr_for_existing_application(
+                clompleted_application.id.clone(),
+                parsed_app_file,
+                self.file_name.clone(),
+                format!("{}-total-dc-reached", clompleted_application.id),
+                self.file_sha.clone(),
+                application_model.owner.clone(),
+                application_model.repo.clone(),
+                true,
+                application_model.issue_number.to_string(),
+                format!("Total Datacap reached for {}", clompleted_application.id),
+            )
+            .await?;
 
         let gh = github_async_new(self.github.owner.clone(), self.github.repo.clone()).await?;
 
@@ -2313,7 +2321,7 @@ impl LDNApplication {
                 LDNApplication::load(app_file.id.clone(), owner.clone(), repo.clone()).await?;
             let parsed_app_file = serde_json::to_string_pretty(&app_file)
                 .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
-            LDNPullRequest::add_commit_to(
+            let new_file_sha = LDNPullRequest::add_commit_to(
                 ldn_application.file_name.clone(),
                 ldn_application.branch_name.clone(),
                 "Move application back to review".to_string(),
@@ -2340,7 +2348,7 @@ impl LDNApplication {
                     number,
                     parsed_app_file,
                     Some(ldn_application.file_name.clone()),
-                    None,
+                    new_file_sha,
                     app_file.client_contract_address,
                 )
                 .await
@@ -2385,7 +2393,7 @@ impl LDNApplication {
         };
 
         // Commit the changes to the branch
-        LDNPullRequest::add_commit_to(
+        let new_file_sha = LDNPullRequest::add_commit_to(
             filename.clone(),
             branch_name.clone(),
             commit_message,
@@ -2411,7 +2419,7 @@ impl LDNApplication {
                 pr.number,
                 file_content,
                 Some(filename.clone()),
-                None,
+                new_file_sha,
                 db_application_file.client_contract_address.clone(),
             )
             .await
@@ -2661,6 +2669,21 @@ impl LDNApplication {
             LDNError::Load(format!("Failed to get branch name from pull request: {e}"))
         })?;
 
+        let file_update = gh
+            .update_file(&filename, commit_message, &file_content, &branch_name, &sha)
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to update file in GitHub repo {}/{}. Reason: {} in file {}",
+                    gh.owner.clone(),
+                    gh.repo.clone(),
+                    e,
+                    filename
+                ))
+            })?;
+
+        let new_file_sha = file_update.content.sha;
+
         match database::applications::get_application_by_pr_number(
             owner.clone(),
             repo.clone(),
@@ -2669,14 +2692,14 @@ impl LDNApplication {
         .await
         {
             Ok(_) => {
-                let _ = database::applications::update_application(
+                database::applications::update_application(
                     application_id,
                     owner.clone(),
                     repo.clone(),
                     pr_number,
                     file_content.clone(),
                     Some(filename.clone()),
-                    None,
+                    new_file_sha,
                     application_file.client_contract_address.clone(),
                 )
                 .await
@@ -2705,6 +2728,7 @@ impl LDNApplication {
                     file_content.clone(),
                     filename.clone(),
                     Some(issue_reporter_handle),
+                    new_file_sha,
                 )
                 .await
                 .map_err(|e| {
@@ -2712,18 +2736,6 @@ impl LDNApplication {
                 })?;
             }
         }
-
-        gh.update_file(&filename, commit_message, &file_content, &branch_name, &sha)
-            .await
-            .map_err(|e| {
-                LDNError::Load(format!(
-                    "Failed to update file in GitHub repo {}/{}. Reason: {} in file {}",
-                    gh.owner.clone(),
-                    gh.repo.clone(),
-                    e,
-                    filename
-                ))
-            })?;
 
         let differences = application_file.compare(&db_application_file);
 
@@ -3024,7 +3036,7 @@ impl LDNApplication {
             .sha
             .clone()
             .ok_or(LDNError::Load("Failed to get sha".to_string()))?;
-        LDNPullRequest::add_commit_to(
+        let new_file_sha = LDNPullRequest::add_commit_to(
             path.clone(),
             branch_name.clone(),
             format!(
@@ -3052,7 +3064,7 @@ impl LDNApplication {
                     pr.number,
                     file_content,
                     application_model.path.clone(),
-                    None,
+                    new_file_sha,
                     app_file.client_contract_address,
                 )
                 .await
@@ -3739,7 +3751,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                         db_app.pr_number as u64,
                         parsed_app_file,
                         None,
-                        Some(gh_app.sha.clone()),
+                        gh_app.sha.clone(),
                         gh_app.application_file.client_contract_address.clone(),
                     )
                     .await
@@ -3800,6 +3812,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     parsed_app_file,
                     gh_app.path,
                     Some(issue_reporter_handle),
+                    gh_app.sha,
                 )
                 .await
                 .map_err(|e| {
@@ -3841,7 +3854,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                         0,
                         parsed_app_file,
                         Some(gh_app.path.clone()),
-                        Some(gh_app.sha.clone()),
+                        gh_app.sha.clone(),
                         gh_app.application_file.client_contract_address.clone(),
                     )
                     .await
@@ -3901,6 +3914,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     parsed_app_file,
                     gh_app.path,
                     Some(issue_reporter_handle),
+                    gh_app.sha,
                 )
                 .await
                 .map_err(|e| {
@@ -4048,19 +4062,20 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let sha = app_model
             .sha
             .ok_or(LDNError::Load("Failed to get application sha".to_string()))?;
-        let pr_number = LDNPullRequest::create_pr_for_existing_application(
-            app_model.id.clone(),
-            file_content,
-            path,
-            format!("{}-reopen-application", app_model.id),
-            sha,
-            owner.into(),
-            repo.into(),
-            true,
-            app_model.issue_number.to_string().clone(),
-            format!("Reopen application: {}", reopen_application.client.name),
-        )
-        .await?;
+        let NewPrNumberAndFileSha { pr_number, .. } =
+            LDNPullRequest::create_pr_for_existing_application(
+                app_model.id.clone(),
+                file_content,
+                path,
+                format!("{}-reopen-application", app_model.id),
+                sha,
+                owner.into(),
+                repo.into(),
+                true,
+                app_model.issue_number.to_string().clone(),
+                format!("Reopen application: {}", reopen_application.client.name),
+            )
+            .await?;
 
         Self::add_comment_to_issue(
             app_model.issue_number.to_string(),
@@ -4256,26 +4271,6 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let application_file = application_file.kyc_request();
 
-        let parsed_app_file = serde_json::to_string_pretty(&application_file)
-            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
-        database::applications::update_application(
-            id.to_string(),
-            owner.to_string(),
-            repo.to_string(),
-            app_model.pr_number.try_into().map_err(|e| {
-                LDNError::Load(format!(
-                    "Parse PR number: {} to u64 failed  /// {}",
-                    app_model.pr_number, e
-                ))
-            })?,
-            parsed_app_file,
-            app_model.path.clone(),
-            None,
-            application_file.client_contract_address.clone(),
-        )
-        .await
-        .map_err(|e| LDNError::Load(format!("Failed to update application: {id} /// {e}")))?;
-
         self.issue_updates_for_kyc(&application_file.issue_number)
             .await?;
 
@@ -4419,27 +4414,6 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let score = verify_on_gitcoin(&address_from_signature).await?;
         let application_file = application_file.move_back_to_submit_state();
-        let parsed_app_file = serde_json::to_string_pretty(&application_file)
-            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
-        database::applications::update_application(
-            client_id.clone(),
-            owner.clone(),
-            repo.clone(),
-            app_model.pr_number.try_into().map_err(|e| {
-                LDNError::Load(format!(
-                    "Parse PR number: {} to u64 failed  /// {}",
-                    app_model.pr_number, e
-                ))
-            })?,
-            parsed_app_file,
-            app_model.path.clone(),
-            None,
-            application_file.client_contract_address.clone(),
-        )
-        .await
-        .map_err(|e| {
-            LDNError::Load(format!("Failed to update application: {client_id} /// {e}"))
-        })?;
 
         let parsed_issue_number = &application_file.issue_number.parse::<u64>().map_err(|e| {
             LDNError::New(format!(
@@ -4809,7 +4783,7 @@ impl LDNPullRequest {
         should_create_in_db: bool,
         issue_number: String,
         pr_title: String,
-    ) -> Result<u64, LDNError> {
+    ) -> Result<NewPrNumberAndFileSha, LDNError> {
         let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
         let head_hash = gh
             .get_main_branch_sha()
@@ -4825,7 +4799,7 @@ impl LDNPullRequest {
 
         let issue_link = format!("https://github.com/{owner}/{repo}/issues/{issue_number}");
 
-        let pr = gh
+        let (pr, file_sha) = gh
             .create_refill_merge_request(CreateRefillMergeRequestData {
                 issue_link,
                 file_name: file_name.clone(),
@@ -4852,11 +4826,12 @@ impl LDNPullRequest {
                 application_id.clone(),
                 owner,
                 repo,
-                pr.0.number,
+                pr.number,
                 issue_number,
                 file_content,
                 file_name,
                 Some(issue_reporter_handle),
+                file_sha.clone(),
             )
             .await
             .map_err(|e| {
@@ -4865,7 +4840,10 @@ impl LDNPullRequest {
                 ))
             })?;
         }
-        Ok(pr.0.number)
+        Ok(NewPrNumberAndFileSha {
+            pr_number: pr.number,
+            file_sha,
+        })
     }
 
     pub async fn add_commit_to(
@@ -4876,18 +4854,20 @@ impl LDNPullRequest {
         file_sha: String,
         owner: String,
         repo: String,
-    ) -> Result<(), LDNError> {
+    ) -> Result<String, LDNError> {
         let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
-        gh.update_file_content(
-            &path,
-            &commit_message,
-            &new_content,
-            &branch_name,
-            &file_sha,
-        )
-        .await
-        .map_err(|e| LDNError::Load(format!("Failed to add commit: {e}")))?;
-        Ok(())
+        let file_update = gh
+            .update_file_content(
+                &path,
+                &commit_message,
+                &new_content,
+                &branch_name,
+                &file_sha,
+            )
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to add commit: {e}")))?;
+        let file_sha = file_update.content.sha;
+        Ok(file_sha)
     }
 
     pub async fn close_pull_request(

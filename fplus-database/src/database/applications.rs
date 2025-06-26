@@ -5,7 +5,6 @@ use crate::models::applications::{
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::Expr;
 use sea_orm::{entity::*, query::*, DbBackend, DbErr};
-use sha1::{Digest, Sha1};
 
 /**
  * Get all applications from the database
@@ -313,7 +312,7 @@ pub async fn update_application(
     pr_number: u64,
     app_file: String,
     path: Option<String>,
-    sha: Option<String>,
+    file_sha: String,
     client_contract_address: Option<String>,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
@@ -323,13 +322,6 @@ pub async fn update_application(
 
     let mut active_application: ActiveModel = existing_application.into_active_model();
     active_application.application = Set(Some(app_file.clone()));
-    let file_sha = sha.unwrap_or_else(|| {
-        //Calculate SHA
-        let mut hasher = Sha1::new();
-        let application = format!("blob {}\x00{}", app_file.len(), app_file);
-        hasher.update(application.as_bytes());
-        format!("{:x}", hasher.finalize())
-    });
     active_application.sha = Set(Some(file_sha));
 
     if let Some(path) = path {
@@ -371,13 +363,9 @@ pub async fn create_application(
     app_file: String,
     path: String,
     issue_reporter_handle: Option<String>,
+    file_sha: String,
 ) -> Result<ApplicationModel, sea_orm::DbErr> {
     let conn = get_database_connection().await?;
-    //Calculate SHA
-    let mut hasher = Sha1::new();
-    let application = format!("blob {}\x00{}", app_file.len(), app_file);
-    hasher.update(application.as_bytes());
-    let file_sha = format!("{:x}", hasher.finalize());
 
     let new_application = ActiveModel {
         id: Set(id),
