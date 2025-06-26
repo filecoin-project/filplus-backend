@@ -1024,7 +1024,12 @@ impl LDNApplication {
         let contract_address = db_allocator
             .tooling
             .filter(|tooling| tooling.contains("smart_contract_allocator"))
-            .and_then(|_| db_allocator.address.clone());
+            .and_then(|_| {
+                db_allocator
+                    .ma_address
+                    .clone()
+                    .or_else(|| db_allocator.address.clone())
+            });
 
         let multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
             "Failed to get multisig address.".to_string(),
@@ -1200,7 +1205,12 @@ impl LDNApplication {
                 let contract_address = db_allocator
                     .tooling
                     .filter(|tooling| tooling.contains("smart_contract_allocator"))
-                    .and_then(|_| db_allocator.address.clone());
+                    .and_then(|_| {
+                        db_allocator
+                            .ma_address
+                            .clone()
+                            .or_else(|| db_allocator.address.clone())
+                    });
                 Self::is_allowance_sufficient(
                     &multisig_address,
                     &new_allocation_amount,
