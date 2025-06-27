@@ -32,7 +32,7 @@ pub async fn process_allocator_file(file_name: &str) -> Result<AllocatorModel, L
     let repo = get_env_var_or_default("ALLOCATOR_GOVERNANCE_REPO");
     let installation_id = get_env_var_or_default("GITHUB_INSTALLATION_ID")
         .parse::<i64>()
-        .map_err(|e| LDNError::New(format!("Parse installation_id to i64 failed: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Parse installation_id to i64 failed: {e}")))?;
     let branch = "main";
     let path = file_name.to_string();
 
@@ -108,8 +108,7 @@ pub async fn is_allocator_repo_initialized(gh: &GithubWrapper) -> Result<bool, L
     let applications_directory = "applications";
     let all_files_result = gh.get_files(applications_directory).await.map_err(|e| {
         LDNError::Load(format!(
-            "Failed to retrieve all files from GitHub. Reason: {}",
-            e
+            "Failed to retrieve all files from GitHub. Reason: {e}"
         ))
     });
 
@@ -151,11 +150,11 @@ pub async fn create_file_in_repo(
         )
         .send()
         .await
-        .map_err(|e| LDNError::Load(format!("here {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("here {e}")))?;
     let file = file
         .text()
         .await
-        .map_err(|e| LDNError::Load(format!("here1 {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("here1 {e}")))?;
 
     //Get file from target repo. If file does not exist or fails to retrieve, create it
     let target_file = match gh.get_file(&file_path, "main").await {
@@ -243,8 +242,7 @@ pub async fn init_allocator_repo(gh: &GithubWrapper) -> Result<(), LDNError> {
             .await
             .map_err(|e| {
                 LDNError::Load(format!(
-                    "Failed to retrieve all files from GitHub. Reason: {}",
-                    e
+                    "Failed to retrieve all files from GitHub. Reason: {e}"
                 ))
             })?;
 
@@ -264,19 +262,14 @@ pub async fn init_allocator_repo(gh: &GithubWrapper) -> Result<(), LDNError> {
 pub async fn generate_github_app_jwt() -> Result<String, LDNError> {
     let app_id = get_env_var_or_default("GITHUB_APP_ID")
         .parse::<u64>()
-        .map_err(|e| {
-            LDNError::New(format!(
-                "Parse days to next allocation to i64 failed: {}",
-                e
-            ))
-        })?;
+        .map_err(|e| LDNError::New(format!("Parse days to next allocation to i64 failed: {e}")))?;
     let pem = get_env_var_or_default("GH_PRIVATE_KEY");
 
     let key = EncodingKey::from_rsa_pem(pem.to_string().as_bytes())
-        .map_err(|e| LDNError::Load(format!("Failed to load RSA PEM: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to load RSA PEM: {e}")))?;
 
     let token = create_jwt(octocrab::models::AppId(app_id), &key)
-        .map_err(|e| LDNError::Load(format!("Failed to create JWT: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to create JWT: {e}")))?;
 
     Ok(token)
 }
@@ -285,13 +278,13 @@ pub async fn fetch_installation_ids(client: &Client, jwt: &str) -> Result<Vec<u6
     let req_url = "https://api.github.com/app/installations";
     let response = client
         .get(req_url)
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
         .header(header::ACCEPT, "application/vnd.github+json")
         .header("X-GitHub-Api-Version", "2022-11-28")
         .header(header::USER_AGENT, "YourApp")
         .send()
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to send request: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to send request: {e}")))?;
 
     if !response.status().is_success() {
         log::error!("Request failed with status: {}", response.status());
@@ -300,12 +293,12 @@ pub async fn fetch_installation_ids(client: &Client, jwt: &str) -> Result<Vec<u6
     let text = response
         .text()
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to decode response: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to decode response: {e}")))?;
 
     log::debug!("Response body: {}", text);
 
     let installations: Vec<Installation> = serde_json::from_str(&text)
-        .map_err(|e| LDNError::Load(format!("Failed to parse response as JSON: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to parse response as JSON: {e}")))?;
 
     Ok(installations.into_iter().map(|i| i.id).collect())
 }
@@ -315,13 +308,11 @@ pub async fn fetch_access_token(
     jwt: &str,
     installation_id: u64,
 ) -> Result<String> {
-    let req_url = format!(
-        "https://api.github.com/app/installations/{}/access_tokens",
-        installation_id
-    );
+    let req_url =
+        format!("https://api.github.com/app/installations/{installation_id}/access_tokens");
     let res: AccessTokenResponse = client
         .post(req_url)
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt))
+        .header(header::AUTHORIZATION, format!("Bearer {jwt}"))
         .header(header::USER_AGENT, "YourApp")
         .send()
         .await?
@@ -334,7 +325,7 @@ pub async fn fetch_repositories(client: &Client, token: &str) -> Result<Vec<Repo
     let req_url = "https://api.github.com/installation/repositories";
     let res: RepositoriesResponse = client
         .get(req_url)
-        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
         .header(header::USER_AGENT, "YourApp")
         .send()
         .await?
@@ -366,7 +357,7 @@ pub async fn update_installation_ids_in_db(
     let installation_id: i64 = installation
         .installation_id
         .try_into()
-        .map_err(|e| LDNError::Load(format!("Failed to pasre installation id to i64: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to pasre installation id to i64: {e}")))?;
     for repo in installation.repositories.iter() {
         update_allocator_installation_ids(
             repo.owner.clone(),
@@ -390,7 +381,7 @@ pub async fn update_installation_ids_logic() -> Result<(), LDNError> {
     let client = Client::new();
     let jwt = generate_github_app_jwt()
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to generate GitHub App JWT: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to generate GitHub App JWT: {e}")))?;
 
     let installation_ids_result = fetch_installation_ids(&client, &jwt).await;
     let mut results: Vec<InstallationRepositories> = Vec::new();
@@ -401,8 +392,7 @@ pub async fn update_installation_ids_logic() -> Result<(), LDNError> {
                 .await
                 .map_err(|e| {
                     LDNError::Load(format!(
-                        "Failed to fetch repositories for installation id: {}",
-                        e
+                        "Failed to fetch repositories for installation id: {e}"
                     ))
                 })?;
         results.push(InstallationRepositories {
@@ -486,7 +476,7 @@ pub async fn force_update_allocators(
                     Some(file),
                 )
                 .await
-                .map_err(|e| LDNError::Load(format!("Failed to get files: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to get files: {e}")))?;
             create_file_in_repo(&gh, &content.items[0], true).await?;
         }
     }
@@ -508,7 +498,7 @@ pub fn validate_amount_type_and_options(
 pub fn validate_fixed_amount_options(amount_options: &[String]) -> Result<(), String> {
     for option in amount_options {
         if !is_valid_fixed_option(option) {
-            return Err(format!("Invalid fixed amount option: {}", option));
+            return Err(format!("Invalid fixed amount option: {option}"));
         }
     }
     Ok(())
@@ -518,7 +508,7 @@ pub fn validate_percentage_amount_options(amount_options: &[String]) -> Result<(
     for option in amount_options {
         let no_percentage_option = option.replace('%', "");
         if no_percentage_option.parse::<i32>().is_err() {
-            return Err(format!("Invalid percentage amount option: {}", option));
+            return Err(format!("Invalid percentage amount option: {option}"));
         }
     }
     Ok(())
@@ -601,8 +591,7 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
             })
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Installation Id not found for a repo: {} /// {}",
-                    repo, e
+                    "Installation Id not found for a repo: {repo} /// {e}"
                 ))
             })?;
 
@@ -611,12 +600,11 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
         match is_allocator_repo_initialized(&gh).await {
             Ok(true) => (),
             Ok(false) => init_allocator_repo(&gh).await.map_err(|e| {
-                LDNError::New(format!("Initializing the allocator repo failed: {}", e))
+                LDNError::New(format!("Initializing the allocator repo failed: {e}"))
             })?,
             Err(e) => {
                 return Err(LDNError::New(format!(
-                    "Checking if the repo is initialized failed: {}",
-                    e
+                    "Checking if the repo is initialized failed: {e}"
                 )));
             }
         }
@@ -642,7 +630,7 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
             model.ma_address,
         )
         .await
-        .map_err(|e| LDNError::New(format!("Create or update allocator failed: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Create or update allocator failed: {e}")))?;
 
         let allocator_id = allocator_creation_result.id;
 
@@ -651,8 +639,7 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Delete all old allocation amounts by allocator id failed: {}",
-                    e
+                    "Delete all old allocation amounts by allocator id failed: {e}"
                 ))
             })?;
 
@@ -664,8 +651,7 @@ pub async fn create_allocator_from_file(files_changed: Vec<String>) -> Result<()
                         .await
                         .map_err(|e| {
                             LDNError::New(format!(
-                                "Create allocation amount rows in the database failed: {}",
-                                e
+                                "Create allocation amount rows in the database failed: {e}"
                             ))
                         })?;
                 }

@@ -47,14 +47,14 @@ async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
     env_logger::init();
     if let Err(e) = fplus_database::setup().await {
-        panic!("Failed to setup database connection: {}", e);
+        panic!("Failed to setup database connection: {e}");
     }
 
     tokio::spawn(async {
         run_cron("0 0 0,4,8,12,16,20 * * * *", || {
             tokio::spawn(async {
                 if let Err(e) = update_installation_ids_logic().await {
-                    eprintln!("Error: {:?}", e);
+                    eprintln!("Error: {e:?}");
                 }
             })
         })

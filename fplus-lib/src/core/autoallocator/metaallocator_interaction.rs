@@ -29,7 +29,7 @@ async fn get_provider() -> Result<impl Provider, LDNError> {
         .wallet(wallet)
         .on_builtin(&rpc_url)
         .await
-        .map_err(|e| LDNError::New(format!("Building provider failed: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Building provider failed: {e}")))?;
     Ok(provider)
 }
 
@@ -37,7 +37,7 @@ pub async fn add_verified_client(address: &str, amount: &u64) -> Result<(), LDNE
     let provider = get_provider().await?;
     let fil_address = decode_filecoin_address(address)?;
     let amount = U256::try_from(*amount)
-        .map_err(|e| LDNError::New(format!("Failed to prase amount to U256 /// {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Failed to prase amount to U256 /// {e}")))?;
     let call = addVerifiedClientCall {
         clientAddress: fil_address.into(),
         amount,
@@ -47,8 +47,7 @@ pub async fn add_verified_client(address: &str, amount: &u64) -> Result<(), LDNE
         Address::parse_checksummed(get_env_var_or_default("ALLOCATOR_CONTRACT_ADDRESS"), None)
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Parse ALLOCATOR_CONTRACT_ADDRESS to Address failed: {}",
-                    e
+                    "Parse ALLOCATOR_CONTRACT_ADDRESS to Address failed: {e}"
                 ))
             })?;
     let input = Bytes::from(call);
@@ -59,10 +58,10 @@ pub async fn add_verified_client(address: &str, amount: &u64) -> Result<(), LDNE
     let tx = provider
         .send_transaction(tx)
         .await
-        .map_err(|e| LDNError::New(format!("RPC error: {}", e)))?
+        .map_err(|e| LDNError::New(format!("RPC error: {e}")))?
         .get_receipt()
         .await
-        .map_err(|e| LDNError::New(format!("Transaction failed: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Transaction failed: {e}")))?;
     if !tx.status() {
         return Err(LDNError::New("Transaction failed.".to_string()));
     }
@@ -79,6 +78,6 @@ fn decode_filecoin_address(address: &str) -> Result<Vec<u8>, LDNError> {
         }
     }
     let fil_address = FilecoinAddress::from_str(address)
-        .map_err(|e| LDNError::New(format!("Failed to prase address from string /// {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Failed to prase address from string /// {e}")))?;
     Ok(fil_address.to_bytes())
 }

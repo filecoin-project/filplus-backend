@@ -40,7 +40,7 @@ pub async fn setup() -> Result<(), DbErr> {
     let db_conn = Database::connect(&database_url).await?;
     let mut db_conn_global = DB_CONN
         .lock()
-        .map_err(|e| DbErr::Custom(format!("Failed to lock database connection: {}", e)))?;
+        .map_err(|e| DbErr::Custom(format!("Failed to lock database connection: {e}")))?;
     *db_conn_global = Some(db_conn);
     Ok(())
 }
@@ -54,7 +54,7 @@ pub async fn setup() -> Result<(), DbErr> {
 pub async fn get_database_connection() -> Result<DatabaseConnection, DbErr> {
     let db_conn = DB_CONN
         .lock()
-        .map_err(|e| DbErr::Custom(format!("Failed to lock database connection: {}", e)))?;
+        .map_err(|e| DbErr::Custom(format!("Failed to lock database connection: {e}")))?;
     if let Some(ref conn) = *db_conn {
         Ok(conn.clone())
     } else {

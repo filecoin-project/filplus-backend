@@ -130,7 +130,7 @@ pub struct ParsedIssue {
 impl ParsedIssue {
     pub fn from_issue_body(body: &str) -> Result<Self, LDNError> {
         let tree: Node = to_mdast(body, &ParseOptions::default())
-            .map_err(|e| LDNError::Load(format!("Failed to get node: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get node: {e}")))?;
         let mut data: IssueValidData = IssueValidData::default();
         let children = tree.children().ok_or(LDNError::Load(
             "Failed to get children from node.".to_string(),
@@ -274,14 +274,12 @@ impl TryFrom<IssueValidData> for Datacap {
         for (prop, value) in data.0 {
             match prop.0.into() {
                 ParsedApplicationDataFields::DatacapGroup => {
-                    datacap._group = DatacapGroup::from_str(&value.0).map_err(|e| {
-                        LDNError::Load(format!("Failed to get DataCap group: {}", e))
-                    })?;
+                    datacap._group = DatacapGroup::from_str(&value.0)
+                        .map_err(|e| LDNError::Load(format!("Failed to get DataCap group: {e}")))?;
                 }
                 ParsedApplicationDataFields::Type => {
-                    datacap.data_type = DataType::from_str(&value.0).map_err(|e| {
-                        LDNError::Load(format!("Failed to get DataCap type: {}", e))
-                    })?;
+                    datacap.data_type = DataType::from_str(&value.0)
+                        .map_err(|e| LDNError::Load(format!("Failed to get DataCap type: {e}")))?;
                 }
                 ParsedApplicationDataFields::TotalRequestedAmount => {
                     datacap.total_requested_amount = value.0;
@@ -291,7 +289,7 @@ impl TryFrom<IssueValidData> for Datacap {
                 }
                 ParsedApplicationDataFields::Replicas => {
                     datacap.replicas = value.0.parse::<u8>().map_err(|e| {
-                        LDNError::Load(format!("Failed to parse replicas to u8: {}", e))
+                        LDNError::Load(format!("Failed to parse replicas to u8: {e}"))
                     })?;
                 }
                 ParsedApplicationDataFields::WeeklyAllocation => {

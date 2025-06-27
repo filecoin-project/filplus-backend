@@ -60,7 +60,7 @@ where
         } = match query {
             Ok(q) => q.into_inner(),
             Err(e) => {
-                println!("{}", e);
+                println!("{e}");
                 return Box::pin(async {
                     Err(actix_web::error::ErrorBadRequest(
                         "Wrong query string format",
@@ -85,7 +85,7 @@ where
                 let client = Client::new();
                 let user_info_result = client
                     .get("https://api.github.com/user")
-                    .header("Authorization", format!("Bearer {}", token))
+                    .header("Authorization", format!("Bearer {token}"))
                     .header("User-Agent", "Actix-web")
                     .send()
                     .await
@@ -130,7 +130,7 @@ where
                                 .map(|s| s.trim().to_lowercase())
                                 .collect();
                             if verifier_handles.contains(&user_handle.to_lowercase()) {
-                                println!("{} is a verifier.", user_handle);
+                                println!("{user_handle} is a verifier.");
                             } else {
                                 println!("The user is not a verifier.");
                                 return Err(actix_web::error::ErrorUnauthorized(
@@ -141,7 +141,7 @@ where
                     }
                 }
                 Err(e) => {
-                    println!("Failed to get allocator: {:?}", e);
+                    println!("Failed to get allocator: {e:?}");
                 }
             }
 

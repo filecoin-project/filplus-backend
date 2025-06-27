@@ -212,7 +212,7 @@ pub async fn create_or_update_allocator(
             .await
             .expect("Failed to get DB connection");
         let insert_result = new_allocator.insert(&conn).await?;
-        println!("Allocator inserted: {:?}", insert_result);
+        println!("Allocator inserted: {insert_result:?}");
         Ok(insert_result)
     }
 }

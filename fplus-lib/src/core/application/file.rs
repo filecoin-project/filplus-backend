@@ -22,7 +22,7 @@ impl FromStr for DatacapGroup {
             "da" => Ok(Self::DA),
             "ldn-v3" => Ok(Self::LDN),
             "e-fil" => Ok(Self::EFIL),
-            _ => Err(format!("{} is not a valid datacap group", s)),
+            _ => Err(format!("{s} is not a valid datacap group")),
         }
     }
 }
@@ -158,7 +158,7 @@ impl FromStr for DataType {
             "Public, Open Commercial/Enterprise" => Ok(Self::PublicOpenCommercialEnterprise),
             "Private Commercial/Enterprise" => Ok(Self::PrivateCommercialEnterprise),
             "Private Non-Profit / Social impact" => Ok(Self::PrivateNonProfitSocialImpact),
-            _ => Err(format!("{} is not a valid data type", s)),
+            _ => Err(format!("{s} is not a valid data type")),
         }
     }
 }
