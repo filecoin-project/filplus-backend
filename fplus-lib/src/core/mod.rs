@@ -2501,6 +2501,8 @@ impl LDNApplication {
                 .is_some()
             {
                 db_application_file.lifecycle.state = AppState::ChangingSP;
+            } else {
+                db_application_file.lifecycle.state = AppState::Granted;
             }
         } else {
             db_application_file.lifecycle.state = AppState::Granted;
