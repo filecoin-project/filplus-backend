@@ -34,7 +34,7 @@ pub enum BlockchainDataError {
 impl std::fmt::Display for BlockchainDataError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            BlockchainDataError::Err(e) => write!(f, "Error: {}", e),
+            BlockchainDataError::Err(e) => write!(f, "Error: {e}"),
         }
     }
 }
@@ -120,7 +120,7 @@ pub async fn get_allowance_for_address_contract(
         .map_err(|e| LDNError::New(format!("Transaction failed: {e:?}")))?;
 
     let parsed_response = U256::from_str(&response.to_string())
-        .map_err(|e| LDNError::Load(format!("Failed to parse response to U256: {}", e)))?
+        .map_err(|e| LDNError::Load(format!("Failed to parse response to U256: {e}")))?
         .to::<u64>();
 
     Ok(parsed_response)

@@ -291,7 +291,7 @@ impl LDNApplication {
         let (_, pull_request) = gh
             .get_pull_request_files(pr_number)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get pull request files: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get pull request files: {e}")))?;
         let pull_request = pull_request.first().ok_or(LDNError::Load(
             "Failed to get first pull request file.".to_string(),
         ))?;
@@ -299,11 +299,11 @@ impl LDNApplication {
             .get(pull_request.raw_url.to_string())
             .send()
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get pull request files /// {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get pull request files /// {e}")))?;
         let pull_request = pull_request
             .text()
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get pull request files /// {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get pull request files /// {e}")))?;
         if let Ok(app) = serde_json::from_str::<ApplicationFile>(&pull_request) {
             Ok(app)
         } else {
@@ -392,7 +392,7 @@ impl LDNApplication {
         let app_model_result =
             database::applications::get_application(application_id, owner, repo, None)
                 .await
-                .map_err(|e| LDNError::Load(format!("Failed to get application: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to get application: {e}")))?;
         Ok(app_model_result)
     }
 
@@ -407,13 +407,12 @@ impl LDNApplication {
 
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
-                "Application {} does not have an application field",
-                application_id
+                "Application {application_id} does not have an application field"
             ))
         })?;
 
         ApplicationFile::from_str(&app_str)
-            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {}", e)))
+            .map_err(|e| LDNError::Load(format!("Failed to parse application file from DB: {e}")))
     }
 
     pub async fn application_with_allocation_amount(
@@ -428,23 +427,22 @@ impl LDNApplication {
             None,
         )
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to get application: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to get application: {e}")))?;
 
         // Check if the application field is present and parse it
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
-                "Application {} does not have an application field",
-                application_id
+                "Application {application_id} does not have an application field"
             ))
         })?;
 
         let app_file = ApplicationFile::from_str(&app_str).map_err(|e| {
-            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+            LDNError::Load(format!("Failed to parse application file from DB: {e}"))
         })?;
 
         let db_allocator = get_allocator(&owner, &repo)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get an allocator: {}", e)))?
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator: {e}")))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
 
         let allocation_amount_type = db_allocator
@@ -454,7 +452,7 @@ impl LDNApplication {
         let allocation_amount_quantity_options = get_allocation_quantity_options(db_allocator.id)
             .await
             .map_err(|e| {
-                LDNError::Load(format!("Failed to get allocation_quantity_options: {}", e))
+                LDNError::Load(format!("Failed to get allocation_quantity_options: {e}"))
             })?;
 
         Ok(ApplicationWithAllocation {
@@ -477,7 +475,7 @@ impl LDNApplication {
         let pull_requests = gh
             .list_pull_requests()
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {e}")))?;
         let pull_requests = future::try_join_all(
             pull_requests
                 .into_iter()
@@ -521,10 +519,7 @@ impl LDNApplication {
         let applications = database::applications::get_active_applications()
             .await
             .map_err(|e| {
-                LDNError::Load(format!(
-                    "Failed to get applications from the database: {}",
-                    e
-                ))
+                LDNError::Load(format!("Failed to get applications from the database: {e}"))
             })?;
         let applications_response = Self::prepare_applications_response(applications);
         Ok(applications_response)
@@ -534,10 +529,7 @@ impl LDNApplication {
         let applications = database::applications::get_closed_applications()
             .await
             .map_err(|e| {
-                LDNError::Load(format!(
-                    "Failed to get applications from the database: {}",
-                    e
-                ))
+                LDNError::Load(format!("Failed to get applications from the database: {e}"))
             })?;
         let applications_response = Self::prepare_applications_response(applications);
         Ok(applications_response)
@@ -550,10 +542,7 @@ impl LDNApplication {
         let applications = database::applications::get_allocator_closed_applications(owner, repo)
             .await
             .map_err(|e| {
-                LDNError::Load(format!(
-                    "Failed to get applications from the database: {}",
-                    e
-                ))
+                LDNError::Load(format!("Failed to get applications from the database: {e}"))
             })?;
         let applications_response = Self::prepare_applications_response(applications);
         Ok(applications_response)
@@ -589,7 +578,7 @@ impl LDNApplication {
             Some(repo),
         )
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to get active applications: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to get active applications: {e}")))?;
 
         // Filter and convert active applications.
         let mut apps: Vec<ApplicationResponse> = Vec::new();
@@ -633,7 +622,7 @@ impl LDNApplication {
         let pull_requests = gh
             .list_pull_requests()
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {e}")))?;
         let pull_requests = future::try_join_all(
             pull_requests
                 .into_iter()
@@ -643,7 +632,7 @@ impl LDNApplication {
                 .collect::<Vec<_>>(),
         )
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to get list of PR files: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to get list of PR files: {e}")))?;
         for (sha, path, app_file, pr_info) in pull_requests.into_iter().flatten() {
             if let Some(updated_at) = pr_info.updated_at {
                 let app_with_date = ApplicationFileWithDate {
@@ -672,8 +661,7 @@ impl LDNApplication {
         let applications_path = "applications";
         let mut all_files_result = gh.get_files(applications_path).await.map_err(|e| {
             LDNError::Load(format!(
-                "Failed to retrieve all files from GitHub. Reason: {}",
-                e
+                "Failed to retrieve all files from GitHub. Reason: {e}"
             ))
         })?;
 
@@ -758,7 +746,7 @@ impl LDNApplication {
 
                 let applications = database::applications::get_active_applications()
                     .await
-                    .map_err(|e| LDNError::Load(format!("Failed to get applications: {}", e)))?;
+                    .map_err(|e| LDNError::Load(format!("Failed to get applications: {e}")))?;
 
                 //check if id is in applications vector
                 let app_model = applications.iter().find(|app| app.id == application_id);
@@ -829,7 +817,7 @@ impl LDNApplication {
                     }
                     let client_allocation =
                         get_client_allocation(&application_id).await.map_err(|e| {
-                            LDNError::Load(format!("Failed to get client allocation: {}", e))
+                            LDNError::Load(format!("Failed to get client allocation: {e}"))
                         })?;
                     if client_allocation.count.is_some() {
                         log::info!("Allocation found for client {}", application_id);
@@ -860,8 +848,7 @@ impl LDNApplication {
                         )
                         .await?;
                         return Err(LDNError::New(format!(
-                            "Application issue file is corrupted /// {}",
-                            e
+                            "Application issue file is corrupted /// {e}"
                         )));
                     }
                 };
@@ -895,15 +882,14 @@ impl LDNApplication {
                     .get_pull_request_by_head(&branch_name)
                     .await
                     .map_err(|e| {
-                        LDNError::Load(format!("Failed to get pull request by head: {}", e))
+                        LDNError::Load(format!("Failed to get pull request by head: {e}"))
                     })?;
 
                 if let Some(pr) = prs.first() {
                     let number = pr.number;
                     let issue_number = issue_number.parse::<i64>().map_err(|e| {
                         LDNError::New(format!(
-                            "Parse issue number: {} to i64 failed. {}",
-                            issue_number, e
+                            "Parse issue number: {issue_number} to i64 failed. {e}"
                         ))
                     })?;
                     database::applications::create_application(
@@ -919,8 +905,7 @@ impl LDNApplication {
                     .await
                     .map_err(|e| {
                         LDNError::New(format!(
-                            "Application issue {} cannot create application in DB /// {}",
-                            application_id, e
+                            "Application issue {application_id} cannot create application in DB /// {e}"
                         ))
                     })?;
                     let comparable_data = ApplicationComparableData {
@@ -949,7 +934,7 @@ impl LDNApplication {
                     )
                     .await
                     .map_err(|e| {
-                        LDNError::New(format!("Failed to create application in DB: {}", e))
+                        LDNError::New(format!("Failed to create application in DB: {e}"))
                     })?;
                 }
 
@@ -1010,8 +995,7 @@ impl LDNApplication {
             && app_state != AppState::AdditionalInfoSubmitted
         {
             return Err(LDNError::Load(format!(
-                "Application state is {:?}. Expected one of the following  KYCRequested, Submitted, AdditionalInfoRequired or AdditionalInfoSubmitted",
-                app_state
+                "Application state is {app_state:?}. Expected one of the following  KYCRequested, Submitted, AdditionalInfoRequired or AdditionalInfoSubmitted"
             )));
         }
         let app_file: ApplicationFile = self.file().await?;
@@ -1019,7 +1003,7 @@ impl LDNApplication {
 
         let db_allocator = get_allocator(&owner, &repo)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {e}")))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
         let contract_address = db_allocator
             .tooling
@@ -1055,7 +1039,7 @@ impl LDNApplication {
             client_contract_address.clone(),
         );
         let file_content = serde_json::to_string_pretty(&app_file)
-            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
         let app_path = &self.file_name.clone();
         let app_branch = self.branch_name.clone();
         Self::issue_datacap_request_trigger(app_file.clone(), owner.clone(), repo.clone()).await?;
@@ -1073,7 +1057,7 @@ impl LDNApplication {
             .github
             .get_pull_request_by_head(&app_branch)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get pull request by head: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get pull request by head: {e}")))?;
         if let Some(pr) = prs.first() {
             database::applications::update_application(
                 app_file.id.clone(),
@@ -1122,8 +1106,7 @@ impl LDNApplication {
                     owner.clone(),
                     repo.clone(),
                     format!(
-                        "## Reason for not using Client Smart Contract\n {}",
-                        reason_for_not_using_client_smart_contract
+                        "## Reason for not using Client Smart Contract\n {reason_for_not_using_client_smart_contract}"
                     ),
                 )
                 .await?;
@@ -1146,7 +1129,7 @@ impl LDNApplication {
         // Get multisig threshold from the database
         let db_allocator = get_allocator(&owner, &repo)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {e}")))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
         let multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
             "Failed to get multisig address.".to_string(),
@@ -1186,15 +1169,13 @@ impl LDNApplication {
         let app_state = self.app_state().await?;
         if app_state != AppState::ReadyToSign {
             return Err(LDNError::Load(format!(
-                "Application state is {:?}. Expected ReadyToSign",
-                app_state
+                "Application state is {app_state:?}. Expected ReadyToSign"
             )));
         }
         let mut app_file: ApplicationFile = self.file().await?;
         if !app_file.allocation.is_active(request_id.clone()) {
             return Err(LDNError::Load(format!(
-                "Request {} is not active",
-                request_id
+                "Request {request_id} is not active"
             )));
         }
         app_file = app_file.update_lifecycle_after_sign_datacap_proposal(&signer.github_username);
@@ -1225,7 +1206,7 @@ impl LDNApplication {
         }
 
         let file_content = serde_json::to_string_pretty(&app_file)
-            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
 
         LDNPullRequest::add_commit_to(
             self.file_name.to_string(),
@@ -1242,7 +1223,7 @@ impl LDNApplication {
             .github
             .get_pull_request_by_head(&self.branch_name)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get pull request by head: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get pull request by head: {e}")))?;
 
         if let Some(pr) = prs.first() {
             database::applications::update_application(
@@ -1299,7 +1280,7 @@ impl LDNApplication {
     ) -> Result<(), LDNError> {
         let db_allocator = get_allocator(&owner, &repo)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {e}")))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
 
         let db_multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
@@ -1396,7 +1377,7 @@ impl LDNApplication {
                 app_file.client.name.clone()
             );
             let parsed_app_file = serde_json::to_string_pretty(&app_file)
-                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
 
             LDNPullRequest::create_pr_for_existing_application(
                 app_file.id.clone(),
@@ -1436,7 +1417,7 @@ impl LDNApplication {
 
         let db_allocator = get_allocator(&owner, &repo)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {e}")))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
 
         let threshold_to_use = db_allocator.multisig_threshold.unwrap_or(2) as usize;
@@ -1519,7 +1500,7 @@ impl LDNApplication {
         // Get multisig threshold from the database
         let db_allocator = get_allocator(&owner, &repo)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {e}")))?
             .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
         let threshold_to_use = db_allocator.multisig_threshold.unwrap_or(2) as usize;
 
@@ -1624,7 +1605,7 @@ impl LDNApplication {
                     app_file.issue_number.clone(),
                     owner.clone(),
                     repo.clone(),
-                    format!("## Allocation has been made through the Client Smart Contract\nContract address: `{}`\n[How to create verified DDO deals using DataCap?](https://github.com/fidlabs/contract-metaallocator/blob/main/HowToUseClientSmartContract.md#this-step-by-step-guide-explains-how-to-create-verified-ddo-deals-using-datacap-granted-through-a-client-smart-contract-with-boost)", client_contract_address),
+                    format!("## Allocation has been made through the Client Smart Contract\nContract address: `{client_contract_address}`\n[How to create verified DDO deals using DataCap?](https://github.com/fidlabs/contract-metaallocator/blob/main/HowToUseClientSmartContract.md#this-step-by-step-guide-explains-how-to-create-verified-ddo-deals-using-datacap-granted-through-a-client-smart-contract-with-boost)"),
                 )
                 .await?;
             }
@@ -1641,11 +1622,10 @@ impl LDNApplication {
         let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
         let parsed_issue_number = issue_number
             .parse::<u64>()
-            .map_err(|e| LDNError::New(format!("Parse issue number to u64 failed: {}", e)))?;
+            .map_err(|e| LDNError::New(format!("Parse issue number to u64 failed: {e}")))?;
         let issue = gh.list_issue(parsed_issue_number).await.map_err(|e| {
             LDNError::Load(format!(
-                "Failed to retrieve issue {} from GitHub. Reason: {}",
-                issue_number, e
+                "Failed to retrieve issue {issue_number} from GitHub. Reason: {e}"
             ))
         })?;
         if let Some(issue_body) = issue.body {
@@ -1664,13 +1644,12 @@ impl LDNApplication {
     ) -> Result<bool, LDNError> {
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
-                "Application {} does not have an application field",
-                application_id
+                "Application {application_id} does not have an application field"
             ))
         })?;
 
         let db_application: ApplicationFile = ApplicationFile::from_str(&app_str).map_err(|e| {
-            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+            LDNError::Load(format!("Failed to parse application file from DB: {e}"))
         })?;
 
         if db_application.id == application_id {
@@ -1694,20 +1673,19 @@ impl LDNApplication {
             Some(0),
         )
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to get application: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to get application: {e}")))?;
         let application = application_model.application.ok_or(LDNError::Load(format!(
             "Application {} does not have an application field",
             self.application_id
         )))?;
         let app_file = ApplicationFile::from_str(&application).map_err(|e| {
-            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+            LDNError::Load(format!("Failed to parse application file from DB: {e}"))
         })?;
 
         let app_state = app_file.lifecycle.get_state();
         if app_state != AppState::Granted {
             return Err(LDNError::Load(format!(
-                "Application state is: {:?}. Expected Granted",
-                app_state
+                "Application state is: {app_state:?}. Expected Granted"
             )));
         }
 
@@ -1723,7 +1701,7 @@ impl LDNApplication {
         }
         let clompleted_application = app_file.reached_total_datacap();
         let parsed_app_file = serde_json::to_string_pretty(&clompleted_application)
-            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
         let pr_number = LDNPullRequest::create_pr_for_existing_application(
             clompleted_application.id.clone(),
             parsed_app_file,
@@ -1742,8 +1720,7 @@ impl LDNApplication {
 
         gh.merge_pull_request(pr_number).await.map_err(|e| {
             LDNError::Load(format!(
-                "Failed to merge pull request {}. Reason: {}",
-                pr_number, e
+                "Failed to merge pull request {pr_number}. Reason: {e}"
             ))
         })?;
 
@@ -1755,8 +1732,7 @@ impl LDNApplication {
         .await
         .map_err(|e| {
             LDNError::Load(format!(
-                "Failed to update application in database. Reason: {}",
-                e
+                "Failed to update application in database. Reason: {e}"
             ))
         })?;
         Self::add_comment_to_issue(
@@ -1808,7 +1784,7 @@ impl LDNApplication {
     ) -> Result<ValidVerifierList, LDNError> {
         let allocator = database::allocators::get_allocator(&owner, &repo)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to retrieve allocators /// {}", e)))?
+            .map_err(|e| LDNError::Load(format!("Failed to retrieve allocators /// {e}")))?
             .ok_or(LDNError::Load("Allocator not found".to_string()))?;
 
         let mut verifiers_handles = Vec::new();
@@ -1838,8 +1814,7 @@ impl LDNApplication {
             .map_or_else(
                 || {
                     Err(LDNError::Load(format!(
-                        "Application issue {} does not exist",
-                        application_id
+                        "Application issue {application_id} does not exist"
                     )))
                 },
                 Ok,
@@ -1859,11 +1834,11 @@ impl LDNApplication {
             .get(download_url)
             .send()
             .await
-            .map_err(|e| LDNError::Load(format!("here {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("here {e}")))?;
         let file = file
             .text()
             .await
-            .map_err(|e| LDNError::Load(format!("here1 {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("here1 {e}")))?;
         let app = match ApplicationFile::from_str(&file) {
             Ok(app) => app,
             Err(_) => {
@@ -1883,7 +1858,7 @@ impl LDNApplication {
             Some(repo.clone()),
         )
         .await
-        .map_err(|e| LDNError::Load(format!("Database error:: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Database error:: {e}")))?;
 
         // Convert applications from the main branch.
         let mut merged_apps: Vec<(ApplicationGithubInfo, ApplicationResponse)> = Vec::new();
@@ -1949,7 +1924,7 @@ impl LDNApplication {
 
             let pr_title = format!("Datacap for {}", app.file.client.name.clone());
             let parsed_app_file = serde_json::to_string_pretty(&app_file)
-                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
             LDNPullRequest::create_pr_for_existing_application(
                 app.file.id.clone(),
                 parsed_app_file,
@@ -1973,18 +1948,14 @@ impl LDNApplication {
 
         let gh = github_async_new(info.owner.clone(), info.repo.clone()).await?;
         let issue_number = info.issue_number.parse().map_err(|e| {
-            LDNError::Load(format!("Failed to parse issue number to number: {:?}", e))
+            LDNError::Load(format!("Failed to parse issue number to number: {e:?}"))
         })?;
         let has_label = gh.issue_has_label(issue_number, label).await.map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to check if issue has refill label: {:?}",
-                e
-            ))
+            LDNError::Load(format!("Failed to check if issue has refill label: {e:?}"))
         })?;
         if has_label {
             return Err(LDNError::Load(format!(
-                "'{}' label present - already notified about refill!",
-                label
+                "'{label}' label present - already notified about refill!"
             )));
         }
 
@@ -2064,8 +2035,7 @@ impl LDNApplication {
 
         gh.merge_pull_request(pr_number).await.map_err(|e| {
             LDNError::Load(format!(
-                "Failed to merge pull request {}. Reason: {}",
-                pr_number, e
+                "Failed to merge pull request {pr_number}. Reason: {e}"
             ))
         })?;
 
@@ -2073,8 +2043,7 @@ impl LDNApplication {
             .await
             .map_err(|e| {
                 LDNError::Load(format!(
-                    "Failed to update application in database. Reason: {}",
-                    e
+                    "Failed to update application in database. Reason: {e}"
                 ))
             })?;
 
@@ -2098,7 +2067,7 @@ impl LDNApplication {
         let author = gh
             .get_last_commit_author(pr_number)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get last commit author: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get last commit author: {e}")))?;
         log::info!("- Last commit author: {}", author);
 
         if author.is_empty() {
@@ -2114,8 +2083,7 @@ impl LDNApplication {
             Err(err) => {
                 log::error!("- Failed to get pull request files. Reason: {}", err);
                 return Err(LDNError::Load(format!(
-                    "Failed to get pull request files. Reason: {}",
-                    err
+                    "Failed to get pull request files. Reason: {err}"
                 )));
             }
         };
@@ -2126,16 +2094,13 @@ impl LDNApplication {
         }
 
         let branch_name = gh.get_branch_name_from_pr(pr_number).await.map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to get branch name from pull request: {}",
-                e
-            ))
+            LDNError::Load(format!("Failed to get branch name from pull request: {e}"))
         })?;
 
         let file = gh
             .get_file(&files[0].filename, &branch_name)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get file content: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get file content: {e}")))?;
         let application = LDNApplication::content_items_to_app_file(file)?;
 
         // Check if application is in Submitted state
@@ -2347,7 +2312,7 @@ impl LDNApplication {
             let ldn_application =
                 LDNApplication::load(app_file.id.clone(), owner.clone(), repo.clone()).await?;
             let parsed_app_file = serde_json::to_string_pretty(&app_file)
-                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
             LDNPullRequest::add_commit_to(
                 ldn_application.file_name.clone(),
                 ldn_application.branch_name.clone(),
@@ -2364,9 +2329,7 @@ impl LDNApplication {
             let prs = gh
                 .get_pull_request_by_head(&ldn_application.branch_name)
                 .await
-                .map_err(|e| {
-                    LDNError::Load(format!("Failed to get pull request by head: {}", e))
-                })?;
+                .map_err(|e| LDNError::Load(format!("Failed to get pull request by head: {e}")))?;
 
             if let Some(pr) = prs.first() {
                 let number = pr.number;
@@ -2381,7 +2344,7 @@ impl LDNApplication {
                     app_file.client_contract_address,
                 )
                 .await
-                .map_err(|e| LDNError::Load(format!("Failed to update application: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to update application: {e}")))?;
             };
 
             return Ok(false);
@@ -2416,8 +2379,7 @@ impl LDNApplication {
                 )
                 .await?;
                 return Err(LDNError::New(format!(
-                    "Application issue file is corrupted /// {}",
-                    e
+                    "Application issue file is corrupted /// {e}"
                 )));
             }
         };
@@ -2439,7 +2401,7 @@ impl LDNApplication {
             .github
             .get_pull_request_by_head(&branch_name)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get pull request: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get pull request: {e}")))?;
 
         if let Some(pr) = prs.first() {
             database::applications::update_application(
@@ -2455,8 +2417,7 @@ impl LDNApplication {
             .await
             .map_err(|e| {
                 LDNError::Load(format!(
-                    "Failed to update the application in the database: {}",
-                    e
+                    "Failed to update the application in the database: {e}"
                 ))
             })?;
 
@@ -2481,14 +2442,14 @@ impl LDNApplication {
             None,
         )
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to get application: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to get application: {e}")))?;
 
         let app_str = &db_application_model
             .application
             .ok_or(LDNError::Load("Failed to get application".to_string()))?;
         let mut db_application_file = serde_json::from_str::<ApplicationFile>(&app_str.clone())
             .map_err(|e| {
-                LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+                LDNError::New(format!("Failed to parse string to ApplicationFile: {e}"))
             })?;
         let application_state = db_application_file.lifecycle.state.clone();
 
@@ -2646,8 +2607,7 @@ impl LDNApplication {
         .await
         .map_err(|e| {
             LDNError::Load(format!(
-                "Failed to fetch application data from the database: {}",
-                e
+                "Failed to fetch application data from the database: {e}"
             ))
         })?;
 
@@ -2658,7 +2618,7 @@ impl LDNApplication {
 
         let db_application_file = serde_json::from_str::<ApplicationFile>(&db_application_file_str)
             .map_err(|e| {
-                LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+                LDNError::New(format!("Failed to parse string to ApplicationFile: {e}"))
             })?;
 
         application_file.lifecycle.edited = Some(false);
@@ -2692,17 +2652,13 @@ impl LDNApplication {
                 )
                 .await?;
                 return Err(LDNError::New(format!(
-                    "Application issue file is corrupted /// {}",
-                    e
+                    "Application issue file is corrupted /// {e}"
                 )));
             }
         };
 
         let branch_name = gh.get_branch_name_from_pr(pr_number).await.map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to get branch name from pull request: {}",
-                e
-            ))
+            LDNError::Load(format!("Failed to get branch name from pull request: {e}"))
         })?;
 
         match database::applications::get_application_by_pr_number(
@@ -2725,10 +2681,7 @@ impl LDNApplication {
                 )
                 .await
                 .map_err(|e| {
-                    LDNError::Load(format!(
-                        "Failed to update application in the database: {}",
-                        e
-                    ))
+                    LDNError::Load(format!("Failed to update application in the database: {e}"))
                 })?;
             }
             Err(_) => {
@@ -2755,10 +2708,7 @@ impl LDNApplication {
                 )
                 .await
                 .map_err(|e| {
-                    LDNError::Load(format!(
-                        "Failed to create application in the database: {}",
-                        e
-                    ))
+                    LDNError::Load(format!("Failed to create application in the database: {e}"))
                 })?;
             }
         }
@@ -2828,7 +2778,7 @@ impl LDNApplication {
 
             let db_allocator = get_allocator(&owner, &repo)
                 .await
-                .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {}", e)))?
+                .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {e}")))?
                 .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
             let db_multisig_threshold = db_allocator.multisig_threshold.unwrap_or(2) as usize;
             let signers: application::file::Verifiers = active_request.signers.clone();
@@ -2948,8 +2898,7 @@ impl LDNApplication {
                 log::warn!("Failed to get application model: {}. ", e);
                 let parsed_issue_number = issue_number.parse::<i64>().map_err(|e| {
                     LDNError::New(format!(
-                        "Parse issue number: {} to i64 failed. {}",
-                        issue_number, e
+                        "Parse issue number: {issue_number} to i64 failed. {e}"
                     ))
                 })?;
                 //Application Id has not been found. That means the user has modified the wallet address
@@ -2962,8 +2911,7 @@ impl LDNApplication {
                 if application.is_ok() {
                     Self::add_comment_to_issue(issue_number, info.owner.clone(),info.repo.clone(), "Application exist. If you have modified the wallet address, please create a new application.".to_string()).await?;
                     return Err(LDNError::New(format!(
-                        "Application exist: {}",
-                        application_id
+                        "Application exist: {application_id}"
                     )));
                 } else {
                     return Self::new_from_issue(info).await;
@@ -2994,7 +2942,7 @@ impl LDNApplication {
             .application
             .ok_or(LDNError::Load("Failed to get application".to_string()))?;
         let mut pr_application = ApplicationFile::from_str(app_str).map_err(|e| {
-            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+            LDNError::Load(format!("Failed to parse application file from DB: {e}"))
         })?;
         let gh = github_async_new(
             application_model.owner.to_string(),
@@ -3057,8 +3005,7 @@ impl LDNApplication {
                 )
                 .await?;
                 return Err(LDNError::New(format!(
-                    "Application issue file is corrupted /// {}",
-                    e
+                    "Application issue file is corrupted /// {e}"
                 )));
             }
         };
@@ -3067,7 +3014,7 @@ impl LDNApplication {
         let branch_name = gh
             .get_branch_name_from_pr(application_model.pr_number as u64)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get branch name from PR: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get branch name from PR: {e}")))?;
 
         let path = application_model
             .path
@@ -3095,9 +3042,7 @@ impl LDNApplication {
             let prs = gh
                 .get_pull_request_by_head(&branch_name)
                 .await
-                .map_err(|e| {
-                    LDNError::Load(format!("Failed to get pull request by head: {}", e))
-                })?;
+                .map_err(|e| LDNError::Load(format!("Failed to get pull request by head: {e}")))?;
 
             if let Some(pr) = prs.first() {
                 database::applications::update_application(
@@ -3146,16 +3091,16 @@ impl LDNApplication {
                     .await?;
             let contract_allowance = get_allowance_for_address_direct(&contract_address)
                 .await
-                .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {e}")))?;
 
             let contract_allowance = contract_allowance.parse::<u64>().map_err(|e| {
-                LDNError::New(format!("Parse contract allowance to u64 failed: {}", e))
+                LDNError::New(format!("Parse contract allowance to u64 failed: {e}"))
             })?;
             allowance = min(client_allowance_on_contract, contract_allowance).to_string();
         } else {
             allowance = get_allowance_for_address_direct(address)
                 .await
-                .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to retrieve allowance: {e}")))?;
         }
 
         if allowance != "0" {
@@ -3185,7 +3130,7 @@ impl LDNApplication {
             .application
             .ok_or(LDNError::Load("Failed to get application".to_string()))?;
         let app_file = ApplicationFile::from_str(app_str).map_err(|e| {
-            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+            LDNError::Load(format!("Failed to parse application file from DB: {e}"))
         })?;
 
         let gh = github_async_new(
@@ -3264,8 +3209,7 @@ impl LDNApplication {
                 )
                 .await?;
                 return Err(LDNError::New(format!(
-                    "Application issue file is corrupted /// {}",
-                    e
+                    "Application issue file is corrupted /// {e}"
                 )));
             }
         };
@@ -3356,13 +3300,11 @@ impl LDNApplication {
         let gh = github_async_new(owner, repo).await?;
         let request = gh
             .build_remove_ref_request(branch_name.clone())
-            .map_err(|e| {
-                LDNError::New(format!("build_remove_ref_request function failed: {}", e))
-            })?;
+            .map_err(|e| LDNError::New(format!("build_remove_ref_request function failed: {e}")))?;
 
-        gh.remove_branch(request).await.map_err(|e| {
-            LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e))
-        })?;
+        gh.remove_branch(request)
+            .await
+            .map_err(|e| LDNError::New(format!("Error deleting branch {branch_name} /// {e}")))?;
 
         Ok(true)
     }
@@ -3377,8 +3319,7 @@ impl LDNApplication {
 
         let issue_number = issue_number.parse::<u64>().map_err(|e| {
             LDNError::New(format!(
-                "Parse issue number: {} to u64 failed. {}",
-                issue_number, e
+                "Parse issue number: {issue_number} to u64 failed. {e}"
             ))
         })?;
 
@@ -3386,8 +3327,7 @@ impl LDNApplication {
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Error adding comment to issue {} /// {}",
-                    issue_number, e
+                    "Error adding comment to issue {issue_number} /// {e}"
                 ))
             })?;
 
@@ -3405,7 +3345,7 @@ impl LDNApplication {
             issue_number,
             owner.clone(),
             repo.clone(),
-            format!("Application is waiting for allocator review.\n[Link to application on Allocator.tech]({}/application/{}/{}/{})", allocator_tech_url, owner, repo, application_id ),
+            format!("Application is waiting for allocator review.\n[Link to application on Allocator.tech]({allocator_tech_url}/application/{owner}/{repo}/{application_id})" ),
         )
         .await?;
 
@@ -3427,7 +3367,7 @@ impl LDNApplication {
                 .ok_or(LDNError::Load("Failed to get application".to_string()))?;
 
             let application = ApplicationFile::from_str(app_str).map_err(|e| {
-                LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+                LDNError::Load(format!("Failed to parse application file from DB: {e}"))
             })?;
 
             comment = if db_model.owner == info_owner
@@ -3478,17 +3418,16 @@ impl LDNApplication {
         let comment = format!(
             "### Datacap Request Trigger
 **Total DataCap requested**
-> {}
+> {total_requested}
 
 **Expected weekly DataCap usage rate**
-> {}
+> {weekly_allocation}
 
 **DataCap Amount - First Tranche**
-> {}
+> {allocation_amount}
 
 **Client address**
-> {}",
-            total_requested, weekly_allocation, allocation_amount, client_address
+> {client_address}"
         );
 
         Self::add_comment_to_issue(application_file.issue_number, owner, repo, comment).await?;
@@ -3620,10 +3559,7 @@ _(NEW vs OLD)_
             increase_allowance_cid
                 .clone()
                 .map_or("".to_string(), |increase_allowance_cid| {
-                    format!(
-                        ", and here https://filfox.info/en/message/{}",
-                        increase_allowance_cid
-                    )
+                    format!(", and here https://filfox.info/en/message/{increase_allowance_cid}")
                 });
 
         let comment = format!(
@@ -3675,7 +3611,7 @@ Your Datacap Allocation Request has been {} by the Notary
                 issue_number.clone(),
                 owner.clone(),
                 repo.clone(),
-                format!("## Reason for triggering a new allocation despite 75% of the previous one not being utilized\n {}", early_refill_comment),
+                format!("## Reason for triggering a new allocation despite 75% of the previous one not being utilized\n {early_refill_comment}"),
             )
             .await?;
         }
@@ -3693,10 +3629,9 @@ Your Datacap Allocation Request has been {} by the Notary
             "## Additional Information Requested
 #### A verifier has reviewed your application and has issued the following message:
 
-> {}
+> {verifier_message}
 
-_The initial issue can be edited in order to solve the request of the verifier. The changes will be reflected in the application and an automatic comment will be posted in order to let the verifiers know the updated application can be reviewed._",
-            verifier_message
+_The initial issue can be edited in order to solve the request of the verifier. The changes will be reflected in the application and an automatic comment will be posted in order to let the verifiers know the updated application can be reviewed._"
         );
 
         Self::add_comment_to_issue(issue_number.clone(), owner.clone(), repo.clone(), comment)
@@ -3746,11 +3681,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Error adding labels to issue {} /// {}",
-                    issue_number, e
+                    "Error adding labels to issue {issue_number} /// {e}"
                 ))
             })
-            .map_err(|e| LDNError::Load(format!("Failed to set error label: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to set error label: {e}")))?;
 
         Ok(())
     }
@@ -3768,11 +3702,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Error adding labels t to issue {} /// {}",
-                    issue_number, e
+                    "Error adding labels t to issue {issue_number} /// {e}"
                 ))
             })
-            .map_err(|e| LDNError::Load(format!("Failed to replace issue labels: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to replace issue labels: {e}")))?;
 
         Ok(())
     }
@@ -3786,7 +3719,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 Some(repo.clone()),
             )
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to active application: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to active application: {e}")))?;
 
         let mut db_apps_set: HashSet<String> = HashSet::new();
         let mut processed_gh_apps: HashSet<String> = HashSet::new();
@@ -3798,9 +3731,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             }) {
                 if gh_app.updated_at > db_app.updated_at {
                     let parsed_app_file = serde_json::to_string_pretty(&gh_app.application_file)
-                        .map_err(|e| {
-                            LDNError::Load(format!("Failed to pare into string: {}", e))
-                        })?;
+                        .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
                     database::applications::update_application(
                         db_app.id.clone(),
                         owner.clone(),
@@ -3852,7 +3783,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     })?;
 
                 let parsed_app_file = serde_json::to_string_pretty(&gh_app.application_file)
-                    .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+                    .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
                 // Call the create_application function if the GH app is not in DB
                 let gh: GithubWrapper = github_async_new(owner.clone(), repo.clone()).await?;
                 let issue_reporter_handle = gh
@@ -3872,10 +3803,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 )
                 .await
                 .map_err(|e| {
-                    LDNError::Load(format!(
-                        "Failed to create application in the database: {}",
-                        e
-                    ))
+                    LDNError::Load(format!("Failed to create application in the database: {e}"))
                 })?;
             }
         }
@@ -3892,7 +3820,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 Some(repo.clone()),
             )
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get merged applications: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get merged applications: {e}")))?;
 
         let mut db_apps_set: HashSet<String> = HashSet::new();
         let mut processed_gh_apps: HashSet<String> = HashSet::new();
@@ -3905,9 +3833,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             {
                 if gh_app.updated_at > db_app.updated_at {
                     let parsed_app_file = serde_json::to_string_pretty(&gh_app.application_file)
-                        .map_err(|e| {
-                            LDNError::Load(format!("Failed to pare into string: {}", e))
-                        })?;
+                        .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
                     database::applications::update_application(
                         db_app.id.clone(),
                         owner.clone(),
@@ -3938,7 +3864,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     db_app.pr_number as u64,
                 )
                 .await
-                .map_err(|e| LDNError::Load(format!("Failed to delete application: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to delete application: {e}")))?;
             }
         }
 
@@ -3959,7 +3885,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                     })?;
                 // Call the create_application function if the GH app is not in DB
                 let parsed_app_file = serde_json::to_string_pretty(&gh_app.application_file)
-                    .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+                    .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
                 let gh: GithubWrapper = github_async_new(owner.clone(), repo.clone()).await?;
                 let issue_reporter_handle = gh
                     .get_issue_reporter_handle(
@@ -3978,10 +3904,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 )
                 .await
                 .map_err(|e| {
-                    LDNError::Load(format!(
-                        "Failed to create application in the database: {}",
-                        e
-                    ))
+                    LDNError::Load(format!("Failed to create application in the database: {e}"))
                 })?;
             }
         }
@@ -3997,14 +3920,14 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             None,
         )
         .await
-        .map_err(|e| LDNError::New(format!("Failed to get application from database: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Failed to get application from database: {e}")))?;
 
         let app_str = &app_model
             .application
             .ok_or(LDNError::New("Failed to get application file".to_string()))?;
 
         let application_file = ApplicationFile::from_str(app_str).map_err(|e| {
-            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {e}"))
         })?;
 
         let application_state = application_file.lifecycle.get_state();
@@ -4017,14 +3940,13 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             || (app_model.pr_number == 0 && application_state != AppState::Granted)
         {
             return Err(LDNError::Load(format!(
-                "Application state is {:?}. Expected KYCRequested, AdditionalInfoRequired, Submitted, AdditionalInfoSubmitted or Granted",
-                application_state
+                "Application state is {application_state:?}. Expected KYCRequested, AdditionalInfoRequired, Submitted, AdditionalInfoSubmitted or Granted"
             )));
         }
         let declined_application = application_file.decline();
         if app_model.pr_number == 0 {
             let file_content = serde_json::to_string_pretty(&declined_application)
-                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
             LDNPullRequest::create_pr_for_existing_application(
                 app_model.id.clone(),
                 file_content,
@@ -4059,8 +3981,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         .await
         .map_err(|e| {
             LDNError::New(format!(
-                "Failed to issue application declined notification: {}",
-                e
+                "Failed to issue application declined notification: {e}"
             ))
         })?;
 
@@ -4080,22 +4001,21 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             None,
         )
         .await
-        .map_err(|e| LDNError::New(format!("Failed to get application from database: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Failed to get application from database: {e}")))?;
 
         let app_str = &app_model
             .application
             .ok_or(LDNError::New("Failed to get application file".to_string()))?;
 
         let application_file = ApplicationFile::from_str(app_str).map_err(|e| {
-            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {e}"))
         })?;
 
         let application_state = application_file.lifecycle.get_state();
 
         if application_state != AppState::Declined {
             return Err(LDNError::Load(format!(
-                "Application state is {:?}. Expected Declined",
-                application_state
+                "Application state is {application_state:?}. Expected Declined"
             )));
         }
 
@@ -4121,7 +4041,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         }
 
         let file_content = serde_json::to_string_pretty(&reopen_application)
-            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
         let path = app_model
             .path
             .ok_or(LDNError::Load("Failed to get application path".to_string()))?;
@@ -4162,8 +4082,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
             gh.merge_pull_request(pr_number).await.map_err(|e| {
                 LDNError::Load(format!(
-                    "Failed to merge pull request {}. Reason: {}",
-                    pr_number, e
+                    "Failed to merge pull request {pr_number}. Reason: {e}"
                 ))
             })?;
 
@@ -4175,8 +4094,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .await
             .map_err(|e| {
                 LDNError::Load(format!(
-                    "Failed to update application in database. Reason: {}",
-                    e
+                    "Failed to update application in database. Reason: {e}"
                 ))
             })?;
         }
@@ -4270,8 +4188,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         .await
         .map_err(|e| {
             LDNError::Load(format!(
-                "Failed to fetch application data from the database: {}",
-                e
+                "Failed to fetch application data from the database: {e}"
             ))
         })?;
 
@@ -4282,7 +4199,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let mut db_application_file = serde_json::from_str::<ApplicationFile>(
             &db_application_file_str.clone(),
         )
-        .map_err(|e| LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Failed to parse string to ApplicationFile: {e}")))?;
 
         db_application_file.lifecycle.state = AppState::AdditionalInfoRequired;
 
@@ -4324,12 +4241,11 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
-                "Application {} does not have an application field",
-                id
+                "Application {id} does not have an application field"
             ))
         })?;
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).map_err(|e| {
-            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {e}"))
         })?;
         if application_file.lifecycle.state != AppState::Submitted {
             return Err(LDNError::Load(format!(
@@ -4341,7 +4257,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let application_file = application_file.kyc_request();
 
         let parsed_app_file = serde_json::to_string_pretty(&application_file)
-            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
         database::applications::update_application(
             id.to_string(),
             owner.to_string(),
@@ -4358,7 +4274,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             application_file.client_contract_address.clone(),
         )
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to update application: {} /// {}", id, e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to update application: {id} /// {e}")))?;
 
         self.issue_updates_for_kyc(&application_file.issue_number)
             .await?;
@@ -4402,8 +4318,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let parsed_issue_number = issue_number.parse::<u64>().map_err(|e| {
             LDNError::New(format!(
-                "Parse issue number: {} to u64 failed. {}",
-                issue_number, e
+                "Parse issue number: {issue_number} to u64 failed. {e}"
             ))
         })?;
 
@@ -4412,8 +4327,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Error adding labels to issue {} /// {}",
-                    issue_number, e
+                    "Error adding labels to issue {issue_number} /// {e}"
                 ))
             })?;
         Ok(())
@@ -4430,13 +4344,12 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
-                "Application {} does not have an application field",
-                id
+                "Application {id} does not have an application field"
             ))
         })?;
 
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).map_err(|e| {
-            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {e}"))
         })?;
 
         if application_file.lifecycle.state != AppState::Granted {
@@ -4486,13 +4399,12 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         let app_str = app_model.application.ok_or_else(|| {
             LDNError::Load(format!(
-                "Application {} does not have an application field",
-                client_id
+                "Application {client_id} does not have an application field"
             ))
         })?;
 
         let application_file = serde_json::from_str::<ApplicationFile>(&app_str).map_err(|e| {
-            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {e}"))
         })?;
 
         if application_file.lifecycle.state.clone() != AppState::KYCRequested {
@@ -4508,7 +4420,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         let score = verify_on_gitcoin(&address_from_signature).await?;
         let application_file = application_file.move_back_to_submit_state();
         let parsed_app_file = serde_json::to_string_pretty(&application_file)
-            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
         database::applications::update_application(
             client_id.clone(),
             owner.clone(),
@@ -4526,10 +4438,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         )
         .await
         .map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to update application: {} /// {}",
-                client_id, e
-            ))
+            LDNError::Load(format!("Failed to update application: {client_id} /// {e}"))
         })?;
 
         let parsed_issue_number = &application_file.issue_number.parse::<u64>().map_err(|e| {
@@ -4592,8 +4501,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Error adding labels to issue {} /// {}",
-                    issue_number, e
+                    "Error adding labels to issue {issue_number} /// {e}"
                 ))
             })?;
         Ok(())
@@ -4750,8 +4658,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         .await
         .map_err(|e| {
             LDNError::New(format!(
-                "Removing application with PR number: {} failed. {:?}",
-                pr_number, e
+                "Removing application with PR number: {pr_number} failed. {e:?}"
             ))
         })?;
         Ok(())
@@ -4790,8 +4697,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         .await?;
         let issue_number = issue_number.parse::<u64>().map_err(|e| {
             LDNError::New(format!(
-                "Parse issue number: {} to u64 failed. {}",
-                issue_number, e
+                "Parse issue number: {issue_number} to u64 failed. {e}"
             ))
         })?;
         self.github
@@ -4799,8 +4705,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Error adding labels to issue {} /// {}",
-                    issue_number, e
+                    "Error adding labels to issue {issue_number} /// {e}"
                 ))
             })?;
         Ok(())
@@ -4821,7 +4726,7 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         })?;
 
         let application_file = serde_json::from_str::<ApplicationFile>(app_str).map_err(|e| {
-            LDNError::New(format!("Failed to parse string to ApplicationFile: {}", e))
+            LDNError::New(format!("Failed to parse string to ApplicationFile: {e}"))
         })?;
 
         application_file.get_active_allocation().ok_or_else(|| {
@@ -4860,20 +4765,16 @@ impl LDNPullRequest {
         let head_hash = gh
             .get_main_branch_sha()
             .await
-            .map_err(|e| LDNError::New(format!("Failed to get branch: {}", e)))?;
+            .map_err(|e| LDNError::New(format!("Failed to get branch: {e}")))?;
         let create_ref_request = gh
             .build_create_ref_request(app_branch_name.clone(), head_hash)
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Application issue {} cannot create branch /// {}",
-                    issue_number, e
+                    "Application issue {issue_number} cannot create branch /// {e}"
                 ))
             })?;
 
-        let issue_link = format!(
-            "https://github.com/{}/{}/issues/{}",
-            owner, repo, issue_number
-        );
+        let issue_link = format!("https://github.com/{owner}/{repo}/issues/{issue_number}");
 
         let (_pr, file_sha) = gh
             .create_merge_request(CreateMergeRequestData {
@@ -4889,8 +4790,7 @@ impl LDNPullRequest {
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Application issue {} cannot create merge request /// {}",
-                    issue_number, e
+                    "Application issue {issue_number} cannot create merge request /// {e}"
                 ))
             })?;
 
@@ -4914,20 +4814,16 @@ impl LDNPullRequest {
         let head_hash = gh
             .get_main_branch_sha()
             .await
-            .map_err(|e| LDNError::New(format!("Failed to get main branch: {}", e)))?;
+            .map_err(|e| LDNError::New(format!("Failed to get main branch: {e}")))?;
         let create_ref_request = gh
             .build_create_ref_request(branch_name.clone(), head_hash)
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Application issue {} cannot create branch /// {}",
-                    application_id, e
+                    "Application issue {application_id} cannot create branch /// {e}"
                 ))
             })?;
 
-        let issue_link = format!(
-            "https://github.com/{}/{}/issues/{}",
-            owner, repo, issue_number
-        );
+        let issue_link = format!("https://github.com/{owner}/{repo}/issues/{issue_number}");
 
         let pr = gh
             .create_refill_merge_request(CreateRefillMergeRequestData {
@@ -4941,12 +4837,12 @@ impl LDNPullRequest {
                 application_id: application_id.clone(),
             })
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {e}")))?;
 
         if should_create_in_db {
             let issue_number = issue_number
                 .parse::<i64>()
-                .map_err(|e| LDNError::New(format!("Parse issue number to i64 failed: {}", e)))?;
+                .map_err(|e| LDNError::New(format!("Parse issue number to i64 failed: {e}")))?;
             let issue_reporter_handle = gh
                 .get_issue_reporter_handle(
                     &issue_number.try_into().expect("Value must be non-negative"),
@@ -4965,8 +4861,7 @@ impl LDNPullRequest {
             .await
             .map_err(|e| {
                 LDNError::New(format!(
-                    "Application issue {} cannot create branch /// {}",
-                    application_id, e
+                    "Application issue {application_id} cannot create branch /// {e}"
                 ))
             })?;
         }
@@ -4991,7 +4886,7 @@ impl LDNPullRequest {
             &file_sha,
         )
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to add commit: {}", e)))?;
+        .map_err(|e| LDNError::Load(format!("Failed to add commit: {e}")))?;
         Ok(())
     }
 
@@ -5002,10 +4897,7 @@ impl LDNPullRequest {
     ) -> Result<(), LDNError> {
         let gh = github_async_new(owner.clone(), repo.clone()).await?;
         gh.close_pull_request(pr_number).await.map_err(|e| {
-            LDNError::New(format!(
-                "Error closing pull request {} /// {}",
-                pr_number, e
-            ))
+            LDNError::New(format!("Error closing pull request {pr_number} /// {e}"))
         })?;
         Ok(())
     }
@@ -5019,17 +4911,15 @@ impl LDNPullRequest {
         let branch_name = LDNPullRequest::application_branch_name(&application_id);
         let request = gh
             .build_remove_ref_request(branch_name.clone())
-            .map_err(|e| {
-                LDNError::New(format!("build_remove_ref_request function failed: {}", e))
-            })?;
-        gh.remove_branch(request).await.map_err(|e| {
-            LDNError::New(format!("Error deleting branch {} /// {}", branch_name, e))
-        })?;
+            .map_err(|e| LDNError::New(format!("build_remove_ref_request function failed: {e}")))?;
+        gh.remove_branch(request)
+            .await
+            .map_err(|e| LDNError::New(format!("Error deleting branch {branch_name} /// {e}")))?;
         Ok(())
     }
 
     pub(super) fn application_branch_name(application_id: &str) -> String {
-        format!("Application/{}", application_id)
+        format!("Application/{application_id}")
     }
 
     pub(super) fn application_path(application_id: &str) -> String {
@@ -5037,32 +4927,23 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_initial_commit(owner_name: &str, application_id: &str) -> String {
-        format!("Start Application: {}-{}", owner_name, application_id)
+        format!("Start Application: {owner_name}-{application_id}")
     }
 
     pub(super) fn application_move_to_proposal_commit(actor: &str) -> String {
-        format!(
-            "User {} Moved Application to Proposal State from Allocator Review State",
-            actor
-        )
+        format!("User {actor} Moved Application to Proposal State from Allocator Review State")
     }
 
     pub(super) fn application_signed(actor: &str) -> String {
-        format!("Notary User {} Signed Application", actor)
+        format!("Notary User {actor} Signed Application")
     }
 
     pub(super) fn application_move_to_approval_commit(actor: &str) -> String {
-        format!(
-            "Notary User {} Moved Application to Approval State from Proposal State",
-            actor
-        )
+        format!("Notary User {actor} Moved Application to Approval State from Proposal State")
     }
 
     pub(super) fn application_move_to_confirmed_commit(actor: &str) -> String {
-        format!(
-            "Notary User {} Moved Application to Confirmed State from Proposal Approval",
-            actor
-        )
+        format!("Notary User {actor} Moved Application to Confirmed State from Proposal Approval")
     }
 }
 
@@ -5124,7 +5005,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_app_state_to_submitted_after_kyc() {
-        let mut application_file = ApplicationFile::new(
+        let application_file = ApplicationFile::new(
             "1".into(),
             "adres".into(),
             application::file::Version::Text("1.3".to_string()),

@@ -93,7 +93,7 @@ struct Author {
 pub async fn github_async_new(owner: String, repo: String) -> Result<GithubWrapper, LDNError> {
     let allocator = get_allocator(owner.as_str(), repo.as_str())
         .await
-        .map_err(|e| LDNError::Load(format!("Failed to get allocator: {}", e)))?
+        .map_err(|e| LDNError::Load(format!("Failed to get allocator: {e}")))?
         .ok_or(LDNError::Load("Allocator not found".to_string()))?;
 
     let installation_id = allocator.installation_id;
@@ -135,7 +135,7 @@ impl GithubWrapper {
             .build(connector);
 
         let key = jsonwebtoken::EncodingKey::from_rsa_pem(gh_private_key.as_bytes())
-            .map_err(|e| LDNError::Load(format!("Failed to get encoding key: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to get encoding key: {e}")))?;
         let header_value = HeaderValue::from_static("octocrab");
         let octocrab = OctocrabBuilder::new_empty()
             .with_service(client)
@@ -184,7 +184,7 @@ impl GithubWrapper {
             .issues(&self.owner, &self.repo)
             .get(number)
             .await?;
-        println!("{:?}", iid);
+        println!("{iid:?}");
         Ok(iid)
     }
 
@@ -352,7 +352,7 @@ impl GithubWrapper {
     /// you should use build_create_ref_request function to construct request
     pub async fn create_branch(&self, request: Request<String>) -> Result<bool, OctocrabError> {
         if let Err(e) = self.inner.execute(request).await {
-            println!("Error creating branch: {:?}", e);
+            println!("Error creating branch: {e:?}");
             return Ok(false);
         }
         Ok(true)
@@ -364,7 +364,7 @@ impl GithubWrapper {
         match self.inner.execute(request).await {
             Ok(_) => {}
             Err(e) => {
-                println!("Error creating branch: {:?}", e);
+                println!("Error creating branch: {e:?}");
                 return Ok(false);
             }
         };
@@ -530,22 +530,22 @@ impl GithubWrapper {
         let request = self
             .inner
             .build_request::<String>(request, None)
-            .map_err(|e| LDNError::Load(format!("Failed to build request: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to build request: {e}")))?;
 
         let mut response = match self.inner.execute(request).await {
             Ok(r) => r,
             Err(e) => {
-                println!("Error getting main branch sha: {:?}", e);
+                println!("Error getting main branch sha: {e:?}");
                 return Ok("".to_string());
             }
         };
         let response = response.body_mut();
         let body = hyper::body::to_bytes(response)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to serialize to bytes: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to serialize to bytes: {e}")))?;
         let shas = body.into_iter().map(|b| b as char).collect::<String>();
         let shas: RefList = serde_json::from_str(&shas)
-            .map_err(|e| LDNError::Load(format!("Failed to serialize to RefList: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to serialize to RefList: {e}")))?;
         for sha in shas.0 {
             if sha._ref == "refs/heads/main" {
                 return Ok(sha.object.sha);
@@ -566,8 +566,7 @@ impl GithubWrapper {
                 self.owner, self.repo
             ))
             .body(format!(
-                r#"{{"ref": "refs/heads/{}","sha": "{}" }}"#,
-                name, head_hash
+                r#"{{"ref": "refs/heads/{name}","sha": "{head_hash}" }}"#
             ))?;
         Ok(request)
     }
@@ -664,11 +663,7 @@ impl GithubWrapper {
         let allocator_tech_url = get_env_var_or_default("ALLOCATOR_TECH_URL");
         let pr_body = format!("[Link to related GitHub issue]({})\n[Link to application on Allocator.tech]({}/application/{}/{}/{})",issue_link, allocator_tech_url, self.owner, self.repo, application_id);
         let pr = self
-            .create_pull_request(
-                &format!("Datacap for {}", owner_name),
-                &branch_name,
-                pr_body,
-            )
+            .create_pull_request(&format!("Datacap for {owner_name}"), &branch_name, pr_body)
             .await?;
 
         Ok((pr, file_sha))
@@ -726,21 +721,22 @@ impl GithubWrapper {
         let request = self
             .inner
             .build_request::<String>(request, None)
-            .map_err(|e| LDNError::Load(format!("Failed to build request: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to build request: {e}")))?;
 
-        let mut response =
-            self.inner.execute(request).await.map_err(|e| {
-                LDNError::Load(format!("Error fetching last commit author: {:?}", e))
-            })?;
+        let mut response = self
+            .inner
+            .execute(request)
+            .await
+            .map_err(|e| LDNError::Load(format!("Error fetching last commit author: {e:?}")))?;
 
         let response_body = response.body_mut();
         let body = hyper::body::to_bytes(response_body)
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to serialize to bytes: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to serialize to bytes: {e}")))?;
         let body_str = String::from_utf8(body.to_vec())
-            .map_err(|e| LDNError::Load(format!("Failed to parse to string: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to parse to string: {e}")))?;
         let commits: Vec<CommitData> = serde_json::from_str(&body_str)
-            .map_err(|e| LDNError::Load(format!("Failed to commit data: {}", e)))?;
+            .map_err(|e| LDNError::Load(format!("Failed to commit data: {e}")))?;
 
         let last_commit: &CommitData = commits
             .last()
@@ -818,8 +814,7 @@ impl GithubWrapper {
     pub async fn get_issue_reporter_handle(&self, issue_number: &u64) -> Result<String, LDNError> {
         let issue = self.list_issue(*issue_number).await.map_err(|e| {
             LDNError::Load(format!(
-                "Failed to retrieve issue {} from GitHub: {}",
-                issue_number, e
+                "Failed to retrieve issue {issue_number} from GitHub: {e}"
             ))
         })?;
         Ok(issue.user.login)

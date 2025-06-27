@@ -38,8 +38,7 @@ pub async fn detect_similar_applications(
 ) -> Result<(), LDNError> {
     let comparable_applications = get_comparable_applications().await.map_err(|e| {
         LDNError::New(format!(
-            "Failed to get comparable applications from database: {}",
-            e
+            "Failed to get comparable applications from database: {e}"
         ))
     })?;
 
@@ -115,13 +114,13 @@ pub async fn detect_similar_applications(
         let comment = "## Similarity Report\n\nNo similar applications found for the issue";
         gh.add_comment_to_issue(*issue_number, comment)
             .await
-            .map_err(|e| LDNError::New(format!("Failed to get add comment to the issue: {}", e)))?;
+            .map_err(|e| LDNError::New(format!("Failed to get add comment to the issue: {e}")))?;
         return Ok(());
     }
 
     let applications = get_distinct_applications_by_clients_addresses(unique_addresses)
         .await
-        .map_err(|e| LDNError::New(format!("Failed to get applications from database: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Failed to get applications from database: {e}")))?;
 
     let mut repo_similarities: RepoSimilarities = HashMap::new();
 
@@ -134,7 +133,7 @@ pub async fn detect_similar_applications(
         })?;
 
         let application = ApplicationFile::from_str(&app_str).map_err(|e| {
-            LDNError::Load(format!("Failed to parse application file from DB: {}", e))
+            LDNError::Load(format!("Failed to parse application file from DB: {e}"))
         })?;
 
         let similar_application_link = format!(
@@ -185,7 +184,7 @@ pub async fn detect_similar_applications(
     );
     gh.add_comment_to_issue(*issue_number, &comment)
         .await
-        .map_err(|e| LDNError::New(format!("Failed to get add comment to the issue: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Failed to get add comment to the issue: {e}")))?;
     Ok(())
 }
 
@@ -207,7 +206,7 @@ fn get_similar_texts_tfidf(documents: &[Document]) -> Result<Vec<String>, LDNErr
     let mut similar_applications: Vec<String> = Vec::new();
     let tfidf_threshold = get_env_var_or_default("TFIDF_THRESHOLD")
         .parse::<f64>()
-        .map_err(|e| LDNError::New(format!("Parse tfidf threshold score to f64 failed: {}", e)))?;
+        .map_err(|e| LDNError::New(format!("Parse tfidf threshold score to f64 failed: {e}")))?;
     for i in 1..documents_converted_to_array.len() {
         let similarity = cosine_similarity(
             &documents_converted_to_array[0],
@@ -224,12 +223,7 @@ fn get_similar_texts_tfidf(documents: &[Document]) -> Result<Vec<String>, LDNErr
 fn get_similar_texts_levenshtein(documents: &[Document]) -> Result<Vec<String>, LDNError> {
     let levenshtein_threshold = get_env_var_or_default("LEVENSHTEIN_THRESHOLD")
         .parse::<usize>()
-        .map_err(|e| {
-            LDNError::New(format!(
-                "Parse tfidf threshold score to usize failed: {}",
-                e
-            ))
-        })?;
+        .map_err(|e| LDNError::New(format!("Parse tfidf threshold score to usize failed: {e}")))?;
 
     let similar_texts: Vec<String> = documents
         .iter()

@@ -74,8 +74,7 @@ pub async fn verify_on_gitcoin(address_from_signature: &Address) -> Result<f64, 
 
     if score <= minimum_score {
         return Err(LDNError::New(format!(
-            "For address: {}, Gitcoin passport score is too low ({}). Minimum value is: {}",
-            address_from_signature, score, minimum_score
+            "For address: {address_from_signature}, Gitcoin passport score is too low ({score}). Minimum value is: {minimum_score}"
         )));
     }
     Ok(score)
@@ -103,7 +102,7 @@ async fn get_gitcoin_score_for_address(rpc_url: &str, address: Address) -> Resul
 
 fn calculate_score(response: Bytes) -> Result<f64, LDNError> {
     let score = U256::from_str(&response.to_string())
-        .map_err(|e| LDNError::Load(format!("Failed to parse response to U256: {}", e)))?
+        .map_err(|e| LDNError::Load(format!("Failed to parse response to U256: {e}")))?
         .to::<u128>();
     Ok(score as f64 / 10000.0)
 }

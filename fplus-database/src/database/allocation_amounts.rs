@@ -66,7 +66,7 @@ pub async fn create_allocation_amount(
     };
 
     let insert_result = new_allocation_amount.insert(&conn).await;
-    println!("Allocation amount inserted: {:?}", insert_result);
+    println!("Allocation amount inserted: {insert_result:?}");
 
     Ok(())
 }
