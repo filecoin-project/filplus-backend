@@ -2470,11 +2470,12 @@ impl LDNApplication {
         let active_allocation = db_application_file.allocation.active();
 
         if let Some(active_allocation) = active_allocation {
-            if active_allocation.signers.0.is_empty() {
-                db_application_file.lifecycle.state = AppState::ReadyToSign
+            // If there is an active allocation, set state based on signers
+            db_application_file.lifecycle.state = if active_allocation.signers.0.is_empty() {
+                AppState::ReadyToSign
             } else {
-                db_application_file.lifecycle.state = AppState::StartSignDatacap
-            }
+                AppState::StartSignDatacap
+            };
         } else if !db_application_file.lifecycle.is_active {
             // If application is not active, we need to move it back to granted state and set last verifier and last active request
             let last_active_request = Self::get_last_active_request(&db_application_file).ok_or(
@@ -2484,16 +2485,22 @@ impl LDNApplication {
                 .ok_or(LDNError::Load("Failed to get last verifier".to_string()))?;
             db_application_file = db_application_file
                 .move_back_to_granted_state(&last_verifier, &last_active_request);
-        } else if let (Some(active_request), Some(sps_change_requests)) = (
-            db_application_file.lifecycle.active_request.as_ref(),
-            db_application_file.allowed_sps.as_ref(),
-        ) {
-            if sps_change_requests
-                .get_active_change_request(active_request)
-                .is_some()
-            {
-                db_application_file.lifecycle.state = AppState::ChangingSP;
-            }
+        } else if db_application_file
+            .lifecycle
+            .active_request
+            .as_ref()
+            .and_then(|active_request| {
+                db_application_file
+                    .allowed_sps
+                    .as_ref()
+                    .and_then(|sps_change_requests| {
+                        sps_change_requests.get_active_change_request(active_request)
+                    })
+            })
+            .is_some()
+        {
+            // If there is an active SPS change request, set state to ChangingSP
+            db_application_file.lifecycle.state = AppState::ChangingSP;
         } else {
             db_application_file.lifecycle.state = AppState::Granted;
         }
