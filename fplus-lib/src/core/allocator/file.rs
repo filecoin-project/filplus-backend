@@ -15,6 +15,7 @@ pub struct AllocatorModel {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AllocatorModelPathwayAddresses {
     pub msig: String,
+    #[serde(alias = "signers")]
     pub signer: Vec<String>,
 }
 
