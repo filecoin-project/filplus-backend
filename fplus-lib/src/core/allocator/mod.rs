@@ -22,6 +22,7 @@ use self::file::{
 use anyhow::Result;
 use jsonwebtoken::EncodingKey;
 use reqwest::{header, Client};
+use url::Url;
 
 use super::GithubQueryParams;
 
@@ -74,33 +75,32 @@ fn content_items_to_allocator_model(file: ContentItems) -> Result<AllocatorModel
     let mut model = decode_allocator_model(&cleaned_content).ok_or(LDNError::Load(
         "Failed to parse allocator model".to_string(),
     ))?;
-    let mut owner_repo_parts: Vec<&str> = model
-        .application
-        .allocation_bookkeeping
-        .split('/')
-        .collect();
-    // If last part is empty, remove it
-    if owner_repo_parts[owner_repo_parts.len() - 1].is_empty() {
-        owner_repo_parts.pop();
-    }
-    if owner_repo_parts.len() < 2 {
-        log::error!("Failed to parse allocator model");
-        return Err(LDNError::Load(
-            "Failed to parse allocator model".to_string(),
-        ));
-    }
+    let (owner, repo) = extract_owner_and_repo(&model.application.allocation_bookkeeping)
+        .map_err(|e| LDNError::Load(format!("Failed to extract owner and repo: {e}")))?;
 
-    //If repo ends with .git, remove it
-    let mut repo = owner_repo_parts[owner_repo_parts.len() - 1].to_string();
-    if repo.ends_with(".git") {
-        repo = repo[..repo.len() - 4].to_string();
-    }
-
-    model.owner = Some(owner_repo_parts[owner_repo_parts.len() - 2].to_string());
+    model.owner = Some(owner);
     model.repo = Some(repo);
 
     log::info!("Parsed allocator model successfully");
     Ok(model)
+}
+
+fn extract_owner_and_repo(url: &str) -> Result<(String, String), LDNError> {
+    let parsed_url = Url::parse(url).map_err(|e| LDNError::Load(format!("Invalid URL: {e}")))?;
+    let mut segments = parsed_url
+        .path_segments()
+        .ok_or(LDNError::Load("Failed to get url segments".to_string()))?;
+
+    let owner = segments
+        .next()
+        .ok_or(LDNError::Load("Missing owner".to_string()))?
+        .to_string();
+    let repo = segments
+        .next()
+        .ok_or(LDNError::Load("Missing repo".to_string()))?
+        .to_string();
+
+    Ok((owner, repo))
 }
 
 pub async fn is_allocator_repo_initialized(gh: &GithubWrapper) -> Result<bool, LDNError> {

@@ -41,6 +41,7 @@ fvm_shared = "4.4.0"
 tfidf-summarizer = "2.0.0"
 ndarray = "0.16.1"
 strsim = "0.10"
+url = "2.5.4"
 
 [dev-dependencies]
 actix-rt = "2.9.0"
