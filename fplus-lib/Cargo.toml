@@ -1,7 +1,7 @@
 [package]
 name = "fplus-lib"
 authors = ["jbesraa", "kokal33", "clriesco"]
-version = "2.2.27"
+version = "2.2.28"
 edition = "2021"
 description = "FPlus library/helper files"
 license = "MIT OR Apache-2.0"
@@ -30,7 +30,7 @@ uuidv4 = "1.0.0"
 rayon = "1.8.0" 
 log = "0.4.20"
 once_cell = "1.19.0"
-fplus-database = { path = "../fplus-database", version = "2.2.27" }
+fplus-database = { path = "../fplus-database", version = "2.2.28" }
 pem = "1.0"
 anyhow = "1.0"
 regex = "1.0"
