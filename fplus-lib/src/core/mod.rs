@@ -60,7 +60,7 @@ use self::application::file::{
     DeepCompare, ValidVerifierList, VerifierInput,
 };
 
-use crate::core::application::file::Allocation;
+use crate::core::application::file::{Allocation, DecreaseClientAllowanceVerifier};
 use std::collections::HashSet;
 
 pub mod allocator;
@@ -124,6 +124,25 @@ pub struct StorageProvidersChangeProposalInfo {
     pub signer: StorageProvidersChangeSignerInfo,
     pub allowed_sps: Option<Vec<u64>>,
     pub max_deviation: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct DecreaseClientAllowanceSignerInfo {
+    pub signing_address: String,
+    pub decrease_allowance_cid: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct DecreaseAllowanceProposalInfo {
+    pub signer: DecreaseClientAllowanceSignerInfo,
+    pub amount_to_decrease: String,
+    pub reason_for_decrease: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct DecreaseAllowanceApprovalInfo {
+    pub signer: DecreaseClientAllowanceSignerInfo,
+    pub request_id: String,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -1278,31 +1297,6 @@ impl LDNApplication {
         allowed_sps: Option<Vec<u64>>,
         max_deviation: Option<String>,
     ) -> Result<(), LDNError> {
-        let db_allocator = get_allocator(&owner, &repo)
-            .await
-            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {e}")))?
-            .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
-
-        let db_multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
-            "Multisig address for the allocator not found.".to_string(),
-        ))?;
-
-        let blockchain_threshold = get_multisig_threshold_for_actor(&db_multisig_address)
-            .await
-            .ok();
-
-        let db_threshold: u64 = db_allocator.multisig_threshold.unwrap_or(2) as u64;
-
-        if let Some(blockchain_threshold) = blockchain_threshold {
-            if blockchain_threshold != db_threshold {
-                if let Err(e) =
-                    update_allocator_threshold(&owner, &repo, blockchain_threshold as i32).await
-                {
-                    log::error!("Failed to update allocator threshold: {}", e);
-                }
-            }
-        }
-
         let mut app_file: ApplicationFile = self.file().await?;
         let app_state_before_change = app_file.lifecycle.state.clone();
         if app_state_before_change != AppState::ReadyToSign
@@ -1314,10 +1308,11 @@ impl LDNApplication {
             )));
         }
 
-        let threshold_to_use = blockchain_threshold.unwrap_or(db_threshold);
         let request_id = uuidv4::uuid::v4();
         let comment: &str;
         let app_state: AppState;
+        let threshold_to_use =
+            Self::get_allocator_threshold_and_update_if_needed(&owner, &repo).await?;
         if threshold_to_use < 2 {
             let sps_change_request =
                 SpsChangeRequest::new(&request_id, allowed_sps, max_deviation, &signer, false);
@@ -1489,6 +1484,203 @@ impl LDNApplication {
         Ok(())
     }
 
+    pub async fn propose_decrease_allowance(
+        &self,
+        verifier: &DecreaseClientAllowanceVerifier,
+        owner: &str,
+        repo: &str,
+        amount_to_decrease: &str,
+        reason_for_decrease: &str,
+    ) -> Result<(), LDNError> {
+        let app_file = self.file().await?;
+        let app_state = app_file.lifecycle.state.clone();
+        if app_state != AppState::Granted {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected Granted",
+                app_file.lifecycle.state
+            )));
+        }
+
+        let request_id = uuidv4::uuid::v4();
+
+        let decrease_request = AllocationRequest::new(
+            verifier.github_username.clone(),
+            request_id.clone(),
+            AllocationRequestType::Decrease,
+            format!("-{amount_to_decrease}"),
+        );
+        let threshold_to_use =
+            Self::get_allocator_threshold_and_update_if_needed(owner, repo).await?;
+        let app_file_with_new_allocation_request = if threshold_to_use < 2 {
+            app_file.start_decrease_request(
+                &decrease_request,
+                verifier,
+                &request_id,
+                &AppState::Granted,
+            )
+        } else {
+            app_file.start_decrease_request(
+                &decrease_request,
+                verifier,
+                &request_id,
+                &AppState::DecreasingDataCap,
+            )
+        };
+
+        let parsed_app_file =
+            serde_json::to_string_pretty(&app_file_with_new_allocation_request)
+                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
+        let pr_title = format!(
+            "Decrease Datacap for {}",
+            app_file_with_new_allocation_request.client.name.clone()
+        );
+        LDNPullRequest::create_pr_for_existing_application(
+            app_file.id.clone(),
+            parsed_app_file,
+            self.file_name.clone(),
+            request_id.clone(),
+            self.file_sha.clone(),
+            owner.to_string(),
+            repo.to_string(),
+            true,
+            app_file.issue_number.clone(),
+            pr_title,
+        )
+        .await?;
+
+        Self::add_comment_to_issue(
+            app_file.issue_number.clone(),
+            owner.to_string(),
+            repo.to_string(),
+            format!("## Reason for not using Decreasing Allowance\n {reason_for_decrease}",),
+        )
+        .await?;
+
+        Self::issue_datacap_allocation_requested(
+            app_file_with_new_allocation_request.clone(),
+            app_file_with_new_allocation_request.get_active_allocation(),
+            owner.to_string(),
+            repo.to_string(),
+        )
+        .await?;
+
+        if threshold_to_use > 1 {
+            Self::update_issue_labels(
+                app_file_with_new_allocation_request.issue_number.clone(),
+                &[AppState::DecreasingDataCap.as_str()],
+                owner.to_string(),
+                repo.to_string(),
+            )
+            .await?;
+        } else {
+            Self::add_comment_to_issue(
+                app_file.issue_number.clone(),
+                owner.to_string(),
+                repo.to_string(),
+                "DataCap has been decreased.".to_string(),
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn approve_decrease_allowance(
+        &self,
+        verifier: &DecreaseClientAllowanceVerifier,
+        owner: &str,
+        repo: &str,
+        request_id: &str,
+    ) -> Result<(), LDNError> {
+        let threshold_to_use =
+            Self::get_allocator_threshold_and_update_if_needed(owner, repo).await?;
+
+        let mut app_file: ApplicationFile = self.file().await?;
+        let app_state = app_file.lifecycle.state.clone();
+        if app_state != AppState::DecreasingDataCap {
+            return Err(LDNError::Load(format!(
+                "Application state is {:?}. Expected DecreasingDataCap",
+                app_file.lifecycle.state
+            )));
+        }
+        let current_signers = app_file.get_active_allocation_signers(request_id);
+        // // Check if the signer has already signed
+        if current_signers
+            .iter()
+            .any(|s| s.signing_address == verifier.signing_address)
+        {
+            return Err(LDNError::New(format!(
+                "Signer {} has already approved this application",
+                verifier.signing_address
+            )));
+        }
+        let commit_message;
+        let signature_step;
+        let complete_decrease_allowance = current_signers.len() + 1 == threshold_to_use as usize;
+        if !complete_decrease_allowance {
+            app_file =
+                app_file.add_signer_to_allocation(verifier.clone().into_verifier(), request_id);
+            app_file.lifecycle = app_file.lifecycle.update_lifecycle_after_sign(
+                &app_state,
+                &verifier.github_username,
+                &request_id.to_string(),
+            );
+            commit_message = LDNPullRequest::application_signed(&verifier.signing_address);
+            signature_step = "signed".to_string();
+        } else {
+            app_file = app_file.add_signer_to_allocation_and_complete(
+                verifier.clone().into_verifier(),
+                request_id.into(),
+                app_file.lifecycle.clone(),
+            );
+            commit_message =
+                LDNPullRequest::application_move_to_confirmed_commit(&verifier.signing_address);
+            signature_step = "approved".to_string();
+        }
+        self.update_and_commit_application_state(
+            app_file.clone(),
+            self.github.owner.clone(),
+            self.github.repo.clone(),
+            self.file_sha.clone(),
+            self.branch_name.clone(),
+            self.file_name.clone(),
+            commit_message,
+        )
+        .await?;
+
+        Self::issue_datacap_request_signature(app_file, signature_step, owner.into(), repo.into())
+            .await?;
+        Ok(())
+    }
+
+    async fn get_allocator_threshold_and_update_if_needed(
+        owner: &str,
+        repo: &str,
+    ) -> Result<u64, LDNError> {
+        let db_allocator = get_allocator(owner, repo)
+            .await
+            .map_err(|e| LDNError::Load(format!("Failed to get an allocator. /// {e}")))?
+            .ok_or(LDNError::Load("Allocator not found.".to_string()))?;
+        let db_threshold: u64 = db_allocator.multisig_threshold.unwrap_or(2) as u64;
+
+        let db_multisig_address = db_allocator.multisig_address.ok_or(LDNError::Load(
+            "Multisig address for the allocator not found.".to_string(),
+        ))?;
+
+        let blockchain_threshold = get_multisig_threshold_for_actor(&db_multisig_address)
+            .await
+            .unwrap_or(db_threshold);
+
+        if blockchain_threshold != db_threshold {
+            update_allocator_threshold(owner, repo, blockchain_threshold as i32)
+                .await
+                .map_err(|e| {
+                    LDNError::Load(format!("Failed to update allocator threshold: {e}"))
+                })?;
+        }
+
+        Ok(blockchain_threshold)
+    }
+
     pub async fn complete_new_application_approval(
         &self,
         signer: VerifierInput,
@@ -1554,13 +1746,10 @@ impl LDNApplication {
         let label;
         let signing_will_be_completed = (current_signers.len() + 1) == threshold_to_use;
         if signing_will_be_completed {
-            let app_lifecycle = app_file
-                .lifecycle
-                .finish_grant_datacap_approval(&signer.github_username);
             app_file = app_file.add_signer_to_allocation_and_complete(
                 signer.clone().into(),
                 request_id.clone(),
-                app_lifecycle,
+                app_file.lifecycle.clone(),
             );
             commit_message =
                 LDNPullRequest::application_move_to_confirmed_commit(&signer.signing_address);
@@ -1690,9 +1879,7 @@ impl LDNApplication {
         }
 
         let requested_so_far = app_file.allocation.total_requested();
-        let total_requested = parse_size_to_bytes(&app_file.datacap.total_requested_amount).ok_or(
-            LDNError::Load("Can not parse total requested amount to bytes".into()),
-        )?;
+        let total_requested = parse_size_to_bytes(&app_file.datacap.total_requested_amount)?;
 
         if requested_so_far != total_requested {
             return Err(LDNError::Load(
@@ -2198,7 +2385,7 @@ impl LDNApplication {
                     log::warn!("Val Trigger (RtS) - Application state is ChangesRequested");
                     return Ok(false);
                 }
-                AppState::ReadyToSign => {
+                AppState::ReadyToSign | AppState::DecreasingDataCap => {
                     if application_file.allocation.0.is_empty() {
                         log::warn!("Val Trigger (RtS) - No allocations found");
                         false
@@ -3154,18 +3341,10 @@ impl LDNApplication {
             || (app_file.lifecycle.get_state() == AppState::Granted
                 && !app_file.lifecycle.is_active)
         {
-            let new_requested_amount = parse_size_to_bytes(
-                &parsed_ldn.datacap.total_requested_amount,
-            )
-            .ok_or(LDNError::Load(
-                "Failed to parse new total requestd amount to bytes.".to_string(),
-            ))?;
-            let old_requested_amount = parse_size_to_bytes(
-                &app_file.datacap.total_requested_amount,
-            )
-            .ok_or(LDNError::Load(
-                "Failed to parse old total requestd amount to bytes.".to_string(),
-            ))?;
+            let new_requested_amount =
+                parse_size_to_bytes(&parsed_ldn.datacap.total_requested_amount)?;
+            let old_requested_amount =
+                parse_size_to_bytes(&app_file.datacap.total_requested_amount)?;
             if new_requested_amount <= old_requested_amount {
                 let information = "The requested DataCap has been reached for this application. To proceed changes and reopen application increase the total requested DataCap amount.";
                 gh.add_comment_to_issue(application_model.issue_number as u64, information)
@@ -4366,15 +4545,10 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         }
 
         let requested_so_far = application_file.allocation.total_requested();
-        let total_requested = parse_size_to_bytes(&application_file.datacap.total_requested_amount)
-            .ok_or(LDNError::Load(
-                "Can not parse total requested amount to bytes".into(),
-            ))?;
+        let total_requested =
+            parse_size_to_bytes(&application_file.datacap.total_requested_amount)?;
         let ssa_amount =
-            parse_size_to_bytes((format!("{}{}", &info.amount, &info.amount_type)).as_str())
-                .ok_or(LDNError::Load(
-                    "Can not parse requested amount to bytes".into(),
-                ))?;
+            parse_size_to_bytes((format!("{}{}", &info.amount, &info.amount_type)).as_str())?;
         if requested_so_far + ssa_amount > total_requested {
             return Err(LDNError::Load("The sum of datacap requested so far and requested amount exceeds total requested amount".into()));
         }
@@ -4935,7 +5109,7 @@ impl LDNPullRequest {
     }
 
     pub(super) fn application_signed(actor: &str) -> String {
-        format!("Notary User {actor} Signed Application")
+        format!("Notary User {actor} Signed Allocation Request")
     }
 
     pub(super) fn application_move_to_approval_commit(actor: &str) -> String {

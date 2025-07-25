@@ -16,6 +16,7 @@ impl AppState {
             AppState::TotalDatacapReached => "total datacap reached",
             AppState::Declined => "declined",
             AppState::ChangingSP => "changing SPs",
+            AppState::DecreasingDataCap => "decreasing datacap",
             AppState::Error => "error",
         }
     }

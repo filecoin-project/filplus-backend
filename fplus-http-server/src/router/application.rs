@@ -4,12 +4,15 @@ use actix_web::{
 };
 
 use fplus_lib::core::{
-    application::file::{StorageProviderChangeVerifier, VerifierInput},
+    application::file::{
+        DecreaseClientAllowanceVerifier, StorageProviderChangeVerifier, VerifierInput,
+    },
     ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo,
     CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
-    DcReachedInfo, GithubQueryParams, LDNApplication, MoreInfoNeeded, NotifyRefillInfo,
-    StorageProvidersChangeApprovalInfo, StorageProvidersChangeProposalInfo, SubmitKYCInfo,
-    TriggerSSAInfo, ValidationPullRequestData, VerifierActionsQueryParams,
+    DcReachedInfo, DecreaseAllowanceApprovalInfo, DecreaseAllowanceProposalInfo, GithubQueryParams,
+    LDNApplication, MoreInfoNeeded, NotifyRefillInfo, StorageProvidersChangeApprovalInfo,
+    StorageProvidersChangeProposalInfo, SubmitKYCInfo, TriggerSSAInfo, ValidationPullRequestData,
+    VerifierActionsQueryParams,
 };
 
 #[post("/application")]
@@ -224,6 +227,62 @@ pub async fn approve_storage_providers(
             query.repo.clone(),
             request_id,
         )
+        .await
+        .map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok().body(
+        serde_json::to_string_pretty("Success")
+            .expect("Serialization of static string should succeed"),
+    ))
+}
+
+#[post("/application/propose_decrease_allowance")]
+pub async fn propose_decrease_allowance(
+    info: web::Json<DecreaseAllowanceProposalInfo>,
+    query: web::Query<VerifierActionsQueryParams>,
+) -> actix_web::Result<impl Responder> {
+    let ldn_application =
+        LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone())
+            .await
+            .map_err(ErrorNotFound)?;
+    let verifier = DecreaseClientAllowanceVerifier {
+        github_username: query.github_username.clone(),
+        signing_address: info.signer.signing_address.clone(),
+        decrease_allowance_cid: info.signer.decrease_allowance_cid.clone(),
+    };
+
+    ldn_application
+        .propose_decrease_allowance(
+            &verifier,
+            &query.owner,
+            &query.repo,
+            &info.amount_to_decrease,
+            &info.reason_for_decrease,
+        )
+        .await
+        .map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok().body(
+        serde_json::to_string_pretty("Success")
+            .expect("Serialization of static string should succeed"),
+    ))
+}
+
+#[post("/application/approve_decrease_allowance")]
+pub async fn approve_decrease_allowance(
+    info: web::Json<DecreaseAllowanceApprovalInfo>,
+    query: web::Query<VerifierActionsQueryParams>,
+) -> actix_web::Result<impl Responder> {
+    let ldn_application =
+        LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone())
+            .await
+            .map_err(ErrorNotFound)?;
+    let verifier = DecreaseClientAllowanceVerifier {
+        github_username: query.github_username.clone(),
+        signing_address: info.signer.signing_address.clone(),
+        decrease_allowance_cid: info.signer.decrease_allowance_cid.clone(),
+    };
+
+    ldn_application
+        .approve_decrease_allowance(&verifier, &query.owner, &query.repo, &info.request_id)
         .await
         .map_err(ErrorInternalServerError)?;
     Ok(HttpResponse::Ok().body(

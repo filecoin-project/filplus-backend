@@ -1,3 +1,4 @@
+use crate::core::application::file::DecreaseClientAllowanceVerifier;
 use file::{AppState, SpsChangeRequest, SpsChangeRequests};
 
 use self::file::{AllocationRequest, Allocations, LifeCycle, Verifier, Version};
@@ -137,6 +138,32 @@ impl file::ApplicationFile {
         }
     }
 
+    pub fn start_decrease_request(
+        &self,
+        allocation_request: &AllocationRequest,
+        verifier: &DecreaseClientAllowanceVerifier,
+        request_id: &str,
+        app_state: &AppState,
+    ) -> Self {
+        let allocations = self.allocation.clone().push(allocation_request.clone());
+
+        let allocations_after_sign = if *app_state == AppState::Granted {
+            allocations.add_signer_and_complete(request_id.into(), verifier.clone().into_verifier())
+        } else {
+            allocations.add_signer(&allocation_request.id, verifier.clone().into_verifier())
+        };
+        let updated_lifecycle = self.lifecycle.update_lifecycle_after_sign(
+            app_state,
+            &verifier.github_username,
+            &request_id.to_string(),
+        );
+        Self {
+            allocation: allocations_after_sign,
+            lifecycle: updated_lifecycle,
+            ..self.clone()
+        }
+    }
+
     pub fn handle_changing_sps_request(
         &mut self,
         validated_by: &String,
@@ -208,10 +235,12 @@ impl file::ApplicationFile {
         let new_allocation = self
             .allocation
             .clone()
-            .add_signer_and_complete(request_id, signer);
+            .add_signer_and_complete(request_id, signer.clone());
+        let lifecycle_after_complete =
+            app_lifecycle.finish_grant_datacap_approval(&signer.github_username);
         Self {
             allocation: new_allocation,
-            lifecycle: app_lifecycle,
+            lifecycle: lifecycle_after_complete,
             ..self.clone()
         }
     }
