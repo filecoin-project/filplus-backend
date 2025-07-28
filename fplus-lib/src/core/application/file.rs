@@ -459,21 +459,15 @@ impl From<VerifierInput> for Verifier {
     }
 }
 
-impl From<DecreaseClientAllowanceVerifier> for Verifier {
-    fn from(input: DecreaseClientAllowanceVerifier) -> Self {
+impl From<&DecreaseClientAllowanceVerifier> for Verifier {
+    fn from(input: &DecreaseClientAllowanceVerifier) -> Self {
         Self {
-            github_username: input.github_username,
-            signing_address: input.signing_address,
+            github_username: input.github_username.clone(),
+            signing_address: input.signing_address.clone(),
             created_at: Utc::now().to_string(),
-            message_cid: input.decrease_allowance_cid,
+            message_cid: input.decrease_allowance_cid.clone(),
             increase_allowance_cid: None,
         }
-    }
-}
-
-impl DecreaseClientAllowanceVerifier {
-    pub fn into_verifier(self) -> Verifier {
-        self.into()
     }
 }
 

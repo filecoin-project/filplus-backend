@@ -148,9 +148,9 @@ impl file::ApplicationFile {
         let allocations = self.allocation.clone().push(allocation_request.clone());
 
         let allocations_after_sign = if *app_state == AppState::Granted {
-            allocations.add_signer_and_complete(request_id.into(), verifier.clone().into_verifier())
+            allocations.add_signer_and_complete(request_id.into(), verifier.into())
         } else {
-            allocations.add_signer(&allocation_request.id, verifier.clone().into_verifier())
+            allocations.add_signer(&allocation_request.id, verifier.into())
         };
         let updated_lifecycle = self.lifecycle.update_lifecycle_after_sign(
             app_state,

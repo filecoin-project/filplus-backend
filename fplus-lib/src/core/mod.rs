@@ -1617,8 +1617,7 @@ impl LDNApplication {
         let signature_step;
         let complete_decrease_allowance = current_signers.len() + 1 == threshold_to_use as usize;
         if !complete_decrease_allowance {
-            app_file =
-                app_file.add_signer_to_allocation(verifier.clone().into_verifier(), request_id);
+            app_file = app_file.add_signer_to_allocation(verifier.into(), request_id);
             app_file.lifecycle = app_file.lifecycle.update_lifecycle_after_sign(
                 &app_state,
                 &verifier.github_username,
@@ -1628,7 +1627,7 @@ impl LDNApplication {
             signature_step = "signed".to_string();
         } else {
             app_file = app_file.add_signer_to_allocation_and_complete(
-                verifier.clone().into_verifier(),
+                verifier.into(),
                 request_id.into(),
                 app_file.lifecycle.clone(),
             );
