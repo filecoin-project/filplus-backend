@@ -143,10 +143,10 @@ impl Allocations {
         self.clone()
     }
 
-    pub fn total_requested(&self) -> u64 {
-        let mut total_amount: u64 = 0;
+    pub fn total_requested(&self) -> i64 {
+        let mut total_amount: i64 = 0;
         for allocation in self.0.iter() {
-            if let Some(amount) = parse_size_to_bytes(&allocation.amount) {
+            if let Ok(amount) = parse_size_to_bytes(&allocation.amount) {
                 total_amount += amount;
             }
         }

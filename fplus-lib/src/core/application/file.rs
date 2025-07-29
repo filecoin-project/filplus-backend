@@ -1,5 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::error::LDNError;
@@ -274,6 +275,7 @@ pub enum AppState {
     TotalDatacapReached,
     Declined,
     ChangingSP,
+    DecreasingDataCap,
     Error,
 }
 
@@ -309,6 +311,7 @@ pub enum AllocationRequestType {
     First,
     Removal,
     Refill(u8),
+    Decrease,
 }
 
 impl std::fmt::Display for AllocationRequestType {
@@ -317,6 +320,7 @@ impl std::fmt::Display for AllocationRequestType {
             AllocationRequestType::First => write!(f, "First"),
             AllocationRequestType::Removal => write!(f, "Removal"),
             AllocationRequestType::Refill(_) => write!(f, "Refill"),
+            AllocationRequestType::Decrease => write!(f, "Decrease"),
         }
     }
 }
@@ -436,6 +440,13 @@ pub struct VerifierInput {
     pub increase_allowance_cid: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DecreaseClientAllowanceVerifier {
+    pub github_username: String,
+    pub signing_address: String,
+    pub decrease_allowance_cid: String,
+}
+
 impl From<VerifierInput> for Verifier {
     fn from(input: VerifierInput) -> Self {
         Self {
@@ -444,6 +455,18 @@ impl From<VerifierInput> for Verifier {
             created_at: input.created_at,
             message_cid: input.message_cid,
             increase_allowance_cid: input.increase_allowance_cid,
+        }
+    }
+}
+
+impl From<&DecreaseClientAllowanceVerifier> for Verifier {
+    fn from(input: &DecreaseClientAllowanceVerifier) -> Self {
+        Self {
+            github_username: input.github_username.clone(),
+            signing_address: input.signing_address.clone(),
+            created_at: Utc::now().to_string(),
+            message_cid: input.decrease_allowance_cid.clone(),
+            increase_allowance_cid: None,
         }
     }
 }
