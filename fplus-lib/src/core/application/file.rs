@@ -339,6 +339,11 @@ pub struct Allocation {
     pub is_active: bool,
     #[serde(rename = "Allocation Amount")]
     pub amount: String,
+    #[serde(
+        rename = "Amount of Datacap Sent to Contract",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub amount_of_datacap_sent_to_contract: Option<String>,
     #[serde(rename = "Signers")]
     pub signers: Verifiers,
 }
@@ -436,7 +441,7 @@ pub struct VerifierInput {
     pub github_username: String,
     pub signing_address: String,
     pub created_at: String,
-    pub message_cid: String,
+    pub message_cid: Option<String>,
     pub increase_allowance_cid: Option<String>,
 }
 
@@ -465,7 +470,7 @@ impl From<&DecreaseClientAllowanceVerifier> for Verifier {
             github_username: input.github_username.clone(),
             signing_address: input.signing_address.clone(),
             created_at: Utc::now().to_string(),
-            message_cid: input.decrease_allowance_cid.clone(),
+            message_cid: Some(input.decrease_allowance_cid.clone()),
             increase_allowance_cid: None,
         }
     }
@@ -479,8 +484,8 @@ pub struct Verifier {
     pub signing_address: String,
     #[serde(rename = "Created At")]
     pub created_at: String,
-    #[serde(rename = "Message CID")]
-    pub message_cid: String,
+    #[serde(rename = "Message CID", skip_serializing_if = "Option::is_none")]
+    pub message_cid: Option<String>,
     #[serde(
         rename = "Increase allowance CID",
         skip_serializing_if = "Option::is_none"
@@ -518,6 +523,7 @@ pub struct AllocationRequest {
     pub kind: AllocationRequestType,
     pub is_active: bool,
     pub allocation_amount: String,
+    pub amount_of_datacap_sent_to_contract: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

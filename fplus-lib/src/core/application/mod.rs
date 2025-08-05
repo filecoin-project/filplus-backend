@@ -213,6 +213,17 @@ impl file::ApplicationFile {
         }
     }
 
+    pub fn set_amount_of_dc_sent_to_contract(&self, request_id: &str, amount: &str) -> Self {
+        let allocation_after_sign = self
+            .allocation
+            .clone()
+            .set_amount_of_dc_sent_to_contract(request_id, amount);
+        Self {
+            allocation: allocation_after_sign,
+            ..self.clone()
+        }
+    }
+
     pub fn move_back_to_ready_to_sign(&self) -> Self {
         let updated_allocation = self
             .clone()

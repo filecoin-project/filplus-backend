@@ -99,6 +99,7 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::closed_allocator_applications)
             .service(router::application::total_dc_reached)
             .service(router::application::single)
+            .service(router::application::get_applications_by_contract_address)
             .service(router::application::application_with_allocation_amount_handler)
             .service(router::application::validate_application_flow)
             .service(router::application::check_for_changes)
