@@ -9,8 +9,9 @@ use fplus_lib::core::{
     },
     ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo,
     CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
-    DcReachedInfo, DecreaseAllowanceApprovalInfo, DecreaseAllowanceProposalInfo, GithubQueryParams,
-    LDNApplication, MoreInfoNeeded, NotifyRefillInfo, StorageProvidersChangeApprovalInfo,
+    DcReachedInfo, DecreaseAllowanceApprovalInfo, DecreaseAllowanceProposalInfo,
+    GetApplicationsByClientContractAddressQueryParams, GithubQueryParams, LDNApplication,
+    MoreInfoNeeded, NotifyRefillInfo, StorageProvidersChangeApprovalInfo,
     StorageProvidersChangeProposalInfo, SubmitKYCInfo, TriggerSSAInfo, ValidationPullRequestData,
     VerifierActionsQueryParams,
 };
@@ -45,6 +46,20 @@ pub async fn closed_applications() -> actix_web::Result<impl Responder> {
         .map_err(ErrorInternalServerError)?;
 
     let parsed = serde_json::to_string_pretty(&apps).map_err(ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(parsed))
+}
+
+#[get("/applications/by_contract_address")]
+pub async fn get_applications_by_contract_address(
+    query: web::Query<GetApplicationsByClientContractAddressQueryParams>,
+) -> actix_web::Result<impl Responder> {
+    let applications =
+        LDNApplication::get_applications_by_client_contract_address(&query.client_contract_address)
+            .await
+            .map_err(ErrorNotFound)?;
+    let parsed = serde_json::to_string_pretty(&applications).map_err(ErrorInternalServerError)?;
     Ok(HttpResponse::Ok()
         .content_type("application/json")
         .body(parsed))
@@ -138,6 +153,7 @@ pub async fn propose(
         signer,
         request_id,
         new_allocation_amount,
+        amount_of_datacap_sent_to_contract,
     } = info.into_inner();
     let ldn_application =
         LDNApplication::load(query.id.clone(), query.owner.clone(), query.repo.clone())
@@ -157,6 +173,7 @@ pub async fn propose(
             query.owner.clone(),
             query.repo.clone(),
             new_allocation_amount,
+            amount_of_datacap_sent_to_contract,
         )
         .await
         .map_err(ErrorInternalServerError)?;
@@ -314,6 +331,7 @@ pub async fn approve(
             request_id,
             query.owner.clone(),
             query.repo.clone(),
+            None,
             None,
         )
         .await
