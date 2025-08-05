@@ -420,6 +420,23 @@ pub async fn get_applications_by_client_id(
     Ok(result)
 }
 
+pub async fn get_applications_by_client_contract_address(
+    client_contract_address: &str,
+) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
+    let conn = get_database_connection().await?;
+    let applications = Application::find()
+        .from_raw_sql(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT DISTINCT ON (id) * FROM applications 
+             WHERE client_contract_address = $1
+             ORDER BY id, pr_number DESC",
+            [client_contract_address.into()],
+        ))
+        .all(&conn)
+        .await?;
+    Ok(applications)
+}
+
 pub async fn get_distinct_applications_by_clients_addresses(
     clients_addresses: Vec<String>,
 ) -> Result<Vec<ApplicationModel>, sea_orm::DbErr> {
