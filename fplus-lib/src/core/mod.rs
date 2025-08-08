@@ -4916,10 +4916,7 @@ impl LDNPullRequest {
     ) -> Result<String, LDNError> {
         let initial_commit = Self::application_initial_commit(&owner_name, &issue_number);
         let gh: GithubWrapper = github_async_new(owner.to_string(), repo.to_string()).await?;
-        let head_hash = gh
-            .get_main_branch_sha()
-            .await
-            .map_err(|e| LDNError::New(format!("Failed to get branch: {e}")))?;
+        let head_hash = gh.get_main_branch_sha().await?;
         let create_ref_request = gh
             .build_create_ref_request(app_branch_name.clone(), head_hash)
             .map_err(|e| {
@@ -4965,10 +4962,7 @@ impl LDNPullRequest {
         pr_title: String,
     ) -> Result<NewPrNumberAndFileSha, LDNError> {
         let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
-        let head_hash = gh
-            .get_main_branch_sha()
-            .await
-            .map_err(|e| LDNError::New(format!("Failed to get main branch: {e}")))?;
+        let head_hash = gh.get_main_branch_sha().await?;
         let create_ref_request = gh
             .build_create_ref_request(branch_name.clone(), head_hash)
             .map_err(|e| {
