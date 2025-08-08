@@ -7,8 +7,9 @@ use hyper_rustls::HttpsConnectorBuilder;
 use octocrab::auth::AppAuth;
 use octocrab::models::issues::{Comment, Issue};
 use octocrab::models::pulls::PullRequest;
-use octocrab::models::repos::{Branch, ContentItems, FileDeletion, FileUpdate};
+use octocrab::models::repos::{Branch, ContentItems, FileDeletion, FileUpdate, Object};
 use octocrab::models::{IssueState, Label};
+use octocrab::params::repos::Reference;
 use octocrab::params::{pulls::State as PullState, State};
 use octocrab::service::middleware::base_uri::BaseUriLayer;
 use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
@@ -520,38 +521,18 @@ impl GithubWrapper {
     }
 
     pub async fn get_main_branch_sha(&self) -> Result<String, LDNError> {
-        let url = format!(
-            "https://api.github.com/repos/{}/{}/git/refs",
-            self.owner, self.repo
-        );
-        let request = http::request::Builder::new()
-            .method(http::Method::GET)
-            .uri(url);
-        let request = self
+        let head_hash = self
             .inner
-            .build_request::<String>(request, None)
-            .map_err(|e| LDNError::Load(format!("Failed to build request: {e}")))?;
-
-        let mut response = match self.inner.execute(request).await {
-            Ok(r) => r,
-            Err(e) => {
-                println!("Error getting main branch sha: {e:?}");
-                return Ok("".to_string());
-            }
-        };
-        let response = response.body_mut();
-        let body = hyper::body::to_bytes(response)
+            .repos(&self.owner, &self.repo)
+            .get_ref(&Reference::Branch("main".to_string()))
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to serialize to bytes: {e}")))?;
-        let shas = body.into_iter().map(|b| b as char).collect::<String>();
-        let shas: RefList = serde_json::from_str(&shas)
-            .map_err(|e| LDNError::Load(format!("Failed to serialize to RefList: {e}")))?;
-        for sha in shas.0 {
-            if sha._ref == "refs/heads/main" {
-                return Ok(sha.object.sha);
-            }
-        }
-        Ok("".to_string())
+            .map_err(|e| LDNError::New(format!("Failed to get ref for main branch: {e}")))?;
+        let sha = if let Object::Commit { sha, .. } = head_hash.object {
+            sha
+        } else {
+            return Err(LDNError::New("Failed to get SHA for main branch".into()));
+        };
+        Ok(sha)
     }
 
     pub fn build_create_ref_request(
