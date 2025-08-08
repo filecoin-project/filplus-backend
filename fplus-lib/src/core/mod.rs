@@ -3063,7 +3063,7 @@ impl LDNApplication {
                 Ok(false)
             } else {
                 log::warn!("Val Proposal (SSD)- No active request");
-                return Ok(false);
+                Ok(false)
             }
         } else {
             log::info!("Val Proposal (> SSD) - State is greater than StartSignDatacap");
