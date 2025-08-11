@@ -1583,7 +1583,7 @@ impl LDNApplication {
             app_file.issue_number.clone(),
             owner.to_string(),
             repo.to_string(),
-            format!("## Reason for not using Decreasing Allowance\n {reason_for_decrease}",),
+            format!("## Reason for using Decreasing Allowance\n {reason_for_decrease}",),
         )
         .await?;
 
