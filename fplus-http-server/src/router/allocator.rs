@@ -1,5 +1,4 @@
 use actix_web::{
-    delete,
     error::{ErrorInternalServerError, ErrorNotFound},
     get, post, web, HttpResponse, Responder,
 };
@@ -68,24 +67,6 @@ pub async fn allocator(path: web::Path<(String, String)>) -> actix_web::Result<i
     } else {
         Err(ErrorNotFound("Allocator not found"))
     }
-}
-
-/**
- * Delete an allocator
- *
- * # Arguments
- * @param path: web::Path<(String, String)> - The owner and repo of the allocator
- *
- * # Returns
- * @return HttpResponse - The result of the operation
- */
-#[delete("/allocator/{owner}/{repo}")]
-pub async fn delete(path: web::Path<(String, String)>) -> actix_web::Result<impl Responder> {
-    let (owner, repo) = path.into_inner();
-    allocators_db::delete_allocator(&owner, &repo)
-        .await
-        .map_err(ErrorInternalServerError)?;
-    Ok(HttpResponse::Ok().finish())
 }
 
 /**

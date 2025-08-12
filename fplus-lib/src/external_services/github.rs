@@ -16,6 +16,7 @@ use octocrab::service::middleware::extra_headers::ExtraHeadersLayer;
 use octocrab::{AuthState, Error as OctocrabError, GitHubError, Octocrab, OctocrabBuilder, Page};
 use reqwest::header::HeaderValue;
 use serde::{Deserialize, Serialize};
+use snafu::GenerateImplicitData;
 use std::sync::Arc;
 
 use crate::config::get_env_var_or_default;
@@ -657,6 +658,27 @@ impl GithubWrapper {
             .merge(number)
             .send()
             .await?;
+        Ok(())
+    }
+
+    pub async fn delete_branch(&self, pr_number: &u64) -> Result<(), OctocrabError> {
+        let branch_name = self.get_branch_name_from_pr(*pr_number).await?;
+        let request = self
+            .build_remove_ref_request(branch_name.clone())
+            .map_err(|e| OctocrabError::Http {
+                source: e,
+                backtrace: GenerateImplicitData::generate(),
+            })?;
+        self.remove_branch(request).await?;
+        Ok(())
+    }
+
+    pub async fn merge_pull_request_and_delete_branch(
+        &self,
+        pr_number: &u64,
+    ) -> Result<(), OctocrabError> {
+        self.merge_pull_request(*pr_number).await?;
+        self.delete_branch(pr_number).await?;
         Ok(())
     }
 
