@@ -82,13 +82,6 @@ pub struct TriggerSSAInfo {
 }
 
 #[derive(Deserialize)]
-pub struct BranchDeleteInfo {
-    pub owner: String,
-    pub repo: String,
-    pub branch_name: String,
-}
-
-#[derive(Deserialize)]
 pub struct NewPrNumberAndFileSha {
     pub pr_number: u64,
     pub file_sha: String,
@@ -1952,11 +1945,13 @@ impl LDNApplication {
 
         let gh = github_async_new(self.github.owner.clone(), self.github.repo.clone()).await?;
 
-        gh.merge_pull_request(pr_number).await.map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to merge pull request {pr_number}. Reason: {e}"
-            ))
-        })?;
+        gh.merge_pull_request_and_delete_branch(&pr_number)
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to merge pull request {pr_number} or delete branch. Reason: {e}"
+                ))
+            })?;
 
         database::applications::merge_application_by_pr_number(
             self.github.owner.clone(),
@@ -2249,10 +2244,10 @@ impl LDNApplication {
             }
             log::info!("- Application is in a valid state!");
 
-            Self::merge_application(pr_number, owner, repo).await?;
+            Self::merge_application_and_delete_branch(pr_number, owner, repo).await?;
             return Ok(true);
         } else if application.lifecycle.get_state() == AppState::Declined {
-            Self::merge_application(pr_number, owner, repo).await?;
+            Self::merge_application_and_delete_branch(pr_number, owner, repo).await?;
             return Ok(true);
         }
 
@@ -2260,18 +2255,20 @@ impl LDNApplication {
         Ok(false)
     }
 
-    pub async fn merge_application(
+    pub async fn merge_application_and_delete_branch(
         pr_number: u64,
         owner: String,
         repo: String,
     ) -> Result<bool, LDNError> {
         let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
 
-        gh.merge_pull_request(pr_number).await.map_err(|e| {
-            LDNError::Load(format!(
-                "Failed to merge pull request {pr_number}. Reason: {e}"
-            ))
-        })?;
+        gh.merge_pull_request_and_delete_branch(&pr_number)
+            .await
+            .map_err(|e| {
+                LDNError::Load(format!(
+                    "Failed to merge pull request {pr_number} or delete branch. Reason: {e}"
+                ))
+            })?;
 
         database::applications::merge_application_by_pr_number(owner, repo, pr_number)
             .await
@@ -2370,11 +2367,6 @@ impl LDNApplication {
             log::info!("- Application is in a valid state!");
             return Ok(true);
         }
-        // let bot_user = get_env_var_or_default("BOT_USER");
-        // if author != bot_user {
-        //     log::warn!("- Author is not the bot user");
-        //     return Ok(false);
-        // }
 
         log::info!("- Application is in a valid state");
         Ok(true)
@@ -2745,17 +2737,10 @@ impl LDNApplication {
 
     pub async fn check_for_changes(
         pr_number: u64,
-        author: &str,
         owner: String,
         repo: String,
     ) -> Result<bool, LDNError> {
         log::info!("Starting check_for_changes:");
-
-        let bot_user = get_env_var_or_default("BOT_USER");
-        if author != bot_user {
-            log::warn!("- Author is not the bot user");
-            return Err(LDNError::New("PR File edited by user".to_string()));
-        }
 
         let gh: GithubWrapper = github_async_new(owner.clone(), repo.clone()).await?;
         let result = Self::get_pr_files_and_app(owner.clone(), repo.clone(), pr_number).await;
@@ -3489,23 +3474,6 @@ impl LDNApplication {
             ));
         }
         Ok(())
-    }
-
-    pub async fn delete_branch(
-        owner: String,
-        repo: String,
-        branch_name: String,
-    ) -> Result<bool, LDNError> {
-        let gh = github_async_new(owner, repo).await?;
-        let request = gh
-            .build_remove_ref_request(branch_name.clone())
-            .map_err(|e| LDNError::New(format!("build_remove_ref_request function failed: {e}")))?;
-
-        gh.remove_branch(request)
-            .await
-            .map_err(|e| LDNError::New(format!("Error deleting branch {branch_name} /// {e}")))?;
-
-        Ok(true)
     }
 
     async fn add_comment_to_issue(
@@ -4268,11 +4236,13 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         if !application_file.allocation.0.is_empty() {
             let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
 
-            gh.merge_pull_request(pr_number).await.map_err(|e| {
-                LDNError::Load(format!(
-                    "Failed to merge pull request {pr_number}. Reason: {e}"
-                ))
-            })?;
+            gh.merge_pull_request_and_delete_branch(&pr_number)
+                .await
+                .map_err(|e| {
+                    LDNError::Load(format!(
+                        "Failed to merge pull request {pr_number} or delete branch. Reason: {e}"
+                    ))
+                })?;
 
             database::applications::merge_application_by_pr_number(
                 owner.to_string(),
@@ -4712,7 +4682,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             self.remove_first_pending_allocation(&application_file)
                 .await?;
         } else {
-            self.remove_pending_refill(&app_model.pr_number).await?;
+            self.remove_pending_refill(&(app_model.pr_number as u64))
+                .await?;
         }
 
         let comment = format!(
@@ -4784,18 +4755,21 @@ _The initial issue can be edited in order to solve the request of the verifier. 
         Ok(())
     }
 
-    async fn remove_pending_refill(&self, pr_number: &i64) -> Result<(), LDNError> {
-        Self::delete_branch(
-            self.github.owner.clone(),
-            self.github.repo.clone(),
-            self.branch_name.clone(),
-        )
-        .await?;
+    async fn remove_pending_refill(&self, pr_number: &u64) -> Result<(), LDNError> {
+        self.github
+            .delete_branch_safe(pr_number)
+            .await
+            .map_err(|e| {
+                LDNError::New(format!(
+                    "Failed to delete branch for PR number: {pr_number} Reason: {e:?}"
+                ))
+            })?;
+
         database::applications::delete_application(
             self.application_id.clone(),
             self.github.owner.clone(),
             self.github.repo.clone(),
-            *pr_number as u64,
+            *pr_number,
         )
         .await
         .map_err(|e| {
@@ -5041,22 +5015,6 @@ impl LDNPullRequest {
         gh.close_pull_request(pr_number).await.map_err(|e| {
             LDNError::New(format!("Error closing pull request {pr_number} /// {e}"))
         })?;
-        Ok(())
-    }
-
-    pub async fn delete_branch(
-        application_id: String,
-        owner: String,
-        repo: String,
-    ) -> Result<(), LDNError> {
-        let gh = github_async_new(owner.clone(), repo.clone()).await?;
-        let branch_name = LDNPullRequest::application_branch_name(&application_id);
-        let request = gh
-            .build_remove_ref_request(branch_name.clone())
-            .map_err(|e| LDNError::New(format!("build_remove_ref_request function failed: {e}")))?;
-        gh.remove_branch(request)
-            .await
-            .map_err(|e| LDNError::New(format!("Error deleting branch {branch_name} /// {e}")))?;
         Ok(())
     }
 

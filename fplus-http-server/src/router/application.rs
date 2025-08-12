@@ -7,14 +7,16 @@ use fplus_lib::core::{
     application::file::{
         DecreaseClientAllowanceVerifier, StorageProviderChangeVerifier, VerifierInput,
     },
-    ApplicationQueryParams, BranchDeleteInfo, CompleteGovernanceReviewInfo,
-    CompleteNewApplicationApprovalInfo, CompleteNewApplicationProposalInfo, CreateApplicationInfo,
-    DcReachedInfo, DecreaseAllowanceApprovalInfo, DecreaseAllowanceProposalInfo,
+    ApplicationQueryParams, CompleteGovernanceReviewInfo, CompleteNewApplicationApprovalInfo,
+    CompleteNewApplicationProposalInfo, CreateApplicationInfo, DcReachedInfo,
+    DecreaseAllowanceApprovalInfo, DecreaseAllowanceProposalInfo,
     GetApplicationsByClientContractAddressQueryParams, GithubQueryParams, LDNApplication,
     MoreInfoNeeded, NotifyRefillInfo, StorageProvidersChangeApprovalInfo,
     StorageProvidersChangeProposalInfo, SubmitKYCInfo, TriggerSSAInfo, ValidationPullRequestData,
     VerifierActionsQueryParams,
 };
+
+use crate::auth::gh_handle_auth::check_if_pull_request_opened_by_bot;
 
 #[post("/application")]
 pub async fn create(info: web::Json<CreateApplicationInfo>) -> actix_web::Result<impl Responder> {
@@ -543,8 +545,8 @@ pub async fn validate_application_merge(
         owner,
         repo,
     } = info.into_inner();
-
     if let Ok(pr_number) = pr_number.trim_matches('"').parse::<u64>() {
+        check_if_pull_request_opened_by_bot(&owner, &repo, &pr_number).await?;
         let result = LDNApplication::validate_merge_application(pr_number, owner, repo)
             .await
             .map_err(ErrorInternalServerError)?;
@@ -552,15 +554,6 @@ pub async fn validate_application_merge(
     } else {
         Err(ErrorBadRequest("Invalid PR Number"))
     }
-}
-
-#[post("/application/branch/delete")]
-pub async fn delete_branch(data: web::Json<BranchDeleteInfo>) -> actix_web::Result<impl Responder> {
-    let info = data.into_inner();
-    let result = LDNApplication::delete_branch(info.owner, info.repo, info.branch_name)
-        .await
-        .map_err(ErrorInternalServerError)?;
-    Ok(HttpResponse::Ok().json(result))
 }
 
 #[post("application/cache/renewal")]
@@ -597,13 +590,14 @@ pub async fn check_for_changes(
 ) -> actix_web::Result<impl Responder> {
     let ValidationPullRequestData {
         pr_number,
-        user_handle,
+        user_handle: _,
         owner,
         repo,
     } = info.into_inner();
 
     if let Ok(pr_number) = pr_number.trim_matches('"').parse::<u64>() {
-        let result = LDNApplication::check_for_changes(pr_number, &user_handle, owner, repo)
+        check_if_pull_request_opened_by_bot(&owner, &repo, &pr_number).await?;
+        let result = LDNApplication::check_for_changes(pr_number, owner, repo)
             .await
             .map_err(ErrorInternalServerError)?;
         Ok(HttpResponse::Ok().json(result))
