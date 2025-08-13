@@ -26,6 +26,7 @@ impl AllocationRequest {
             kind,
             allocation_amount,
             is_active: true,
+            amount_of_datacap_sent_to_contract: None,
         }
     }
 }
@@ -40,6 +41,7 @@ impl Allocation {
             is_active: true,
             amount: request_information.allocation_amount,
             signers: Verifiers::default(),
+            amount_of_datacap_sent_to_contract: None,
         }
     }
 
@@ -102,6 +104,17 @@ impl Allocations {
         for allocation in res.iter_mut() {
             if allocation.id == request_id && allocation.is_active {
                 allocation.signers = allocation.signers.add(signer);
+                break;
+            }
+        }
+        Self(res)
+    }
+
+    pub fn set_amount_of_dc_sent_to_contract(&self, request_id: &str, amount: &str) -> Self {
+        let mut res: Vec<Allocation> = self.0.clone();
+        for allocation in res.iter_mut() {
+            if allocation.id == request_id && allocation.is_active {
+                allocation.amount_of_datacap_sent_to_contract = Some(amount.into());
                 break;
             }
         }

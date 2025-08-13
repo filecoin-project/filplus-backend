@@ -106,7 +106,7 @@ pub struct ApplicationProposalApprovalSignerInfo {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GrantDataCapCids {
-    pub message_cid: String,
+    pub message_cid: Option<String>,
     pub increase_allowance_cid: Option<String>,
 }
 
@@ -115,6 +115,7 @@ pub struct CompleteNewApplicationProposalInfo {
     pub signer: ApplicationProposalApprovalSignerInfo,
     pub request_id: String,
     pub new_allocation_amount: Option<String>,
+    pub amount_of_datacap_sent_to_contract: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -256,6 +257,11 @@ pub struct ApplicationQueryParams {
     pub id: String,
     pub owner: String,
     pub repo: String,
+}
+
+#[derive(Deserialize)]
+pub struct GetApplicationsByClientContractAddressQueryParams {
+    pub client_contract_address: String,
 }
 
 #[derive(Deserialize)]
@@ -569,6 +575,20 @@ impl LDNApplication {
             .map_err(|e| {
                 LDNError::Load(format!("Failed to get applications from the database: {e}"))
             })?;
+        let applications_response = Self::prepare_applications_response(applications);
+        Ok(applications_response)
+    }
+
+    pub async fn get_applications_by_client_contract_address(
+        client_contract_address: &str,
+    ) -> Result<Vec<ApplicationResponse>, LDNError> {
+        let applications = database::applications::get_applications_by_client_contract_address(
+            client_contract_address,
+        )
+        .await
+        .map_err(|e| {
+            LDNError::Load(format!("Failed to get applications from the database: {e}"))
+        })?;
         let applications_response = Self::prepare_applications_response(applications);
         Ok(applications_response)
     }
@@ -1150,6 +1170,7 @@ impl LDNApplication {
         owner: String,
         repo: String,
         new_allocation_amount: Option<String>,
+        amount_of_datacap_sent_to_contract: Option<String>,
     ) -> Result<ApplicationFile, LDNError> {
         // TODO: Convert DB errors to LDN Error
         // Get multisig threshold from the database
@@ -1189,6 +1210,7 @@ impl LDNApplication {
                     owner,
                     repo,
                     new_allocation_amount,
+                    amount_of_datacap_sent_to_contract,
                 )
                 .await;
         }
@@ -1206,7 +1228,9 @@ impl LDNApplication {
         }
         app_file = app_file.update_lifecycle_after_sign_datacap_proposal(&signer.github_username);
         app_file = app_file.add_signer_to_allocation(signer.clone().into(), &request_id);
-
+        if let Some(amount) = amount_of_datacap_sent_to_contract {
+            app_file = app_file.set_amount_of_dc_sent_to_contract(&request_id, &amount);
+        }
         if let Some(new_allocation_amount) = new_allocation_amount {
             if app_file.allocation.0.len() > 1 {
                 let contract_address = db_allocator
@@ -1280,7 +1304,7 @@ impl LDNApplication {
 
             Self::issue_datacap_request_signature(
                 app_file.clone(),
-                "proposed".to_string(),
+                "Proposed".to_string(),
                 owner.clone(),
                 repo.clone(),
             )
@@ -1559,7 +1583,7 @@ impl LDNApplication {
             app_file.issue_number.clone(),
             owner.to_string(),
             repo.to_string(),
-            format!("## Reason for not using Decreasing Allowance\n {reason_for_decrease}",),
+            format!("## Reason for using Decreasing Allowance\n {reason_for_decrease}",),
         )
         .await?;
 
@@ -1631,7 +1655,7 @@ impl LDNApplication {
                 &request_id.to_string(),
             );
             commit_message = LDNPullRequest::application_signed(&verifier.signing_address);
-            signature_step = "signed".to_string();
+            signature_step = "Signed".to_string();
         } else {
             app_file = app_file.add_signer_to_allocation_and_complete(
                 verifier.into(),
@@ -1640,7 +1664,7 @@ impl LDNApplication {
             );
             commit_message =
                 LDNPullRequest::application_move_to_confirmed_commit(&verifier.signing_address);
-            signature_step = "approved".to_string();
+            signature_step = "Approved".to_string();
         }
         self.update_and_commit_application_state(
             app_file.clone(),
@@ -1694,6 +1718,7 @@ impl LDNApplication {
         owner: String,
         repo: String,
         new_allocation_amount: Option<String>,
+        amount_of_datacap_sent_to_contract: Option<String>,
     ) -> Result<ApplicationFile, LDNError> {
         // Get multisig threshold from the database
         let db_allocator = get_allocator(&owner, &repo)
@@ -1759,7 +1784,7 @@ impl LDNApplication {
             );
             commit_message =
                 LDNPullRequest::application_move_to_confirmed_commit(&signer.signing_address);
-            signature_step = "approved".to_string();
+            signature_step = "Approved".to_string();
             comment = "Application is Granted";
             label = AppState::Granted.as_str();
         } else {
@@ -1767,9 +1792,13 @@ impl LDNApplication {
                 app_file.update_lifecycle_after_sign_datacap_proposal(&signer.github_username);
             app_file = app_file.add_signer_to_allocation(signer.clone().into(), &request_id);
             commit_message = LDNPullRequest::application_signed(&signer.signing_address);
-            signature_step = "signed".to_string();
+            signature_step = "Signed".to_string();
             comment = "Application is Granted";
             label = AppState::StartSignDatacap.as_str();
+        }
+
+        if let Some(amount) = amount_of_datacap_sent_to_contract {
+            app_file = app_file.set_amount_of_dc_sent_to_contract(&request_id, &amount);
         }
 
         self.update_and_commit_application_state(
@@ -3716,78 +3745,62 @@ _(NEW vs OLD)_
         Ok(true)
     }
 
+    fn filfox_link(cid: &str) -> String {
+        if !cid.is_empty() {
+            format!("- https://filfox.info/en/message/{cid}")
+        } else {
+            String::new()
+        }
+    }
+
     async fn issue_datacap_request_signature(
         application_file: ApplicationFile,
         signature_step: String,
         owner: String,
         repo: String,
-    ) -> Result<bool, LDNError> {
-        let active_allocation: Option<&Allocation> =
-            application_file.allocation.0.iter().find(|obj| {
-                Some(&obj.id) == application_file.lifecycle.active_request.clone().as_ref()
-            });
+    ) -> Result<(), LDNError> {
+        let last_allocation = application_file
+            .get_last_request_allowance()
+            .ok_or(LDNError::Load("Last allocation not found".into()))?;
+        let last_sign_info = last_allocation
+            .signers
+            .0
+            .last()
+            .ok_or(LDNError::Load("Failed to get last verifier".into()))?;
+        let signature_step_lowercase = signature_step.to_lowercase();
+        let message_cid = last_sign_info.message_cid.clone().unwrap_or_default();
+        let increase_allowance_cid = last_sign_info
+            .increase_allowance_cid
+            .clone()
+            .unwrap_or_default();
+        let signing_address = last_sign_info.signing_address.clone();
+        let client_address = application_file.id.clone();
+        let parsed_requested_datacap = format_size_human_readable(&last_allocation.amount)?;
+        let request_id = last_allocation.id.clone();
+        let increase_allowance_cid_filfox_link = Self::filfox_link(&increase_allowance_cid);
 
-        let signature_step_capitalized = signature_step
-            .chars()
-            .nth(0)
-            .ok_or(LDNError::Load("Failed to get signature step".to_string()))?
-            .to_uppercase()
-            .to_string()
-            + &signature_step.chars().skip(1).collect::<String>();
-
-        let mut parsed_requested_datacap = String::new();
-        let mut id = String::new();
-        let mut signing_address = String::new();
-        let mut message_cid = String::new();
-        let mut increase_allowance_cid: Option<String> = None;
-
-        if let Some(allocation) = active_allocation {
-            parsed_requested_datacap = format_size_human_readable(&allocation.amount)?;
-            id.clone_from(&allocation.id);
-
-            if let Some(first_verifier) = allocation.signers.0.last() {
-                signing_address.clone_from(&first_verifier.signing_address);
-                message_cid.clone_from(&first_verifier.message_cid);
-                increase_allowance_cid = first_verifier.increase_allowance_cid.clone();
-            }
-        }
-
-        let additional_status_message =
-            increase_allowance_cid
-                .clone()
-                .map_or("".to_string(), |increase_allowance_cid| {
-                    format!(", and here https://filfox.info/en/message/{increase_allowance_cid}")
-                });
+        let message_cid_filfox_link = Self::filfox_link(&message_cid);
 
         let comment = format!(
-            "## Request {}
-Your Datacap Allocation Request has been {} by the Notary
+            "## Request {signature_step}
+Your Datacap Allocation Request has been {signature_step_lowercase} by the Notary
 #### Message sent to Filecoin Network
-> {} {}
+> {message_cid} {increase_allowance_cid}
 #### Address
-> {}
+> {client_address}
 #### Datacap Allocated
-> {}
+> {parsed_requested_datacap}
 #### Signer Address
-> {}
+> {signing_address}
 #### Id
-> {}
-#### You can check the status here https://filfox.info/en/message/{}{}",
-            signature_step_capitalized,
-            signature_step,
-            message_cid,
-            increase_allowance_cid.unwrap_or_default(),
-            application_file.lifecycle.client_on_chain_address.clone(),
-            parsed_requested_datacap,
-            signing_address,
-            id,
-            message_cid,
-            additional_status_message
+> {request_id}
+#### You can check the status here: 
+{message_cid_filfox_link}
+{increase_allowance_cid_filfox_link}
+",
         );
-
         Self::add_comment_to_issue(application_file.issue_number, owner, repo, comment).await?;
-
-        Ok(true)
+        Ok(())
     }
 
     async fn issue_refill(
