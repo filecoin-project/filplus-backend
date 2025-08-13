@@ -4768,11 +4768,14 @@ _The initial issue can be edited in order to solve the request of the verifier. 
     }
 
     async fn remove_pending_refill(&self, pr_number: &u64) -> Result<(), LDNError> {
-        self.github.delete_branch(pr_number).await.map_err(|e| {
-            LDNError::New(format!(
-                "Failed to delete branch for PR number: {pr_number} Reason: {e:?}"
-            ))
-        })?;
+        self.github
+            .delete_branch_safe(pr_number)
+            .await
+            .map_err(|e| {
+                LDNError::New(format!(
+                    "Failed to delete branch for PR number: {pr_number} Reason: {e:?}"
+                ))
+            })?;
 
         database::applications::delete_application(
             self.application_id.clone(),
