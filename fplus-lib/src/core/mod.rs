@@ -2500,48 +2500,10 @@ impl LDNApplication {
             if res {
                 log::info!("Validated!");
                 return Ok(true);
+            } else {
+                log::info!("Validation failed!");
+                return Ok(false);
             }
-
-            let app_file = application_file.move_back_to_governance_review();
-            let ldn_application =
-                LDNApplication::load(app_file.id.clone(), owner.clone(), repo.clone()).await?;
-            let parsed_app_file = serde_json::to_string_pretty(&app_file)
-                .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
-            let new_file_sha = LDNPullRequest::add_commit_to(
-                ldn_application.file_name.clone(),
-                ldn_application.branch_name.clone(),
-                "Move application back to review".to_string(),
-                parsed_app_file.clone(),
-                ldn_application.file_sha.clone(),
-                owner.clone(),
-                repo.clone(),
-            )
-            .await?;
-
-            let gh = github_async_new(owner.to_string(), repo.to_string()).await?;
-
-            let prs = gh
-                .get_pull_request_by_head(&ldn_application.branch_name)
-                .await
-                .map_err(|e| LDNError::Load(format!("Failed to get pull request by head: {e}")))?;
-
-            if let Some(pr) = prs.first() {
-                let number = pr.number;
-                database::applications::update_application(
-                    app_file.id.clone(),
-                    owner,
-                    repo,
-                    number,
-                    parsed_app_file,
-                    Some(ldn_application.file_name.clone()),
-                    new_file_sha,
-                    app_file.client_contract_address,
-                )
-                .await
-                .map_err(|e| LDNError::Load(format!("Failed to update application: {e}")))?;
-            };
-
-            return Ok(false);
         };
 
         log::info!("Failed to fetch Application File");
@@ -3926,7 +3888,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
             if let Some(gh_app) = active_from_gh.iter().find(|&x| {
                 x.application_file.id == db_app.id && x.pr_number == db_app.pr_number as u64
             }) {
-                if gh_app.updated_at > db_app.updated_at {
+                let db_sha = db_app.sha.clone().unwrap_or_default();
+                if gh_app.updated_at > db_app.updated_at || gh_app.sha != db_sha {
                     let parsed_app_file = serde_json::to_string_pretty(&gh_app.application_file)
                         .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
                     database::applications::update_application(
@@ -4029,7 +3992,8 @@ _The initial issue can be edited in order to solve the request of the verifier. 
                 .iter()
                 .find(|&x| x.application_file.id == db_app.id)
             {
-                if gh_app.updated_at > db_app.updated_at {
+                let db_sha = db_app.sha.clone().unwrap_or_default();
+                if gh_app.updated_at > db_app.updated_at || gh_app.sha != db_sha {
                     let parsed_app_file = serde_json::to_string_pretty(&gh_app.application_file)
                         .map_err(|e| LDNError::Load(format!("Failed to pare into string: {e}")))?;
                     database::applications::update_application(
