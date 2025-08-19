@@ -1770,7 +1770,9 @@ impl LDNApplication {
                 app_file.adjust_active_allocation_amount(new_allocation_amount_parsed)?;
             }
         }
-
+        if let Some(amount) = amount_of_datacap_sent_to_contract {
+            app_file = app_file.set_amount_of_dc_sent_to_contract(&request_id, &amount);
+        }
         let commit_message;
         let signature_step;
         let comment;
@@ -1795,10 +1797,6 @@ impl LDNApplication {
             signature_step = "Signed".to_string();
             comment = "Application is Granted";
             label = AppState::StartSignDatacap.as_str();
-        }
-
-        if let Some(amount) = amount_of_datacap_sent_to_contract {
-            app_file = app_file.set_amount_of_dc_sent_to_contract(&request_id, &amount);
         }
 
         self.update_and_commit_application_state(
