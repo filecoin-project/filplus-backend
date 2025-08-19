@@ -2500,6 +2500,9 @@ impl LDNApplication {
             if res {
                 log::info!("Validated!");
                 return Ok(true);
+            } else {
+                log::info!("Validation failed!");
+                return Ok(false);
             }
         };
 
