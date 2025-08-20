@@ -610,16 +610,17 @@ impl GithubWrapper {
             file_sha,
             application_id,
         } = data;
-        let _create_branch_res = self.create_branch(ref_request).await?;
-        self.update_file_content(&file_name, &commit, &file_content, &branch_name, &file_sha)
+        self.create_branch(ref_request).await?;
+        let file_update = self
+            .update_file_content(&file_name, &commit, &file_content, &branch_name, &file_sha)
             .await?;
         let allocator_tech_url = get_env_var_or_default("ALLOCATOR_TECH_URL");
         let pr_body = format!("[Link to related GitHub issue]({})\n[Link to your application on Allocator.tech]({}/application/{}/{}/{})",issue_link, allocator_tech_url, self.owner, self.repo, application_id);
         let pr = self
             .create_pull_request(&commit, &branch_name, &pr_body.to_string())
             .await?;
-
-        Ok((pr, file_sha))
+        let new_file_sha = file_update.content.sha;
+        Ok((pr, new_file_sha))
     }
 
     pub async fn create_merge_request(
