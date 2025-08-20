@@ -52,6 +52,9 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let query_string = req.query_string();
+        let method = req.method();
+        let path = req.path();
+        let request_info = format!("{method} {path}?{query_string}");
         let query: Result<web::Query<RepoQuery>, _> = web::Query::from_query(query_string);
         let RepoQuery {
             owner,
@@ -60,12 +63,15 @@ where
         } = match query {
             Ok(q) => q.into_inner(),
             Err(e) => {
-                println!("{e}");
-                return Box::pin(async {
-                    Err(actix_web::error::ErrorBadRequest(
-                        "Wrong query string format",
-                    ))
-                });
+                let err = actix_web::error::ErrorBadRequest(format!(
+                    "Wrong query string format error: {e}"
+                ));
+                log::info!(
+                    "{} {}",
+                    request_info,
+                    err.as_response_error().status_code().as_u16()
+                );
+                return Box::pin(async { Err(err) });
             }
         };
 
@@ -89,36 +95,71 @@ where
                     .header("User-Agent", "Actix-web")
                     .send()
                     .await
-                    .map_err(actix_web::error::ErrorBadRequest)?;
+                    .map_err(|e| {
+                        let err = actix_web::error::ErrorBadRequest(e);
+                        log::info!(
+                            "{} {}",
+                            request_info,
+                            err.as_response_error().status_code().as_u16()
+                        );
+                        err
+                    })?;
 
                 if user_info_result.status().is_success() {
-                    let user_info = user_info_result
-                        .json::<serde_json::Value>()
-                        .await
-                        .expect("Failed to parse JSON");
+                    let user_info =
+                        user_info_result
+                            .json::<serde_json::Value>()
+                            .await
+                            .map_err(|_| {
+                                let err = actix_web::error::ErrorInternalServerError(
+                                    "GitHub handle information not found.",
+                                );
+                                log::info!(
+                                    "{} {}",
+                                    request_info,
+                                    err.as_response_error().status_code().as_u16()
+                                );
+                                log::error!("{err}");
+                                err
+                            })?;
 
                     if let Some(login) = user_info.get("login").and_then(|v| v.as_str()) {
                         user_handle = login.to_string();
                     } else {
-                        println!("GitHub handle information not found.");
-                        return Err(actix_web::error::ErrorInternalServerError(
+                        let err = actix_web::error::ErrorInternalServerError(
                             "GitHub handle information not found.",
-                        ));
+                        );
+                        log::info!(
+                            "{} {}",
+                            request_info,
+                            err.as_response_error().status_code().as_u16()
+                        );
+                        log::error!("{err}");
+                        return Err(err);
                     }
                 } else {
-                    println!("Failed to get GitHub user info");
-                    return Err(actix_web::error::ErrorUnauthorized(
-                        "Failed to get GitHub user info.",
-                    ));
+                    let err = actix_web::error::ErrorUnauthorized("Failed to get GitHub user info");
+                    log::info!(
+                        "{} {}",
+                        request_info,
+                        err.as_response_error().status_code().as_u16()
+                    );
+                    log::error!("{err}");
+                    return Err(err);
                 }
             }
 
             if github_username != user_handle {
-                // comment this for testing
-                println!("Sent GitHub handle different than auth token owner.");
-                return Err(actix_web::error::ErrorBadRequest(
+                let err = actix_web::error::ErrorUnauthorized(
                     "Sent GitHub handle different than auth token owner.",
-                ));
+                );
+                log::info!(
+                    "{} {}",
+                    request_info,
+                    err.as_response_error().status_code().as_u16()
+                );
+                log::error!("{err}");
+                return Err(err);
             }
 
             match get_allocator(&owner, &repo).await {
@@ -130,18 +171,31 @@ where
                                 .map(|s| s.trim().to_lowercase())
                                 .collect();
                             if verifier_handles.contains(&user_handle.to_lowercase()) {
-                                println!("{user_handle} is a verifier.");
+                                log::info!("{user_handle} is a verifier.");
                             } else {
-                                println!("The user is not a verifier.");
-                                return Err(actix_web::error::ErrorUnauthorized(
+                                let err = actix_web::error::ErrorUnauthorized(
                                     "The user is not a verifier.",
-                                ));
+                                );
+                                log::info!(
+                                    "{} {}",
+                                    request_info,
+                                    err.as_response_error().status_code().as_u16()
+                                );
+                                log::error!("{err}");
+                                return Err(err);
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    println!("Failed to get allocator: {e:?}");
+                    let err = actix_web::error::ErrorInternalServerError(e);
+                    log::info!(
+                        "{} {}",
+                        request_info,
+                        err.as_response_error().status_code().as_u16()
+                    );
+                    log::error!("{err}");
+                    return Err(err);
                 }
             }
 
