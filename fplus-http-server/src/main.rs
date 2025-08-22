@@ -1,6 +1,7 @@
 use fplus_lib::core::allocator::update_installation_ids_logic;
 mod middleware;
 use middleware::verifier_auth::VerifierAuth;
+mod auth;
 pub(crate) mod router;
 
 use actix_web::{
@@ -107,7 +108,6 @@ async fn main() -> std::io::Result<()> {
             .service(router::application::validate_application_proposal)
             .service(router::application::validate_application_approval)
             .service(router::application::validate_application_merge)
-            .service(router::application::delete_branch)
             .service(router::application::cache_renewal)
             .service(router::application::update_from_issue)
             .service(router::application::submit_kyc)
@@ -116,7 +116,6 @@ async fn main() -> std::io::Result<()> {
             .service(router::verifier::verifiers)
             .service(router::allocator::allocators)
             .service(router::allocator::allocator)
-            .service(router::allocator::delete)
             .service(router::allocator::create_allocator_from_json)
             .service(router::allocator::update_allocator_force)
             .service(router::allocator::check_if_repository_application_is_installed)

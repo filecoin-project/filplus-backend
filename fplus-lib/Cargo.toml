@@ -42,6 +42,7 @@ tfidf-summarizer = "2.0.0"
 ndarray = "0.16.1"
 strsim = "0.10"
 url = "2.5.4"
+snafu = "0.7.5"
 
 [dev-dependencies]
 actix-rt = "2.9.0"
