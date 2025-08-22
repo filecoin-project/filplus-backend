@@ -1587,17 +1587,23 @@ impl LDNApplication {
         )
         .await?;
 
-        Self::issue_datacap_allocation_requested(
+        let signature_step = if threshold_to_use > 1 {
+            "Signed".to_string()
+        } else {
+            "Approved".to_string()
+        };
+
+        Self::issue_datacap_request_signature(
             app_file_with_new_allocation_request.clone(),
-            app_file_with_new_allocation_request.get_active_allocation(),
-            owner.to_string(),
-            repo.to_string(),
+            signature_step,
+            owner.into(),
+            repo.into(),
         )
         .await?;
 
         if threshold_to_use > 1 {
             Self::update_issue_labels(
-                app_file_with_new_allocation_request.issue_number.clone(),
+                app_file.issue_number.clone(),
                 &[AppState::DecreasingDataCap.as_str()],
                 owner.to_string(),
                 repo.to_string(),
@@ -1665,6 +1671,13 @@ impl LDNApplication {
             commit_message =
                 LDNPullRequest::application_move_to_confirmed_commit(&verifier.signing_address);
             signature_step = "Approved".to_string();
+            Self::update_issue_labels(
+                app_file.issue_number.clone(),
+                &[AppState::Granted.as_str()],
+                owner.into(),
+                repo.into(),
+            )
+            .await?;
         }
         self.update_and_commit_application_state(
             app_file.clone(),
