@@ -341,15 +341,22 @@ impl GithubWrapper {
     }
 
     pub async fn list_branches(&self) -> Result<Vec<Branch>, OctocrabError> {
-        let iid = self
+        let mut all_branches = Vec::new();
+        let mut page = self
             .inner
             .repos(&self.owner, &self.repo)
             .list_branches()
             .send()
             .await?;
-        Ok(iid.items)
-    }
+        all_branches.extend(page.items);
 
+        while let Some(next_page) = self.inner.get_page::<Branch>(&page.next).await? {
+            all_branches.extend(next_page.clone().items);
+            page = next_page;
+        }
+
+        Ok(all_branches)
+    }
     /// creates new branch under head on github
     /// you should use build_create_ref_request function to construct request
     pub async fn create_branch(&self, request: Request<String>) -> Result<bool, OctocrabError> {
@@ -611,6 +618,13 @@ impl GithubWrapper {
             file_sha,
             application_id,
         } = data;
+        let branch_exists = self.check_if_branch_exists(&branch_name).await?;
+        if branch_exists {
+            return Err(OctocrabError::Other {
+                source: format!("Branch {branch_name} already exists.").into(),
+                backtrace: GenerateImplicitData::generate(),
+            });
+        }
         self.create_branch(ref_request).await?;
         let file_update = self
             .update_file_content(&file_name, &commit, &file_content, &branch_name, &file_sha)
@@ -760,6 +774,15 @@ impl GithubWrapper {
             .get(pr_number)
             .await?;
         Ok(pull_request.head.ref_field.clone())
+    }
+
+    pub async fn check_if_branch_exists(&self, branch_name: &str) -> Result<bool, OctocrabError> {
+        let branch_exists = self
+            .list_branches()
+            .await?
+            .iter()
+            .any(|branch| branch.name == branch_name);
+        Ok(branch_exists)
     }
 
     pub async fn get_files_from_public_repo(
