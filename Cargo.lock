@@ -1960,7 +1960,7 @@ dependencies = [
 
 [[package]]
 name = "fplus-database"
-version = "2.2.32"
+version = "2.2.33"
 dependencies = [
  "alloy",
  "anyhow",
@@ -1982,7 +1982,7 @@ dependencies = [
 
 [[package]]
 name = "fplus-http-server"
-version = "2.2.32"
+version = "2.2.33"
 dependencies = [
  "actix-cors",
  "actix-utils",
@@ -2007,7 +2007,7 @@ dependencies = [
 
 [[package]]
 name = "fplus-lib"
-version = "2.2.32"
+version = "2.2.33"
 dependencies = [
  "actix-rt",
  "actix-web",
