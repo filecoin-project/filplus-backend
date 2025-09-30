@@ -4947,7 +4947,7 @@ impl LDNPullRequest {
                 application_id: application_id.clone(),
             })
             .await
-            .map_err(|e| LDNError::Load(format!("Failed to get list of pull requests: {e}")))?;
+            .map_err(|e| LDNError::Load(format!("Failed to create a pull request: {e}")))?;
 
         if should_create_in_db {
             let issue_number = issue_number
