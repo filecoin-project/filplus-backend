@@ -170,21 +170,25 @@ impl file::ApplicationFile {
         sps_change_request: &SpsChangeRequest,
         app_state: &AppState,
         request_id: &String,
-    ) -> Self {
-        let new_life_cycle =
-            self.lifecycle
-                .clone()
-                .update_lifecycle_after_sign(app_state, validated_by, request_id);
+    ) -> Result<Self, String> {
+        let new_life_cycle = self.lifecycle
+            .clone()
+            .update_lifecycle_after_sign(app_state, validated_by, request_id)?;
+            
         let sps_change_requests = self
             .allowed_sps
             .clone()
             .unwrap_or_default()
             .add_change_request(sps_change_request);
-        Self {
+            
+        let new_app = Self {
             lifecycle: new_life_cycle,
             allowed_sps: Some(sps_change_requests),
             ..self.clone()
-        }
+        };
+
+        new_app.validate()?;
+        Ok(new_app)
     }
 
     pub fn update_changing_sps_request(
@@ -270,6 +274,20 @@ impl file::ApplicationFile {
             lifecycle: new_life_cycle,
             ..self.clone()
         }
+    }
+    pub fn validate(&self) -> Result<(), String> {
+        self.lifecycle.validate()?;
+
+        match self.lifecycle.state {
+            AppState::ReadyToSign | AppState::StartSignDatacap | AppState::Granted => {
+                if self.allocation.0.is_empty() {
+                    return Err("Allocations are required for this state".to_string());
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 }
 

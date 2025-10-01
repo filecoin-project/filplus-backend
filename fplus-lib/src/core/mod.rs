@@ -4854,6 +4854,17 @@ _The initial issue can be edited in order to solve the request of the verifier. 
 
         Ok(application_file)
     }
+
+    pub fn reached_total_datacap(self) -> Self {
+        let empty = "".to_string();
+
+        LifeCycle {
+            is_active: false,
+            updated_at: Utc::now().to_string(),
+            active_request: Some(empty),
+            ..self
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

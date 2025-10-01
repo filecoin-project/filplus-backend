@@ -48,25 +48,31 @@ impl LifeCycle {
 
     /// Change Application state to Proposal from Governance Review
     /// Actor input is the actor who is changing the state
-    pub fn finish_governance_review(&self, actor: String, current_allocation_id: String) -> Self {
-        LifeCycle {
+    pub fn finish_governance_review(&self, actor: String, current_allocation_id: String) -> Result<Self, String> {
+        let new_lifecycle = LifeCycle {
             state: AppState::ReadyToSign,
             validated_by: actor,
             validated_at: Utc::now().to_string(),
             updated_at: Utc::now().to_string(),
             active_request: Some(current_allocation_id),
             ..self.clone()
-        }
+        };
+
+        new_lifecycle.validate()?;
+        Ok(new_lifecycle)
     }
 
-    pub fn sign_grant_datacap_proposal(&self, validated_by: &str) -> Self {
-        LifeCycle {
+    pub fn sign_grant_datacap_proposal(&self, validated_by: &str) -> Result<Self, String> {
+        let new_lifecycle = LifeCycle {
             state: AppState::StartSignDatacap,
             updated_at: Utc::now().to_string(),
             validated_by: validated_by.into(),
             validated_at: Utc::now().to_string(),
             ..self.clone()
-        }
+        };
+
+        new_lifecycle.validate()?;
+        Ok(new_lifecycle)
     }
 
     pub fn update_lifecycle_after_sign(
@@ -177,5 +183,39 @@ impl LifeCycle {
             updated_at: Utc::now().to_string(),
             ..self.clone()
         }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.client_on_chain_address.is_empty() {
+            return Err("Client on-chain address is required".to_string());
+        }
+        if self.multisig_address.is_empty() {
+            return Err("Multisig address is required".to_string());
+        }
+
+        match self.state {
+            AppState::Granted | AppState::StartSignDatacap => {
+                if self.validated_by.is_empty() {
+                    return Err("Validated by is required for Granted/StartSignDatacap state".to_string());
+                }
+                if self.validated_at.is_empty() {
+                    return Err("Validated at is required for Granted/StartSignDatacap state".to_string());
+                }
+            }
+            AppState::ReadyToSign => {
+                if self.validated_by.is_empty() {
+                    return Err("Validated by is required for ReadyToSign state".to_string());
+                }
+                if self.validated_at.is_empty() {
+                    return Err("Validated at is required for ReadyToSign state".to_string());
+                }
+                if self.active_request.is_none() || self.active_request.as_ref().unwrap().is_empty() {
+                    return Err("Active request ID is required for ReadyToSign state".to_string());
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 }
